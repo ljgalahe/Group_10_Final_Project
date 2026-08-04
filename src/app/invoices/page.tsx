@@ -1,21 +1,94 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { CustomerPayButton } from "@/components/customer/CustomerPayButton";
+import { DownloadInvoiceReceiptButton } from "@/components/customer/DownloadInvoiceReceiptButton";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { fetchInvoices } from "@/lib/queries";
 import { requireAppAccess } from "@/lib/auth-access";
+import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
+import { formatCurrency, formatDate, getDisplayInvoiceStatus } from "@/lib/format";
+import {
+  fetchCustomerPaymentMethods,
+  fetchInvoice,
+  fetchInvoices,
+} from "@/lib/queries";
+
+async function CustomerReceiptCell({
+  invoiceId,
+  amountPaid,
+}: {
+  invoiceId: string;
+  amountPaid: number;
+}) {
+  if (amountPaid <= 0) {
+    return <span className="text-stone-400">—</span>;
+  }
+
+  const { data: invoice } = await fetchInvoice(invoiceId);
+  if (!invoice) {
+    return <span className="text-stone-400">—</span>;
+  }
+
+  const lines = (invoice.invoice_lines ?? []) as {
+    description: string;
+    amount: number;
+    line_type: string | null;
+  }[];
+  const payments = (invoice.payments ?? []) as {
+    amount: number;
+    payment_date: string;
+    payment_method: string;
+  }[];
+  const balance = Number(invoice.total) - Number(invoice.amount_paid);
+
+  return (
+    <DownloadInvoiceReceiptButton
+      data={{
+        invoiceNumber: invoice.invoice_number,
+        customerName: (invoice.customers as { name: string }).name,
+        contractTitle: (invoice.contracts as { title: string }).title,
+        issueDate: invoice.issue_date,
+        dueDate: invoice.due_date,
+        total: Number(invoice.total),
+        amountPaid: Number(invoice.amount_paid),
+        balance,
+        lines: lines.map((line) => ({
+          description: line.description,
+          amount: Number(line.amount),
+          line_type: line.line_type,
+        })),
+        payments: payments.map((payment) => ({
+          amount: Number(payment.amount),
+          payment_date: payment.payment_date,
+          payment_method: payment.payment_method,
+        })),
+      }}
+      label="Download PDF"
+      className="rounded-md border border-green-800 px-2.5 py-1 text-xs font-medium text-green-900 hover:bg-green-50"
+    />
+  );
+}
 
 export default async function InvoicesPage() {
   await requireAppAccess();
 
+  const role = await getViewRole();
+  const isCustomer = role === "customer";
   const { data: invoices } = await fetchInvoices();
+  const customerId = isCustomer ? await getViewCustomerId() : null;
+  const paymentMethods =
+    customerId != null
+      ? (await fetchCustomerPaymentMethods(customerId)).data
+      : [];
 
   return (
     <AppShell>
       <PageHeader
         title="Invoices"
-        description="Bills generated from contract terms and approved extra work."
+        description={
+          isCustomer
+            ? "Your bills from GreenScape. Pay open invoices, review payment history, and download PDF receipts after payment."
+            : "Bills generated from contract terms and approved extra work."
+        }
       />
 
       {invoices.length === 0 ? (
@@ -26,19 +99,25 @@ export default async function InvoicesPage() {
             <thead className="bg-stone-50 text-left text-stone-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Invoice #</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
+                {!isCustomer ? (
+                  <th className="px-4 py-3 font-medium">Customer</th>
+                ) : null}
                 <th className="px-4 py-3 font-medium">Contract</th>
                 <th className="px-4 py-3 font-medium">Issue Date</th>
                 <th className="px-4 py-3 font-medium">Due Date</th>
                 <th className="px-4 py-3 font-medium">Total</th>
                 <th className="px-4 py-3 font-medium">Balance</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                {isCustomer ? (
+                  <th className="px-4 py-3 font-medium">Actions</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
               {invoices.map((invoice) => {
                 const balance =
                   Number(invoice.total) - Number(invoice.amount_paid);
+                const amountPaid = Number(invoice.amount_paid);
                 return (
                   <tr key={invoice.id} className="border-t border-stone-100">
                     <td className="px-4 py-3">
@@ -49,21 +128,53 @@ export default async function InvoicesPage() {
                         {invoice.invoice_number}
                       </Link>
                     </td>
-                    <td className="px-4 py-3">
-                      {(invoice.customers as { name: string } | null)?.name}
-                    </td>
+                    {!isCustomer ? (
+                      <td className="px-4 py-3">
+                        {(invoice.customers as { name: string } | null)?.name}
+                      </td>
+                    ) : null}
                     <td className="px-4 py-3">
                       {(invoice.contracts as { title: string } | null)?.title}
                     </td>
-                    <td className="px-4 py-3">{formatDate(invoice.issue_date)}</td>
-                    <td className="px-4 py-3">{formatDate(invoice.due_date)}</td>
+                    <td className="px-4 py-3">
+                      {formatDate(invoice.issue_date)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatDate(invoice.due_date)}
+                    </td>
                     <td className="px-4 py-3">
                       {formatCurrency(Number(invoice.total))}
                     </td>
                     <td className="px-4 py-3">{formatCurrency(balance)}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={invoice.status} />
+                      <StatusBadge
+                        status={getDisplayInvoiceStatus(
+                          invoice.status,
+                          invoice.due_date,
+                          balance
+                        )}
+                      />
                     </td>
+                    {isCustomer ? (
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {balance > 0 ? (
+                            <CustomerPayButton
+                              invoiceId={invoice.id}
+                              invoiceNumber={invoice.invoice_number}
+                              amountDue={balance}
+                              dueDate={invoice.due_date}
+                              paymentMethods={paymentMethods}
+                              className="rounded-md bg-green-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700"
+                            />
+                          ) : null}
+                          <CustomerReceiptCell
+                            invoiceId={invoice.id}
+                            amountPaid={amountPaid}
+                          />
+                        </div>
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}

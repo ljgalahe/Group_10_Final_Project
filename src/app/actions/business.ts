@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createDataClient } from "@/lib/auth-access";
+import { buildPaymentMethodDisplayLabel } from "@/lib/customer-payment-methods";
+import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import type { CostType } from "@/lib/types";
 
 export async function completeVisit(formData: FormData): Promise<void> {
@@ -180,7 +182,16 @@ export async function recordPayment(formData: FormData): Promise<void> {
 
 export async function customerPayInvoice(formData: FormData): Promise<void> {
   const invoiceId = formData.get("invoice_id") as string;
+  const methodId = ((formData.get("payment_method_id") as string) || "").trim();
+  const isNew = formData.get("is_new_method") === "1";
+  const newNickname = ((formData.get("new_method_nickname") as string) || "").trim();
+  const newDetails = ((formData.get("new_method_details") as string) || "").trim();
+
   const supabase = await createDataClient();
+  const role = await getViewRole();
+  const customerId =
+    role === "customer" ? await getViewCustomerId() : null;
+
   const { data: invoice } = await supabase
     .from("invoices")
     .select("*")
@@ -192,11 +203,54 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
   const balance = Number(invoice.total) - Number(invoice.amount_paid);
   if (balance <= 0) return;
 
+  let paymentMethodLabel = "Card ending in 4242";
+
+  if (isNew && customerId) {
+    const displayLabel = buildPaymentMethodDisplayLabel(
+      newNickname,
+      newDetails
+    );
+    if (!displayLabel) return;
+
+    const { data: saved, error } = await supabase
+      .from("customer_payment_methods")
+      .insert({
+        customer_id: customerId,
+        nickname: newNickname || null,
+        display_label: displayLabel,
+      })
+      .select("display_label")
+      .single();
+
+    if (error || !saved) return;
+    paymentMethodLabel = saved.display_label;
+  } else if (methodId && customerId) {
+    const { data: method } = await supabase
+      .from("customer_payment_methods")
+      .select("display_label")
+      .eq("id", methodId)
+      .eq("customer_id", customerId)
+      .single();
+
+    if (!method) return;
+    paymentMethodLabel = method.display_label;
+  } else if (methodId) {
+    // Fallback if role missing customer id but method selected by id
+    const { data: method } = await supabase
+      .from("customer_payment_methods")
+      .select("display_label")
+      .eq("id", methodId)
+      .single();
+    if (method) paymentMethodLabel = method.display_label;
+  }
+
   const paymentFormData = new FormData();
   paymentFormData.set("invoice_id", invoiceId);
   paymentFormData.set("amount", balance.toString());
-  paymentFormData.set("payment_method", "simulated_card");
-  paymentFormData.set("notes", "Customer portal simulated payment");
+  paymentFormData.set("payment_method", paymentMethodLabel);
+  paymentFormData.set("notes", "Customer portal payment");
 
   await recordPayment(paymentFormData);
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/invoices");
 }

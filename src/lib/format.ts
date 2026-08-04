@@ -30,6 +30,30 @@ export function getAgingBucket(dueDate: string, amountPaid: number, total: numbe
   return "90+";
 }
 
+/** Display-only: past due date with remaining balance shows as overdue. */
+export function getDisplayInvoiceStatus(
+  status: string,
+  dueDate: string,
+  balance: number
+) {
+  if (status === "paid" || balance <= 0) {
+    return "paid";
+  }
+
+  if (status === "disputed") {
+    return "disputed";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + "T00:00:00");
+  if (due < today) {
+    return "overdue";
+  }
+
+  return status;
+}
+
 export function statusColor(status: string) {
   const colors: Record<string, string> = {
     active: "bg-green-100 text-green-800",
