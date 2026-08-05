@@ -16,7 +16,9 @@ export async function fetchContracts() {
 
   let query = supabase
     .from("contracts")
-    .select("*, customers(name, property_type, address)")
+    .select(
+      "*, customers(name, property_type, address), contract_services(*), extra_work_orders(*)"
+    )
     .order("created_at", { ascending: false });
 
   if (customerId) {
@@ -44,7 +46,9 @@ export async function fetchVisits() {
 
   let query = supabase
     .from("service_visits")
-    .select("*, contracts(title, customer_id, customers(name))")
+    .select(
+      "*, contracts(title, customer_id, customers(name, property_type, address))"
+    )
     .order("scheduled_date", { ascending: true });
 
   if (customerId) {
@@ -71,6 +75,12 @@ export async function fetchVisitCosts(visitId: string) {
   return { data: data ?? [], error };
 }
 
+export async function fetchAllVisitCosts() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase.from("visit_costs").select("*");
+  return { data: data ?? [], error };
+}
+
 export async function fetchInvoices() {
   const supabase = await createDataClient();
   const role = await getViewRole();
@@ -78,7 +88,9 @@ export async function fetchInvoices() {
 
   let query = supabase
     .from("invoices")
-    .select("*, customers(name), contracts(title)")
+    .select(
+      "*, customers(name, address, property_type), contracts(title), invoice_lines(*)"
+    )
     .order("issue_date", { ascending: false });
 
   if (customerId) {
@@ -93,7 +105,9 @@ export async function fetchInvoice(id: string) {
   const supabase = await createDataClient();
   const { data, error } = await supabase
     .from("invoices")
-    .select("*, customers(*), contracts(title), invoice_lines(*), payments(*)")
+    .select(
+      "*, customers(*), contracts(title), invoice_lines(*), payments(*)"
+    )
     .eq("id", id)
     .single();
   return { data, error };

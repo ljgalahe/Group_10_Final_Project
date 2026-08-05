@@ -71,12 +71,15 @@ export function EmptyState({ message }: { message: string }) {
 export function Card({
   children,
   className = "",
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
     <div
+      id={id}
       className={`rounded-xl border border-stone-200 bg-white p-6 shadow-sm ${className}`}
     >
       {children}

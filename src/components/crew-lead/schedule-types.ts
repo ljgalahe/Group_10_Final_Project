@@ -33,6 +33,8 @@ export type CrewExtraWorkNote = {
   id: string;
   description: string;
   status: "needed" | "pending_approval" | "approved" | "declined";
+  /** Estimated or logged hours for this extra work (schedule focus). */
+  hours?: number;
 };
 
 export type VisitWorkState = {

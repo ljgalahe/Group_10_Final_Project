@@ -2,9 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { completeVisit } from "@/app/actions/business";
-import { AssignedEmployeesList } from "@/components/crew-lead/AssignedEmployeesList";
-import { CrewLeadVisitDetails } from "@/components/crew-lead/CrewLeadVisitDetails";
-import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
 import {
   getAssignedEmployeesForJob,
   loadVisitWorkStateForStatus,
@@ -13,9 +10,18 @@ import type {
   ExtraWorkItem,
   ScheduleJob,
 } from "@/components/crew-lead/schedule-types";
-import { formatStatusLabel } from "@/components/crew-lead/visitWorkDefaults";
-import { Card, EmptyState } from "@/components/ui";
+import { VisitWorkPanel } from "@/components/crew-lead/VisitWorkPanel";
+import {
+  equipmentForServices,
+  materialsForServices,
+} from "@/components/crew-lead/visitWorkDefaults";
+import { Card, EmptyState, StatusBadge } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
+import {
+  PROOF_PACKAGES,
+  SCHEDULE_CREW,
+  type ProofOverlay,
+} from "@/lib/visit-demo";
 
 export type CrewLeadVisitCardData = {
   id: string;
@@ -34,24 +40,31 @@ export type CrewLeadVisitCardData = {
   crewJob: ScheduleJob | null;
 };
 
-function titleCaseCostType(costType: string): string {
-  const normalized = costType.trim().toLowerCase();
-  if (normalized === "labor") return "Labor";
-  if (normalized === "materials") return "Materials";
-  if (normalized === "equipment") return "Equipment";
-  return formatStatusLabel(costType);
-}
+type StatusFilter = "all" | "completed" | "incomplete";
+
+const SELECT_CLASS =
+  "mt-1 block w-full min-w-0 max-w-full appearance-none rounded-lg border border-stone-300 bg-white bg-[length:1rem] bg-[right_0.75rem_center] bg-no-repeat py-2 pl-3 pr-10 text-stone-800";
+
+const SELECT_CHEVRON = {
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23575757'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
+} as const;
+
+type VisitRow = CrewLeadVisitCardData & {
+  jobLabel: string;
+  location: string;
+  employeeNames: string[];
+  crewHours: { name: string; role: string; hours: number }[];
+  proof: ProofOverlay | null;
+  materials: string[];
+  equipment: string[];
+};
 
 function employeeNamesForVisit(visit: CrewLeadVisitCardData): string[] {
-  const job = visit.crewJob;
-  if (!job) return [];
+  const overlay = SCHEDULE_CREW[visit.id];
+  if (overlay?.crew?.length) return overlay.crew.map((m) => m.name);
+
   if (visit.status === "completed") {
-    const state = loadVisitWorkStateForStatus(
-      visit.id,
-      "completed",
-      [],
-      false
-    );
+    const state = loadVisitWorkStateForStatus(visit.id, "completed", [], false);
     const fromLabor = state.employees.map((row) => row.name);
     if (fromLabor.length > 0) return fromLabor;
     return state.assignedEmployees.map((row) => row.name);
@@ -59,7 +72,99 @@ function employeeNamesForVisit(visit: CrewLeadVisitCardData): string[] {
   return getAssignedEmployeesForJob(visit.id).map((row) => row.name);
 }
 
-/** Filterable Service Visits list for Crew Lead. */
+function enrichVisit(visit: CrewLeadVisitCardData): VisitRow {
+  const overlay = SCHEDULE_CREW[visit.id];
+  const proof =
+    PROOF_PACKAGES.find((p) => p.visitId === visit.id) ?? null;
+  const services = visit.crewJob?.services ?? [];
+  const jobLabel =
+    overlay?.jobLabel ??
+    (services[0] ?? visit.contractTitle);
+
+  let crewHours =
+    overlay?.crew.map((m) => ({
+      name: m.name,
+      role: m.role,
+      hours: m.hours,
+    })) ?? [];
+
+  if (crewHours.length === 0) {
+    const state = loadVisitWorkStateForStatus(
+      visit.id,
+      visit.status,
+      [],
+      false
+    );
+    if (state.employees.length > 0) {
+      crewHours = state.employees.map((e) => ({
+        name: e.name,
+        role: "Crew",
+        hours: e.hours,
+      }));
+    } else {
+      crewHours = state.assignedEmployees.map((m) => ({
+        name: m.name,
+        role: m.role,
+        hours: 0,
+      }));
+    }
+  }
+
+  return {
+    ...visit,
+    jobLabel,
+    location: visit.crewJob?.address ?? "Oxford, MS",
+    employeeNames: employeeNamesForVisit(visit),
+    crewHours,
+    proof,
+    materials: materialsForServices(services.length ? services : [jobLabel]),
+    equipment: equipmentForServices(services.length ? services : [jobLabel]),
+  };
+}
+
+function ProofPhotos({ proof }: { proof: ProofOverlay }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {(
+        [
+          ["Before", proof.beforeImage, proof.before],
+          ["After", proof.afterImage, proof.after],
+          [
+            "Concern",
+            proof.concernImage,
+            proof.concernLabel ?? "No concerns noted",
+          ],
+        ] as const
+      ).map(([label, src, caption]) => (
+        <figure
+          key={label}
+          className="overflow-hidden rounded-lg border border-stone-200 bg-white"
+        >
+          <p className="border-b border-stone-100 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">
+            {label}
+          </p>
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={src}
+              alt={caption}
+              className="h-36 w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-36 items-center justify-center bg-stone-100 text-xs text-stone-400">
+              No photo
+            </div>
+          )}
+          <figcaption className="px-3 py-2 text-xs text-stone-600">
+            {caption}
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+/** Filterable, categorized Service Visits board for Crew Lead. */
 export function CrewLeadVisitsBoard({
   visits,
   extraWork,
@@ -67,222 +172,415 @@ export function CrewLeadVisitsBoard({
   visits: CrewLeadVisitCardData[];
   extraWork: ExtraWorkItem[];
 }) {
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "completed" | "incomplete"
-  >("all");
-  const [customerName, setCustomerName] = useState("");
-  const [employeeName, setEmployeeName] = useState("");
+  const rows = useMemo(() => visits.map(enrichVisit), [visits]);
 
-  const customerOptions = useMemo(() => {
-    return Array.from(
-      new Set(visits.map((visit) => visit.customerName).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [visits]);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [customerFilter, setCustomerFilter] = useState("all");
+  const [employeeFilter, setEmployeeFilter] = useState("all");
+  const [jobFilter, setJobFilter] = useState("all");
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const customerOptions = useMemo(
+    () =>
+      [...new Set(rows.map((r) => r.customerName))]
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b)),
+    [rows]
+  );
 
   const employeeOptions = useMemo(() => {
     const names = new Set<string>();
-    for (const visit of visits) {
-      employeeNamesForVisit(visit).forEach((name) => names.add(name));
-    }
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [visits]);
+    rows.forEach((r) => r.employeeNames.forEach((n) => names.add(n)));
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
+  const jobOptions = useMemo(
+    () =>
+      [...new Set(rows.map((r) => r.jobLabel))]
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b)),
+    [rows]
+  );
 
   const filtered = useMemo(() => {
-    const customerQuery = customerName.trim().toLowerCase();
-    const employeeQuery = employeeName.trim().toLowerCase();
-
-    return visits.filter((visit) => {
-      if (statusFilter === "completed" && visit.status !== "completed") {
+    return rows.filter((row) => {
+      if (statusFilter === "completed" && row.status !== "completed") {
+        return false;
+      }
+      if (statusFilter === "incomplete" && row.status === "completed") {
+        return false;
+      }
+      if (customerFilter !== "all" && row.customerName !== customerFilter) {
         return false;
       }
       if (
-        statusFilter === "incomplete" &&
-        visit.status === "completed"
+        employeeFilter !== "all" &&
+        !row.employeeNames.includes(employeeFilter)
       ) {
         return false;
       }
-
-      if (
-        customerQuery &&
-        !visit.customerName.toLowerCase().includes(customerQuery)
-      ) {
+      if (jobFilter !== "all" && row.jobLabel !== jobFilter) {
         return false;
       }
-
-      if (employeeQuery) {
-        const names = employeeNamesForVisit(visit).map((name) =>
-          name.toLowerCase()
-        );
-        if (!names.some((name) => name.includes(employeeQuery))) {
-          return false;
-        }
-      }
-
       return true;
     });
-  }, [visits, statusFilter, customerName, employeeName]);
+  }, [rows, statusFilter, customerFilter, employeeFilter, jobFilter]);
+
+  const groupMode: "company" | "employee" | "job" =
+    employeeFilter !== "all"
+      ? "employee"
+      : jobFilter !== "all"
+        ? "job"
+        : "company";
+
+  const groups = useMemo(() => {
+    const map = new Map<string, VisitRow[]>();
+    for (const row of filtered) {
+      if (groupMode === "employee" && employeeFilter === "all") {
+        const names =
+          row.employeeNames.length > 0 ? row.employeeNames : ["Unassigned"];
+        for (const name of names) {
+          const list = map.get(name) ?? [];
+          if (!list.some((v) => v.id === row.id)) list.push(row);
+          map.set(name, list);
+        }
+        continue;
+      }
+
+      const key =
+        groupMode === "employee"
+          ? employeeFilter
+          : groupMode === "job"
+            ? row.jobLabel
+            : row.customerName;
+
+      const list = map.get(key) ?? [];
+      list.push(row);
+      map.set(key, list);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(
+        ([title, list]) =>
+          [
+            title,
+            [...list].sort((a, b) =>
+              a.scheduledDate.localeCompare(b.scheduledDate)
+            ),
+          ] as [string, VisitRow[]]
+      );
+  }, [filtered, groupMode, employeeFilter]);
+
+  function clearVisitSelection() {
+    setOpenGroup(null);
+    setSelectedId(null);
+  }
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="min-w-0 overflow-hidden">
         <h2 className="text-lg font-semibold text-green-950">Filters</h2>
         <p className="mt-1 text-sm text-stone-500">
-          Filter by completion status, customer name, or employee name.
+          Filter by completion status, customer, employee, or job.
         </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-stone-700">
-              Status
-            </span>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="block min-w-0 text-sm">
+            <span className="mb-1 block font-medium text-stone-700">Status</span>
             <select
               value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(
-                  e.target.value as "all" | "completed" | "incomplete"
-                )
-              }
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
+              onChange={(e) => {
+                setStatusFilter(e.target.value as StatusFilter);
+                setSelectedId(null);
+              }}
+              className={SELECT_CLASS}
+              style={SELECT_CHEVRON}
             >
-              <option value="all">All Visits</option>
+              <option value="all">All visits</option>
               <option value="completed">Complete</option>
               <option value="incomplete">Incomplete</option>
             </select>
           </label>
 
-          <label className="block text-sm">
+          <label className="block min-w-0 text-sm">
             <span className="mb-1 block font-medium text-stone-700">
               Customer Name
             </span>
-            <input
-              list="crew-visit-customers"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Search customer..."
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
-            />
-            <datalist id="crew-visit-customers">
+            <select
+              value={customerFilter}
+              onChange={(e) => {
+                setCustomerFilter(e.target.value);
+                clearVisitSelection();
+              }}
+              className={SELECT_CLASS}
+              style={SELECT_CHEVRON}
+            >
+              <option value="all">All customers</option>
               {customerOptions.map((name) => (
-                <option key={name} value={name} />
+                <option key={name} value={name}>
+                  {name}
+                </option>
               ))}
-            </datalist>
+            </select>
           </label>
 
-          <label className="block text-sm">
+          <label className="block min-w-0 text-sm">
             <span className="mb-1 block font-medium text-stone-700">
               Employee Name
             </span>
-            <input
-              list="crew-visit-employees"
-              value={employeeName}
-              onChange={(e) => setEmployeeName(e.target.value)}
-              placeholder="Search employee..."
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
-            />
-            <datalist id="crew-visit-employees">
+            <select
+              value={employeeFilter}
+              onChange={(e) => {
+                setEmployeeFilter(e.target.value);
+                clearVisitSelection();
+              }}
+              className={SELECT_CLASS}
+              style={SELECT_CHEVRON}
+            >
+              <option value="all">All employees</option>
               {employeeOptions.map((name) => (
-                <option key={name} value={name} />
+                <option key={name} value={name}>
+                  {name}
+                </option>
               ))}
-            </datalist>
+            </select>
+          </label>
+
+          <label className="block min-w-0 text-sm">
+            <span className="mb-1 block font-medium text-stone-700">
+              Job Name
+            </span>
+            <select
+              value={jobFilter}
+              onChange={(e) => {
+                setJobFilter(e.target.value);
+                clearVisitSelection();
+              }}
+              className={SELECT_CLASS}
+              style={SELECT_CHEVRON}
+            >
+              <option value="all">All jobs</option>
+              {jobOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
+
         <p className="mt-3 text-xs text-stone-500">
-          Showing {filtered.length} of {visits.length} visits
+          Showing {filtered.length} of {rows.length}{" "}
+          {rows.length === 1 ? "visit" : "visits"}
         </p>
       </Card>
 
-      {filtered.length === 0 ? (
+      {groups.length === 0 ? (
         <EmptyState message="No visits match these filters." />
       ) : (
-        <div className="space-y-4">
-          {filtered.map((visit) => {
-            const crewJob = visit.crewJob;
+        <div className="space-y-3">
+          {groups.map(([title, list]) => {
+            const isOpen = openGroup === title;
             return (
               <div
-                key={visit.id}
-                className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm"
+                key={title}
+                className={`overflow-hidden rounded-xl border shadow-sm ${
+                  isOpen
+                    ? "border-green-800 bg-white"
+                    : "border-stone-200 bg-white"
+                }`}
               >
-                <div className="flex flex-wrap items-start justify-between gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenGroup((cur) => (cur === title ? null : title));
+                    setSelectedId(null);
+                  }}
+                  className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+                >
                   <div>
-                    <p className="font-semibold text-green-950">
-                      {visit.contractTitle}
+                    <p className="text-lg font-semibold text-green-950">
+                      {title}
                     </p>
-                    <p className="text-sm text-stone-500">
-                      {visit.customerName} · {formatDate(visit.scheduledDate)}
+                    <p className="mt-0.5 text-sm text-stone-500">
+                      {list.length} visit{list.length === 1 ? "" : "s"}
                     </p>
-                    {visit.crewNotes ? (
-                      <p className="mt-2 text-sm text-stone-600">
-                        {visit.crewNotes}
-                      </p>
-                    ) : null}
-                    <AssignedEmployeesList
-                      jobId={visit.id}
-                      status={visit.status}
-                      services={crewJob?.services ?? []}
-                    />
-                    {crewJob ? (
-                      <div className="mt-2">
-                        <CrewSiteNotes
-                          customerId={crewJob.customerId}
-                          compact
-                        />
-                      </div>
-                    ) : null}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-800">
-                      {formatStatusLabel(visit.status)}
-                    </span>
-                    {visit.status === "scheduled" ? (
-                      <form action={completeVisit}>
-                        <input
-                          type="hidden"
-                          name="visit_id"
-                          value={visit.id}
-                        />
-                        <input
-                          type="hidden"
-                          name="notes"
-                          value="Visit completed on schedule"
-                        />
-                        <button
-                          type="submit"
-                          className="rounded-md bg-green-800 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
-                        >
-                          Mark Complete
-                        </button>
-                      </form>
-                    ) : null}
+                  <span className="text-sm font-medium text-green-800">
+                    {isOpen ? "Hide" : "View visits"}
+                  </span>
+                </button>
+
+                {isOpen ? (
+                  <div className="space-y-2 border-t border-stone-100 bg-stone-50 px-4 py-4">
+                    {list.map((visit) => {
+                      const active = selectedId === visit.id;
+                      return (
+                        <div key={visit.id}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedId((cur) =>
+                                cur === visit.id ? null : visit.id
+                              )
+                            }
+                            className={`flex w-full items-start justify-between gap-3 rounded-lg border px-4 py-3 text-left transition ${
+                              active
+                                ? "border-green-700 bg-green-50"
+                                : "border-stone-200 bg-white hover:border-green-600"
+                            }`}
+                          >
+                            <div>
+                              <p className="font-medium text-green-950">
+                                {visit.jobLabel}
+                              </p>
+                              <p className="mt-0.5 text-sm text-stone-600">
+                                {visit.customerName} ·{" "}
+                                {formatDate(visit.scheduledDate)}
+                              </p>
+                              <p className="mt-0.5 text-xs text-stone-500">
+                                {visit.location}
+                              </p>
+                            </div>
+                            <StatusBadge status={visit.status} />
+                          </button>
+
+                          {active ? (
+                            <div className="mt-2 space-y-4 rounded-lg border border-stone-200 bg-white p-4">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-green-950">
+                                    Visit details
+                                  </p>
+                                  <p className="mt-1 text-sm text-stone-600">
+                                    {visit.location}
+                                  </p>
+                                  <p className="mt-0.5 text-xs text-stone-500">
+                                    {visit.contractTitle}
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <StatusBadge status={visit.status} />
+                                  {visit.status === "scheduled" ? (
+                                    <form action={completeVisit}>
+                                      <input
+                                        type="hidden"
+                                        name="visit_id"
+                                        value={visit.id}
+                                      />
+                                      <input
+                                        type="hidden"
+                                        name="notes"
+                                        value="Visit completed on schedule"
+                                      />
+                                      <button
+                                        type="submit"
+                                        className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                                      >
+                                        Mark complete
+                                      </button>
+                                    </form>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                                  Employees & hours
+                                </p>
+                                {visit.crewHours.length === 0 ? (
+                                  <p className="mt-2 text-sm text-stone-500">
+                                    No crew hours listed yet.
+                                  </p>
+                                ) : (
+                                  <ul className="mt-2 space-y-1">
+                                    {visit.crewHours.map((member) => (
+                                      <li
+                                        key={`${visit.id}-${member.name}`}
+                                        className="flex justify-between gap-2 rounded-md bg-stone-50 px-3 py-2 text-sm"
+                                      >
+                                        <span>
+                                          {member.name}
+                                          <span className="text-stone-500">
+                                            {" "}
+                                            · {member.role}
+                                          </span>
+                                        </span>
+                                        <span className="font-medium text-stone-800">
+                                          {member.hours > 0
+                                            ? `${member.hours} hrs`
+                                            : "—"}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                                    Materials
+                                  </p>
+                                  <p className="mt-1 text-sm text-stone-800">
+                                    {visit.materials.join(" · ")}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                                    Equipment
+                                  </p>
+                                  <p className="mt-1 text-sm text-stone-800">
+                                    {visit.equipment.join(" · ")}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {visit.totalCosts > 0 ? (
+                                <p className="text-sm text-stone-600">
+                                  Visit costs:{" "}
+                                  <span className="font-medium">
+                                    {formatCurrency(visit.totalCosts)}
+                                  </span>
+                                </p>
+                              ) : null}
+
+                              {visit.proof ? (
+                                <div>
+                                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                                    Photo proof
+                                  </p>
+                                  <ProofPhotos proof={visit.proof} />
+                                </div>
+                              ) : (
+                                <p className="text-sm text-stone-500">
+                                  No photo proof on file for this visit.
+                                </p>
+                              )}
+
+                              {visit.crewJob ? (
+                                <details className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                                  <summary className="cursor-pointer text-sm font-medium text-green-900">
+                                    Edit crew plan
+                                  </summary>
+                                  <VisitWorkPanel
+                                    job={visit.crewJob}
+                                    contractExtraWork={extraWork.filter(
+                                      (item) =>
+                                        item.contractId ===
+                                        visit.crewJob?.contractId
+                                    )}
+                                    variant="planning"
+                                  />
+                                </details>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-stone-700">
-                    Visit Costs: {formatCurrency(visit.totalCosts)}
-                  </p>
-                  {visit.costs.length > 0 ? (
-                    <ul className="mt-2 space-y-1 text-sm text-stone-600">
-                      {visit.costs.map((cost) => (
-                        <li key={cost.id}>
-                          <span className="font-medium text-stone-800">
-                            {titleCaseCostType(cost.cost_type)}
-                          </span>
-                          : {cost.description ?? "—"} —{" "}
-                          {formatCurrency(Number(cost.amount))}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-1 text-sm text-stone-400">
-                      No costs logged yet.
-                    </p>
-                  )}
-                </div>
-
-                {crewJob ? (
-                  <CrewLeadVisitDetails
-                    job={crewJob}
-                    extraWork={extraWork}
-                  />
                 ) : null}
               </div>
             );

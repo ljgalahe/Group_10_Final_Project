@@ -1,36 +1,55 @@
-import { completeVisit } from "@/app/actions/business";
 import { AppShell } from "@/components/AppShell";
-import { VisitCostForm } from "@/components/VisitCostForm";
 import {
   CrewLeadVisitsBoard,
   type CrewLeadVisitCardData,
 } from "@/components/crew-lead/CrewLeadVisitsBoard";
-import { formatStatusLabel } from "@/components/crew-lead/visitWorkDefaults";
-import { normalizeServiceName, oxfordAddressForCustomer } from "@/components/crew-lead/buildCrewSchedule";
+import {
+  normalizeServiceName,
+  oxfordAddressForCustomer,
+} from "@/components/crew-lead/buildCrewSchedule";
 import type {
   ExtraWorkItem,
   ScheduleJob,
 } from "@/components/crew-lead/schedule-types";
-import { EmptyState, PageHeader } from "@/components/ui";
-import { requireAppAccess, createDataClient } from "@/lib/auth-access";
-import { getViewRole, roleCanManageVisits } from "@/lib/demo-role";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { fetchVisitCosts, fetchVisits } from "@/lib/queries";
+import { OrganizedJobList } from "@/components/visits/JobList";
+import {
+  OrganizeToggle,
+  VisitPeriodFilters,
+} from "@/components/visits/VisitPeriodFilters";
+import { VisitsSummaryBlocks } from "@/components/visits/VisitsSummaryBlocks";
+import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { createDataClient, requireAppAccess } from "@/lib/auth-access";
+import { getViewRole } from "@/lib/demo-role";
+import {
+  fetchAllVisitCosts,
+  fetchVisitCosts,
+  fetchVisits,
+} from "@/lib/queries";
+import type { VisitCost } from "@/lib/types";
+import {
+  buildJobRows,
+  groupJobsByCompany,
+  groupJobsByTask,
+  summaryFromJobs,
+} from "@/lib/visit-jobs";
+import {
+  buildVisitsQuery,
+  parseOrganizeMode,
+  parseVisitPeriod,
+  periodLabel,
+} from "@/lib/visit-period";
 
-function titleCaseCostType(costType: string): string {
-  const normalized = costType.trim().toLowerCase();
-  if (normalized === "labor") return "Labor";
-  if (normalized === "materials") return "Materials";
-  if (normalized === "equipment") return "Equipment";
-  return formatStatusLabel(costType);
-}
+type SearchParams = Record<string, string | string[] | undefined>;
 
-export default async function VisitsPage() {
+export default async function VisitsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   await requireAppAccess();
 
   const role = await getViewRole();
   const { data: visits } = await fetchVisits();
-  const canManage = roleCanManageVisits(role);
 
   let extraWork: ExtraWorkItem[] = [];
   const crewJobsByVisitId = new Map<string, ScheduleJob>();
@@ -122,9 +141,7 @@ export default async function VisitsPage() {
         source: "visit",
       });
     }
-  }
 
-  if (role === "crew_lead") {
     const cardData: CrewLeadVisitCardData[] = await Promise.all(
       visits.map(async (visit) => {
         const contract = visit.contracts as {
@@ -162,7 +179,7 @@ export default async function VisitsPage() {
       <AppShell>
         <PageHeader
           title="Service Visits"
-          description="Scheduled and completed crew visits with Labor, Materials, and Equipment costs."
+          description="Filter by company, employee, or job. Open a visit for location, hours, supplies, and photo proof."
         />
         {cardData.length === 0 ? (
           <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />
@@ -173,110 +190,70 @@ export default async function VisitsPage() {
     );
   }
 
+  const params = await searchParams;
+  const period = parseVisitPeriod(params);
+  const organize = parseOrganizeMode(params);
+
+  const { data: allCosts } = await fetchAllVisitCosts();
+  const costsByVisit = new Map<string, VisitCost[]>();
+  for (const cost of allCosts) {
+    const list = costsByVisit.get(cost.visit_id) ?? [];
+    list.push(cost);
+    costsByVisit.set(cost.visit_id, list);
+  }
+
+  const jobs = buildJobRows(visits, costsByVisit, period);
+  const summary = summaryFromJobs(jobs);
+  const groups =
+    organize === "jobs" ? groupJobsByTask(jobs) : groupJobsByCompany(jobs);
+  const completedHref = `/visits/completed?${buildVisitsQuery(period, organize, { sort: "date" })}`;
+  const pendingHref = `/visits/pending?${buildVisitsQuery(period, organize, { sort: "date" })}`;
+
   return (
     <AppShell>
       <PageHeader
         title="Service Visits"
-        description="Scheduled and completed crew visits with Labor, Materials, and Equipment costs."
+        description={`Summary and job list for ${periodLabel(period)}. Switch the time range or organize by company or job.`}
       />
 
-      {visits.length === 0 ? (
-        <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />
-      ) : (
-        <div className="space-y-4">
-          {await Promise.all(
-            visits.map(async (visit) => {
-              const contract = visit.contracts as {
-                title: string;
-                customers: { name: string } | null;
-              } | null;
-              const { data: costs } = await fetchVisitCosts(visit.id);
-              const totalCosts = (costs ?? []).reduce(
-                (sum, c) => sum + Number(c.amount),
-                0
-              );
+      <div className="mb-6">
+        <VisitPeriodFilters period={period} organize={organize} />
+      </div>
 
-              return (
-                <div
-                  key={visit.id}
-                  className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="font-semibold text-green-950">
-                        {contract?.title ?? "Contract"}
-                      </p>
-                      <p className="text-sm text-stone-500">
-                        {contract?.customers?.name} ·{" "}
-                        {formatDate(visit.scheduled_date)}
-                      </p>
-                      {visit.crew_notes ? (
-                        <p className="mt-2 text-sm text-stone-600">
-                          {visit.crew_notes}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium capitalize text-stone-800">
-                        {formatStatusLabel(visit.status)}
-                      </span>
-                      {canManage && visit.status === "scheduled" && (
-                        <form action={completeVisit}>
-                          <input
-                            type="hidden"
-                            name="visit_id"
-                            value={visit.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="notes"
-                            value="Visit completed on schedule"
-                          />
-                          <button
-                            type="submit"
-                            className="rounded-md bg-green-800 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
-                          >
-                            Mark Complete
-                          </button>
-                        </form>
-                      )}
-                    </div>
-                  </div>
+      <VisitsSummaryBlocks
+        scheduled={summary.scheduled}
+        completed={summary.completed}
+        weatherAffected={summary.weatherAffected}
+        weatherCount={summary.weatherCount}
+        periodLabelText={periodLabel(period)}
+        completedHref={completedHref}
+        pendingHref={pendingHref}
+        afterSummary={
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-green-950">
+                  Work directory
+                </h3>
+                <p className="mt-1 text-sm text-stone-500">
+                  {organize === "company"
+                    ? "Browse companies, open a job, then a visit for crew, pay, costs, and photo proof."
+                    : "Browse jobs across companies, then open a visit for crew, pay, costs, and photo proof."}
+                </p>
+              </div>
+              <OrganizeToggle period={period} organize={organize} />
+            </div>
 
-                  <div className="mt-4">
-                    <p className="text-sm font-medium text-stone-700">
-                      Visit Costs: {formatCurrency(totalCosts)}
-                    </p>
-                    {costs && costs.length > 0 ? (
-                      <ul className="mt-2 space-y-1 text-sm text-stone-600">
-                        {costs.map((cost) => (
-                          <li key={cost.id}>
-                            <span className="font-medium text-stone-800">
-                              {titleCaseCostType(cost.cost_type)}
-                            </span>
-                            : {cost.description ?? "—"} —{" "}
-                            {formatCurrency(Number(cost.amount))}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="mt-1 text-sm text-stone-400">
-                        No costs logged yet.
-                      </p>
-                    )}
-                  </div>
-
-                  {(role === "accountant" || role === "manager") && (
-                    <div className="mt-4 border-t border-stone-100 pt-4">
-                      <VisitCostForm visitId={visit.id} />
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
+            <div className="mt-4">
+              <OrganizedJobList
+                groups={groups}
+                organizeBy={organize}
+                emptyMessage="No jobs in this time range. Try All time or June 2026."
+              />
+            </div>
+          </Card>
+        }
+      />
     </AppShell>
   );
 }
