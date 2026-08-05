@@ -415,6 +415,43 @@ export function chatHrefForCrewLead(opts: {
   return `/chat?${params.toString()}`;
 }
 
+/** Build a Chat deep-link that opens a prefilled board message about replacements. */
+export function chatHrefForEquipmentReplacement(
+  assets: Array<{
+    name: string;
+    remaining: number;
+    estimated_total_hours: number;
+  }>
+): string {
+  const lines = assets.map((a) => {
+    const pct =
+      a.estimated_total_hours > 0
+        ? ((a.remaining / a.estimated_total_hours) * 100).toFixed(0)
+        : "0";
+    return `• ${a.name} — ${a.remaining.toFixed(1)} hrs left (${pct}% of estimated life)`;
+  });
+
+  const title =
+    assets.length === 1
+      ? `Replace soon: ${assets[0].name}`
+      : `Equipment replacement needed (${assets.length})`;
+
+  const body = [
+    "The following equipment is at or near end of useful life and should be replaced soon:",
+    "",
+    ...lines,
+    "",
+    "Please confirm timing and budget so we can schedule replacements before downtime.",
+  ].join("\n");
+
+  const params = new URLSearchParams({
+    composeTitle: title,
+    composeBody: body,
+    composeCategory: "announcement",
+  });
+  return `/chat?${params.toString()}`;
+}
+
 /** Deep-link for a crew lead opening (or continuing) a DM with the manager. */
 export function chatHrefForManager(opts: {
   fromPersonId?: string;

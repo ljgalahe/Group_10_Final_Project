@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Card, EmptyState, StatCard, StatusBadge } from "@/components/ui";
+import { chatHrefForEquipmentReplacement } from "@/lib/chat-demo";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   createEquipment,
@@ -14,9 +16,12 @@ import {
   accumulatedDepreciation,
   bookValue,
   hoursRemaining,
+  nonDepreciableBookValue,
 } from "./equipment-math";
 import {
   EQUIPMENT_CATEGORIES,
+  categoryIsDepreciable,
+  categoryTracksUsefulLife,
   type CompletedVisitOption,
   type EquipmentCategory,
   type EquipmentRow,
@@ -31,6 +36,72 @@ type Props = {
 
 type FormMode = "closed" | "create" | "edit";
 
+/** Circular life meter: fills as remaining life approaches 0%. */
+function LifeRemainingRing({
+  remainingHours,
+  estimatedHours,
+}: {
+  remainingHours: number;
+  estimatedHours: number;
+}) {
+  const remainingPct =
+    estimatedHours > 0
+      ? Math.max(
+          0,
+          Math.min(100, (remainingHours / estimatedHours) * 100)
+        )
+      : 0;
+  const fillPct = 100 - remainingPct;
+  const color =
+    remainingPct >= 50
+      ? "#15803d"
+      : remainingPct >= 25
+        ? "#ca8a04"
+        : "#dc2626";
+
+  const size = 28;
+  const stroke = 3.5;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - fillPct / 100);
+  const label = `${remainingPct.toFixed(0)}% life remaining`;
+
+  return (
+    <span
+      className="relative inline-flex"
+      title={label}
+      aria-label={label}
+    >
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="shrink-0 -rotate-90"
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#e7e5e4"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+        />
+      </svg>
+    </span>
+  );
+}
+
 function AssetForm({
   mode,
   initial,
@@ -40,154 +111,185 @@ function AssetForm({
   initial?: EquipmentRow | null;
   onClose: () => void;
 }) {
+  const [selectedCategory, setSelectedCategory] = useState<EquipmentCategory>(
+    initial?.category ?? "Mowers"
+  );
+
   if (mode === "closed") return null;
-  const action = mode === "edit" ? updateEquipment : createEquipment;
+
+  const hideDepreciationFields = !categoryTracksUsefulLife(selectedCategory);
+
+  async function handleSubmit(formData: FormData) {
+    if (mode === "edit") {
+      await updateEquipment(formData);
+    } else {
+      await createEquipment(formData);
+    }
+    onClose();
+  }
 
   return (
-    <Card className="mb-6">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold text-green-950">
-            {mode === "edit" ? "Edit equipment" : "Add equipment"}
-          </h3>
-          <p className="mt-0.5 text-sm text-stone-500">
-            Unit-of-production uses estimated life hours with cost and salvage.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-sm text-stone-500 hover:text-stone-800"
-        >
-          Cancel
-        </button>
-      </div>
-      <form action={action} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {mode === "edit" && initial ? (
-          <input type="hidden" name="id" value={initial.id} />
-        ) : null}
-        <label className="block text-sm sm:col-span-2 lg:col-span-2">
-          <span className="text-stone-600">Name</span>
-          <input
-            name="name"
-            required
-            defaultValue={initial?.name ?? ""}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-stone-600">Category</span>
-          <select
-            name="category"
-            defaultValue={initial?.category ?? "Mowers"}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          >
-            {EQUIPMENT_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm">
-          <span className="text-stone-600">Purchase date</span>
-          <input
-            type="date"
-            name="purchase_date"
-            required
-            defaultValue={initial?.purchase_date ?? ""}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-stone-600">Cost</span>
-          <input
-            type="number"
-            name="cost"
-            min={0}
-            step="0.01"
-            required
-            defaultValue={initial?.cost ?? ""}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-stone-600">Salvage value</span>
-          <input
-            type="number"
-            name="salvage_value"
-            min={0}
-            step="0.01"
-            required
-            defaultValue={initial?.salvage_value ?? 0}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-stone-600">Useful life (years)</span>
-          <input
-            type="number"
-            name="useful_life_years"
-            min={0}
-            required
-            defaultValue={initial?.useful_life_years ?? 5}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-stone-600">Useful life (months)</span>
-          <input
-            type="number"
-            name="useful_life_months"
-            min={0}
-            max={11}
-            required
-            defaultValue={initial?.useful_life_months ?? 0}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-stone-600">Estimated life hours</span>
-          <input
-            type="number"
-            name="estimated_total_hours"
-            min={0.01}
-            step="0.01"
-            required
-            defaultValue={initial?.estimated_total_hours ?? ""}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          />
-        </label>
-        <label className="block text-sm sm:col-span-2 lg:col-span-3">
-          <span className="text-stone-600">Notes</span>
-          <input
-            name="notes"
-            defaultValue={initial?.notes ?? ""}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          />
-        </label>
-        <div className="sm:col-span-2 lg:col-span-3">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="equipment-form-title"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h3
+              id="equipment-form-title"
+              className="text-lg font-semibold text-green-950"
+            >
+              {mode === "edit" ? "Edit equipment" : "Add equipment"}
+            </h3>
+            <p className="mt-0.5 text-sm text-stone-500">
+              {hideDepreciationFields
+                ? "Hand/power tools are tracked without salvage or life-hour depreciation."
+                : "Unit-of-production uses estimated life hours with cost and salvage."}
+            </p>
+          </div>
           <button
-            type="submit"
-            className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-900"
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-2 py-1 text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-800"
           >
-            {mode === "edit" ? "Save changes" : "Add equipment"}
+            Close
           </button>
         </div>
-      </form>
-    </Card>
+        <form
+          action={handleSubmit}
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          {mode === "edit" && initial ? (
+            <input type="hidden" name="id" value={initial.id} />
+          ) : null}
+          <label className="block text-sm sm:col-span-2 lg:col-span-2">
+            <span className="text-stone-600">Name</span>
+            <input
+              name="name"
+              required
+              defaultValue={initial?.name ?? ""}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-stone-600">Category</span>
+            <select
+              name="category"
+              value={selectedCategory}
+              onChange={(e) =>
+                setSelectedCategory(e.target.value as EquipmentCategory)
+              }
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+            >
+              {EQUIPMENT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="text-stone-600">Purchase date</span>
+            <input
+              type="date"
+              name="purchase_date"
+              required
+              defaultValue={initial?.purchase_date ?? ""}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-stone-600">Cost</span>
+            <input
+              type="number"
+              name="cost"
+              min={0}
+              step="0.01"
+              required
+              defaultValue={initial?.cost ?? ""}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+            />
+          </label>
+          {hideDepreciationFields ? (
+            <>
+              <input type="hidden" name="salvage_value" value="0" />
+              <input type="hidden" name="estimated_total_hours" value="1" />
+            </>
+          ) : (
+            <>
+              <label className="block text-sm">
+                <span className="text-stone-600">Salvage value</span>
+                <input
+                  type="number"
+                  name="salvage_value"
+                  min={0}
+                  step="0.01"
+                  required
+                  defaultValue={initial?.salvage_value ?? 0}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-stone-600">Estimated life hours</span>
+                <input
+                  type="number"
+                  name="estimated_total_hours"
+                  min={0.01}
+                  step="0.01"
+                  required
+                  defaultValue={initial?.estimated_total_hours ?? ""}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+                />
+              </label>
+            </>
+          )}
+          <label className="block text-sm sm:col-span-2 lg:col-span-3">
+            <span className="text-stone-600">Notes</span>
+            <input
+              name="notes"
+              defaultValue={initial?.notes ?? ""}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+            />
+          </label>
+          <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3">
+            <button
+              type="submit"
+              className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-900"
+            >
+              {mode === "edit" ? "Save changes" : "Add equipment"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
 export function EquipmentReport({ assets, usage, visits }: Props) {
   const [category, setCategory] = useState<"All" | EquipmentCategory>("All");
   const [statusFilter, setStatusFilter] = useState<"All" | "active" | "retired">(
-    "All"
+    "active"
   );
   const [formMode, setFormMode] = useState<FormMode>("closed");
   const [editing, setEditing] = useState<EquipmentRow | null>(null);
+  const [detailAsset, setDetailAsset] = useState<EquipmentRow | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string>("All");
+  const [equipmentFilter, setEquipmentFilter] = useState<string>("All");
 
   const companies = useMemo(() => {
     const names = new Set<string>();
@@ -197,13 +299,40 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [usage]);
 
+  const usageEquipmentOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const row of usage) {
+      if (!byId.has(row.equipment_id)) {
+        byId.set(row.equipment_id, row.equipment_name);
+      }
+    }
+    return Array.from(byId.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [usage]);
+
   const filteredUsage = useMemo(() => {
-    if (companyFilter === "All") return usage;
-    return usage.filter((row) => row.customer_name === companyFilter);
-  }, [usage, companyFilter]);
+    return usage.filter((row) => {
+      if (companyFilter !== "All" && row.customer_name !== companyFilter) {
+        return false;
+      }
+      if (equipmentFilter !== "All" && row.equipment_id !== equipmentFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [usage, companyFilter, equipmentFilter]);
 
   const enriched = useMemo(() => {
     return assets.map((a) => {
+      if (!categoryIsDepreciable(a.category)) {
+        return {
+          ...a,
+          accum: 0,
+          book: nonDepreciableBookValue(a.cost),
+          remaining: hoursRemaining(a.estimated_total_hours, a.hours_used),
+        };
+      }
       const accum = accumulatedDepreciation(
         a.cost,
         a.salvage_value,
@@ -239,6 +368,7 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
       cost: source.reduce((s, a) => s + a.cost, 0),
       accum: source.reduce((s, a) => s + a.accum, 0),
       book: source.reduce((s, a) => s + a.book, 0),
+      revenue: source.reduce((s, a) => s + a.revenue_produced, 0),
     };
   }, [filtered]);
 
@@ -246,6 +376,7 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
   const replaceSoon = useMemo(() => {
     return enriched
       .filter((a) => {
+        if (!categoryTracksUsefulLife(a.category)) return false;
         if (a.status !== "active") return false;
         if (a.estimated_total_hours <= 0) return false;
         const lifeLeft = a.remaining / a.estimated_total_hours;
@@ -264,22 +395,67 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
     setFormMode("edit");
   }
 
+  const costLabel =
+    category === "All" ? "Total acquisition cost" : `${category} acquisition cost`;
+  const accumLabel =
+    category === "All"
+      ? "Accumulated depreciation"
+      : `${category} accumulated depreciation`;
+  const bookLabel =
+    category === "All" ? "Net book value" : `${category} net book value`;
+  const revenueLabel =
+    category === "All"
+      ? "Total revenue produced"
+      : `${category} revenue produced`;
+  const showDepreciationStats =
+    category === "All" || categoryIsDepreciable(category);
+
   return (
     <>
       <div className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)] lg:items-stretch">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatCard
-            label="Total acquisition cost"
-            value={formatCurrency(totals.cost)}
-          />
-          <StatCard
-            label="Accumulated depreciation"
-            value={formatCurrency(totals.accum)}
-          />
-          <StatCard
-            label="Net book value"
-            value={formatCurrency(totals.book)}
-          />
+        <div className="space-y-4">
+          <label className="block text-sm">
+            <span className="text-stone-600">Category</span>
+            <select
+              value={category}
+              onChange={(e) =>
+                setCategory(e.target.value as "All" | EquipmentCategory)
+              }
+              className="mt-1 block w-full max-w-xs rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="All">All categories</option>
+              {EQUIPMENT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div
+            className={`grid grid-cols-1 gap-4 ${
+              showDepreciationStats
+                ? "sm:grid-cols-2 xl:grid-cols-4"
+                : "sm:grid-cols-2"
+            }`}
+          >
+            <StatCard label={costLabel} value={formatCurrency(totals.cost)} />
+            {showDepreciationStats ? (
+              <>
+                <StatCard
+                  label={accumLabel}
+                  value={formatCurrency(totals.accum)}
+                />
+                <StatCard
+                  label={bookLabel}
+                  value={formatCurrency(totals.book)}
+                />
+              </>
+            ) : null}
+            <StatCard
+              label={revenueLabel}
+              value={formatCurrency(totals.revenue)}
+            />
+          </div>
         </div>
         <div
           className={`rounded-xl border px-4 py-3 text-sm ${
@@ -315,6 +491,12 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                   </li>
                 ))}
               </ul>
+              <Link
+                href={chatHrefForEquipmentReplacement(replaceSoon)}
+                className="mt-3 inline-flex rounded-md border border-amber-700 bg-white px-3 py-1.5 text-xs font-medium text-amber-950 hover:bg-amber-100"
+              >
+                Message team in Chat
+              </Link>
             </>
           ) : (
             <p className="mt-1 text-stone-600">
@@ -378,12 +560,99 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
         }}
       />
 
+      {detailAsset ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="equipment-detail-title"
+          onClick={() => setDetailAsset(null)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3
+                  id="equipment-detail-title"
+                  className="text-lg font-semibold text-green-950"
+                >
+                  {detailAsset.name}
+                </h3>
+                <p className="mt-0.5 text-sm text-stone-500">
+                  Contracts this asset worked on and allocated revenue produced.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailAsset(null)}
+                className="rounded-md px-2 py-1 text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+              >
+                Close
+              </button>
+            </div>
+            {detailAsset.contracts_worked.length === 0 ? (
+              <EmptyState message="No contract usage logged for this equipment yet." />
+            ) : (
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-stone-200 text-xs uppercase tracking-wide text-stone-500">
+                  <tr>
+                    <th className="px-2 py-2 font-medium">Contract</th>
+                    <th className="px-2 py-2 font-medium">Customer</th>
+                    <th className="px-2 py-2 font-medium">Hours</th>
+                    <th className="px-2 py-2 font-medium">Revenue produced</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {detailAsset.contracts_worked.map((c) => (
+                    <tr key={c.contract_id}>
+                      <td className="px-2 py-2.5 font-medium text-stone-900">
+                        {c.contract_title}
+                      </td>
+                      <td className="px-2 py-2.5 text-stone-600">
+                        {c.customer_name}
+                      </td>
+                      <td className="px-2 py-2.5 tabular-nums">
+                        {c.hours.toFixed(1)}
+                      </td>
+                      <td className="px-2 py-2.5 tabular-nums text-green-950">
+                        {formatCurrency(c.revenue)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-stone-200">
+                    <td
+                      className="px-2 py-2.5 text-sm font-semibold text-stone-700"
+                      colSpan={2}
+                    >
+                      Total
+                    </td>
+                    <td className="px-2 py-2.5 text-sm font-semibold tabular-nums text-stone-900">
+                      {detailAsset.contracts_worked
+                        .reduce((sum, c) => sum + c.hours, 0)
+                        .toFixed(1)}
+                    </td>
+                    <td className="px-2 py-2.5 text-sm font-semibold tabular-nums text-green-950">
+                      {formatCurrency(detailAsset.revenue_produced)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       <Card className="mb-8 overflow-x-auto">
         <h2 className="mb-1 text-lg font-semibold text-green-950">
           Equipment register
         </h2>
         <p className="mb-4 text-sm text-stone-500">
-          Unit-of-production book values for the current filters.
+          Unit-of-production book values for the current filters. Click a row to
+          see contracts and revenue.
         </p>
         {filtered.length === 0 ? (
           <EmptyState message="No equipment matches these filters." />
@@ -395,13 +664,19 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                 <th className="px-2 py-2 font-medium">Cost</th>
                 <th className="px-2 py-2 font-medium">Acc. Dep.</th>
                 <th className="px-2 py-2 font-medium">Book value</th>
+                <th className="px-2 py-2 font-medium">Revenue produced</th>
+                <th className="px-2 py-2 font-medium">Life left</th>
                 <th className="px-2 py-2 font-medium">Status</th>
                 <th className="px-2 py-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {filtered.map((row) => (
-                <tr key={row.id} className="align-top">
+                <tr
+                  key={row.id}
+                  className="align-top cursor-pointer hover:bg-green-50/60"
+                  onClick={() => setDetailAsset(row)}
+                >
                   <td className="px-2 py-2.5 font-medium text-stone-900">
                     {row.name}
                     <span className="mt-0.5 block text-xs font-normal text-stone-400">
@@ -412,15 +687,31 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                     {formatCurrency(row.cost)}
                   </td>
                   <td className="px-2 py-2.5 tabular-nums">
-                    {formatCurrency(row.accum)}
+                    {categoryIsDepreciable(row.category)
+                      ? formatCurrency(row.accum)
+                      : ""}
                   </td>
                   <td className="px-2 py-2.5 font-medium tabular-nums text-green-950">
                     {formatCurrency(row.book)}
                   </td>
+                  <td className="px-2 py-2.5 tabular-nums text-stone-800">
+                    {formatCurrency(row.revenue_produced)}
+                  </td>
+                  <td className="px-2 py-2.5">
+                    {categoryTracksUsefulLife(row.category) ? (
+                      <LifeRemainingRing
+                        remainingHours={row.remaining}
+                        estimatedHours={row.estimated_total_hours}
+                      />
+                    ) : null}
+                  </td>
                   <td className="px-2 py-2.5">
                     <StatusBadge status={row.status} />
                   </td>
-                  <td className="px-2 py-2.5">
+                  <td
+                    className="px-2 py-2.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="flex flex-col gap-1">
                       <button
                         type="button"
@@ -466,8 +757,8 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
               Hours used during visits
             </h2>
             <p className="mt-0.5 text-sm text-stone-500">
-              Logged hours on mowers, trucks, trailers, and irrigation create
-              depreciation journal entries automatically.
+              Logged equipment hours on completed visits drive unit-of-production
+              depreciation.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
@@ -482,6 +773,21 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                 {companies.map((name) => (
                   <option key={name} value={name}>
                     {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="text-stone-600">Equipment</span>
+              <select
+                value={equipmentFilter}
+                onChange={(e) => setEquipmentFilter(e.target.value)}
+                className="mt-1 block min-w-[14rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="All">All equipment</option>
+                {usageEquipmentOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
                   </option>
                 ))}
               </select>
@@ -571,7 +877,7 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
         {usage.length === 0 ? (
           <EmptyState message="No equipment hours logged against visits yet." />
         ) : filteredUsage.length === 0 ? (
-          <EmptyState message="No hours logged for this company." />
+          <EmptyState message="No hours logged for these filters." />
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -600,9 +906,6 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                     </td>
                     <td className="px-2 py-2.5 text-stone-800">
                       {row.equipment_name}
-                      <span className="mt-0.5 block text-xs text-stone-400">
-                        {row.equipment_category}
-                      </span>
                     </td>
                     <td className="px-2 py-2.5 tabular-nums font-medium">
                       {row.hours.toFixed(1)}
