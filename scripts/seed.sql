@@ -139,4 +139,7 @@ insert into payments (payment_number, invoice_id, customer_id, amount, applied_a
 insert into support_requests (customer_id, category, message, linked_type, linked_id, status, resolution_notes, created_at) values
   ('11111111-1111-1111-1111-111111111101', 'question', 'Can you confirm the irrigation visit schedule for July?', 'contract', '22222222-2222-2222-2222-222222222205', 'Resolved', 'We confirmed your irrigation schedule for July and emailed Maria Chen the visit dates (weekly zones on Tuesdays).', '2026-06-15 14:00:00+00'),
   -- Open requests should not include resolution notes until management resolves them
-  ('11111111-1111-1111-1111-111111111101', 'billing_dispute', 'Please review the mulch line item on INV-0002.', 'invoice', '55555555-5555-5555-5555-555555555502', 'Open', null, '2026-07-02 10:30:00+00');
+  ('11111111-1111-1111-1111-111111111101', 'billing_dispute', 'Please review the mulch line item on INV-0002.', 'invoice', '55555555-5555-5555-5555-555555555502', 'Open', null, '2026-07-02 10:30:00+00'),
+  -- Field requests visible to Crew Lead (questions / concerns / complaints)
+  ('11111111-1111-1111-1111-111111111102', 'concern', 'Gate code at the north entrance was changed — crews need the updated code before the next mow.', 'contract', '22222222-2222-2222-2222-222222222202', 'Open', null, '2026-08-01 15:20:00+00'),
+  ('11111111-1111-1111-1111-111111111103', 'complaint', 'Edging along the front walk was missed on the last visit. Please correct on the next stop.', 'contract', '22222222-2222-2222-2222-222222222203', 'In Progress', null, '2026-08-03 11:05:00+00');

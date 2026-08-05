@@ -9,11 +9,15 @@ import type {
 import {
   addFieldException,
   loadDailyRoster,
+  loadFieldExceptions,
   loadVisitWorkStateForStatus,
   saveVisitWorkState,
   type CrewMember,
 } from "@/components/crew-lead/crewLeadStorage";
-import type { FieldExceptionType } from "@/components/crew-lead/schedule-types";
+import type {
+  FieldExceptionReport,
+  FieldExceptionType,
+} from "@/components/crew-lead/schedule-types";
 import {
   equipmentForServices,
   formatStatusLabel,
@@ -65,6 +69,9 @@ export function VisitWorkPanel({
     useState<FieldExceptionType>("could_not_access");
   const [exceptionDetails, setExceptionDetails] = useState("");
   const [exceptionMessage, setExceptionMessage] = useState("");
+  const [visitExceptions, setVisitExceptions] = useState<
+    FieldExceptionReport[]
+  >([]);
 
   useEffect(() => {
     setState(
@@ -76,6 +83,9 @@ export function VisitWorkPanel({
       )
     );
     setRoster(loadDailyRoster());
+    setVisitExceptions(
+      loadFieldExceptions().filter((report) => report.jobId === job.id)
+    );
   }, [job.id, job.status, tasks, contractExtraWork.length]);
 
   const isScheduled = job.status === "scheduled";
@@ -218,14 +228,15 @@ export function VisitWorkPanel({
 
   function submitException(e: FormEvent) {
     e.preventDefault();
-    if (!exceptionDetails.trim()) return;
-    addFieldException({
+    if (!canEditCrew || !exceptionDetails.trim()) return;
+    const report = addFieldException({
       jobId: job.id,
       customerName: job.customerName,
       address: job.address,
       type: exceptionType,
       details: exceptionDetails.trim(),
     });
+    setVisitExceptions((prev) => [report, ...prev]);
     setExceptionDetails("");
     setExceptionMessage("Exception sent to management.");
     window.setTimeout(() => setExceptionMessage(""), 3000);
@@ -237,11 +248,6 @@ export function VisitWorkPanel({
         <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
           {isCompleted ? "Employees Who Worked" : "Assigned Employees"}
         </h4>
-        {isCompleted ? (
-          <p className="mt-1 text-xs text-stone-500">
-            Completed visits are view-only for crew assignments and hours.
-          </p>
-        ) : null}
         {state.assignedEmployees.length > 0 ? (
           <ul className="mt-2 space-y-1">
             {state.assignedEmployees.map((member) => (
@@ -495,10 +501,6 @@ export function VisitWorkPanel({
         <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
           Extra Work
         </h4>
-        <p className="mt-1 text-xs text-stone-500">
-          Contract extras from management, plus crew-reported work needing
-          approval.
-        </p>
 
         {contractExtraWork.length > 0 ? (
           <ul className="mt-3 space-y-2">
@@ -608,9 +610,35 @@ export function VisitWorkPanel({
         <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
           Exception Report
         </h4>
-        <p className="mt-1 text-xs text-stone-500">
-          Notify management about field issues (access, animals, equipment).
-        </p>
+
+        {visitExceptions.length > 0 ? (
+          <ul className="mt-3 space-y-2">
+            {visitExceptions.map((report) => (
+              <li
+                key={report.id}
+                className="rounded-md border border-amber-200 bg-amber-50/80 p-3 text-sm"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="font-medium text-amber-950">
+                    {formatStatusLabel(report.type)}
+                  </p>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                    {isCompleted ? "Completed" : "Sent to Manager"}
+                  </span>
+                </div>
+                <p className="mt-1 text-stone-700">{report.details}</p>
+                <p className="mt-1 text-[11px] text-stone-500">
+                  {new Date(report.submittedAt).toLocaleString()}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : isCompleted ? (
+          <p className="mt-2 text-sm text-stone-500">
+            No exception reports were submitted for this visit.
+          </p>
+        ) : null}
+
         {canEditCrew ? (
           <form onSubmit={submitException} className="mt-3 space-y-2">
             <select
@@ -643,14 +671,14 @@ export function VisitWorkPanel({
               <p className="text-sm text-green-800">{exceptionMessage}</p>
             ) : null}
           </form>
-        ) : (
-          <p className="mt-2 text-sm text-stone-500">
-            Exception reporting is available on scheduled visits.
-          </p>
-        )}
+        ) : null}
       </div>
 
-      <CrewSiteNotes customerId={job.customerId} />
+      <CrewSiteNotes
+        customerId={job.customerId}
+        jobId={job.id}
+        status={job.status}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
+import { CrewLeadCustomerRequests } from "@/components/crew-lead/CrewLeadCustomerRequests";
 import { CrewLeadQuickActions } from "@/components/crew-lead/CrewLeadQuickActions";
 import { CrewLeadTomorrowPreview } from "@/components/crew-lead/CrewLeadTomorrowPreview";
 import {
@@ -12,13 +13,17 @@ import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPane
 import { Card, PageHeader, StatCard } from "@/components/ui";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
+import type {
+  CustomerAttentionItem,
+  SupportRequestQueueItem,
+} from "@/lib/queries";
 import {
+  fetchCrewApplicableSupportRequests,
   fetchCustomerAccountHealth,
   fetchCustomerNeedsAttention,
   fetchCustomerUpcomingVisits,
   fetchDashboardStats,
 } from "@/lib/queries";
-import type { CustomerAttentionItem } from "@/lib/queries";
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
@@ -174,6 +179,7 @@ export default async function DashboardPage({
   const today = todayDateOnly();
   let scheduleJobs: ReturnType<typeof buildCrewSchedule> = [];
   const visitLabels: Record<string, string> = {};
+  let crewSupportRequests: SupportRequestQueueItem[] = [];
 
   if (role === "crew_lead" || role === "manager") {
     const supabase = await createDataClient();
@@ -218,6 +224,11 @@ export default async function DashboardPage({
           `${customer.name} · ${contract?.title ?? "Visit"}`;
       }
     }
+  }
+
+  if (role === "crew_lead") {
+    const { data } = await fetchCrewApplicableSupportRequests();
+    crewSupportRequests = data;
   }
 
   const customerId =
@@ -445,6 +456,7 @@ export default async function DashboardPage({
       {role === "crew_lead" ? (
         <div className="mt-8 space-y-6">
           <CrewLeadTomorrowPreview jobs={scheduleJobs} today={today} />
+          <CrewLeadCustomerRequests requests={crewSupportRequests} />
           <Card>
             <h2 className="mb-4 text-lg font-semibold text-green-950">
               Crew Lead Quick Actions

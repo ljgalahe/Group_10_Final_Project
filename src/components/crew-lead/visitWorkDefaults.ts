@@ -138,7 +138,7 @@ const DEFAULT_SITE_NOTES = [
   "Report unsafe animals, broken fencing, or access issues to the crew lead immediately.",
 ];
 
-/** Site notes the crew lead should know before arriving (dogs, access, hazards). */
-export function siteNotesForCustomer(customerId: string): string[] {
+/** Customer notes the crew should know before arriving (dogs, access, hazards). */
+export function customerNotesForCustomer(customerId: string): string[] {
   return CUSTOMER_SITE_NOTES[customerId] ?? DEFAULT_SITE_NOTES;
 }

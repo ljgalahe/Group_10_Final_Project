@@ -167,6 +167,14 @@ export const SUPPORT_FORM_CATEGORIES = SUPPORT_CATEGORIES.filter(
   (c) => c.value !== "renewal" && c.value !== "service_quote"
 );
 
+/** Field-relevant Contact Us categories for Crew Lead (excludes billing / sales). */
+export const CREW_APPLICABLE_SUPPORT_CATEGORIES = SUPPORT_CATEGORIES.filter(
+  (c) =>
+    c.value === "question" ||
+    c.value === "concern" ||
+    c.value === "complaint"
+);
+
 export const DEMO_ROLES: { role: UserRole; label: string; description: string }[] = [
   { role: "manager", label: "Manager", description: "Oversee contracts and profitability" },
   { role: "accountant", label: "Accountant", description: "Billing, payments, and AR" },
