@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
-import { Card, PageHeader, StatCard, StatusBadge } from "@/components/ui";
+import { Card, PageHeader, StatCard } from "@/components/ui";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -173,11 +173,13 @@ export default async function DashboardPage({
       ? await Promise.all([
           fetchCustomerAccountHealth(customerId),
           fetchCustomerNeedsAttention(customerId).then((r) => r.data),
-          fetchCustomerUpcomingVisits(customerId, 3).then((r) => r.data),
+          fetchCustomerUpcomingVisits(customerId, 1).then((r) => r.data),
         ])
       : [null, [], []];
 
-  const statsRow = (
+  const nextVisit = upcomingVisits[0] ?? null;
+
+  const staffStatsRow = (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <StatCard label="Active Contracts" value={stats.activeContracts} />
       <StatCard label="Scheduled Visits" value={stats.scheduledVisits} />
@@ -194,24 +196,78 @@ export default async function DashboardPage({
     </div>
   );
 
+  const customerStatsColumn =
+    accountHealth != null ? (
+      <div className="flex flex-col gap-3">
+        <StatCard
+          compact
+          label="Open Balance"
+          value={formatCurrency(accountHealth.openBalance)}
+          hint={
+            accountHealth.overdueCount > 0
+              ? `${accountHealth.overdueCount} past due`
+              : accountHealth.openBalance > 0
+                ? "Nothing past due"
+                : "You're paid up"
+          }
+        />
+        <StatCard
+          compact
+          label="Next Visit"
+          value={
+            nextVisit ? formatDate(nextVisit.scheduled_date) : "None set"
+          }
+          hint={
+            nextVisit
+              ? nextVisit.contract_title.replace(/^20\d{2}\s+/, "")
+              : "See Visits for the full schedule"
+          }
+        />
+        <StatCard
+          compact
+          label="Active Contracts"
+          value={accountHealth.activeContracts}
+          hint={
+            accountHealth.activeContracts === 1
+              ? "Service agreement in season"
+              : "Service agreements in season"
+          }
+        />
+        <StatCard
+          compact
+          label="Open Requests"
+          value={accountHealth.openRequests}
+          hint={
+            accountHealth.openRequests === 0
+              ? "No pending Contact Us items"
+              : "In progress with GreenScape"
+          }
+        />
+      </div>
+    ) : null;
+
+  const propertyTitle =
+    accountHealth?.customerName ?? "Customer Portal";
+  const propertyDescription = accountHealth
+    ? [
+        accountHealth.address,
+        accountHealth.sinceYear
+          ? `Customer since ${accountHealth.sinceYear}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") ||
+      "Your GreenScape property portal—contracts, visits, and billing in one place."
+    : copy.description;
+
   return (
     <AppShell>
-      <PageHeader title={copy.title} description={copy.description} />
-
-      {role === "customer" && accountHealth ? (
-        <p className="mb-6 text-sm text-stone-500">
-          {accountHealth.sinceYear
-            ? `Customer since ${accountHealth.sinceYear}`
-            : "Trusted GreenScape customer"}
-          <span className="text-stone-300"> · </span>
-          {accountHealth.activeContracts} active{" "}
-          {accountHealth.activeContracts === 1 ? "contract" : "contracts"}
-          <span className="text-stone-300"> · </span>
-          {accountHealth.openDisputes === 0
-            ? "0 open disputes"
-            : `${accountHealth.openDisputes} open dispute${accountHealth.openDisputes === 1 ? "" : "s"}`}
-        </p>
-      ) : null}
+      <PageHeader
+        title={role === "customer" ? propertyTitle : copy.title}
+        description={
+          role === "customer" ? propertyDescription : copy.description
+        }
+      />
 
       {params.renewal === "1" ? (
         <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
@@ -236,7 +292,7 @@ export default async function DashboardPage({
 
       {role === "customer" ? (
         <>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start">
             <Card className="min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-lg font-semibold text-green-950">
@@ -255,53 +311,8 @@ export default async function DashboardPage({
               <NeedsAttentionList items={needsAttention} />
             </Card>
 
-            <Card className="min-w-0">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-lg font-semibold text-green-950">
-                  Upcoming visits
-                </h2>
-                <Link
-                  href="/visits"
-                  className="text-sm font-medium text-green-800 hover:underline"
-                >
-                  All visits
-                </Link>
-              </div>
-              <p className="mt-1 text-sm text-stone-500">
-                Your next scheduled maintenance visits.
-              </p>
-              {upcomingVisits.length === 0 ? (
-                <p className="mt-4 text-sm text-stone-500">
-                  No upcoming visits on the calendar right now.
-                </p>
-              ) : (
-                <ul className="mt-4 divide-y divide-stone-100 border-t border-stone-100">
-                  {upcomingVisits.map((visit) => (
-                    <li
-                      key={visit.id}
-                      className="flex flex-wrap items-start justify-between gap-3 py-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-green-950">
-                          {formatDate(visit.scheduled_date)}
-                        </p>
-                        <p className="text-sm text-stone-600">
-                          {visit.contract_title}
-                        </p>
-                        <p className="text-xs text-stone-500">
-                          {visit.property_name}
-                          {visit.address ? ` · ${visit.address}` : ""}
-                        </p>
-                      </div>
-                      <StatusBadge status={visit.status} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
+            {customerStatsColumn}
           </div>
-
-          <div className="mt-8">{statsRow}</div>
 
           <div className="mt-8 rounded-xl border border-green-800/15 bg-green-50/60 px-5 py-4">
             <p className="text-sm font-semibold text-green-950">
@@ -343,7 +354,7 @@ export default async function DashboardPage({
         </>
       ) : (
         <>
-          {statsRow}
+          {staffStatsRow}
           <div className="mt-8">
             <Card>
               <h2 className="text-lg font-semibold text-green-950">

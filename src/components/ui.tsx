@@ -2,15 +2,27 @@ export function StatCard({
   label,
   value,
   hint,
+  compact = false,
 }: {
   label: string;
   value: string | number;
   hint?: string;
+  compact?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+    <div
+      className={`rounded-xl border border-stone-200 bg-white shadow-sm ${
+        compact ? "p-4" : "p-5"
+      }`}
+    >
       <p className="text-sm font-medium text-stone-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-green-900">{value}</p>
+      <p
+        className={`mt-1 font-bold text-green-900 ${
+          compact ? "text-xl leading-snug" : "mt-2 text-3xl"
+        }`}
+      >
+        {value}
+      </p>
       {hint ? <p className="mt-1 text-xs text-stone-400">{hint}</p> : null}
     </div>
   );

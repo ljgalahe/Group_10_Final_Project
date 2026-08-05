@@ -564,35 +564,59 @@ export async function fetchCustomerPaymentMethods(customerId: string) {
 export async function fetchCustomerAccountHealth(customerId: string) {
   const supabase = await createDataClient();
 
-  const [customerRes, contractsRes, disputesRes] = await Promise.all([
-    supabase
-      .from("customers")
-      .select("created_at, name")
-      .eq("id", customerId)
-      .single(),
-    supabase
-      .from("contracts")
-      .select("id", { count: "exact", head: true })
-      .eq("customer_id", customerId)
-      .eq("status", "active"),
-    supabase
-      .from("support_requests")
-      .select("id", { count: "exact", head: true })
-      .eq("customer_id", customerId)
-      .eq("category", "billing_dispute")
-      .neq("status", "Resolved"),
-  ]);
+  const [customerRes, contractsRes, openRequestsRes, invoicesRes] =
+    await Promise.all([
+      supabase
+        .from("customers")
+        .select("created_at, name, address")
+        .eq("id", customerId)
+        .single(),
+      supabase
+        .from("contracts")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", customerId)
+        .eq("status", "active"),
+      supabase
+        .from("support_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", customerId)
+        .neq("status", "Resolved"),
+      supabase
+        .from("invoices")
+        .select("total, amount_paid, status, due_date")
+        .eq("customer_id", customerId),
+    ]);
 
   const sinceYear = customerRes.data?.created_at
     ? new Date(customerRes.data.created_at).getFullYear()
     : null;
 
+  const invoices = invoicesRes.data ?? [];
+  const openBalance = invoices.reduce((sum, inv) => {
+    const bal = Number(inv.total) - Number(inv.amount_paid);
+    return sum + (bal > 0 ? bal : 0);
+  }, 0);
+  const overdueCount = invoices.filter((inv) => {
+    const bal = Number(inv.total) - Number(inv.amount_paid);
+    if (bal <= 0.001) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(inv.due_date + "T00:00:00") < today;
+  }).length;
+
   return {
     customerName: customerRes.data?.name ?? "Customer",
+    address: customerRes.data?.address ?? null,
     sinceYear,
     activeContracts: contractsRes.count ?? 0,
-    openDisputes: disputesRes.count ?? 0,
-    error: customerRes.error || contractsRes.error || disputesRes.error,
+    openRequests: openRequestsRes.count ?? 0,
+    openBalance,
+    overdueCount,
+    error:
+      customerRes.error ||
+      contractsRes.error ||
+      openRequestsRes.error ||
+      invoicesRes.error,
   };
 }
 
