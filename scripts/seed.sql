@@ -9,6 +9,11 @@
 delete from payments;
 delete from invoice_lines;
 delete from invoices;
+do $$ begin
+  delete from visit_labor_entries;
+exception
+  when undefined_table then null;
+end $$;
 delete from visit_costs;
 delete from service_visits;
 delete from extra_work_orders;

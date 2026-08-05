@@ -1,4 +1,5 @@
 import { completeVisit } from "@/app/actions/business";
+import { ensureCompletedVisitLaborSynced } from "@/app/actions/labor";
 import { AccountantVisitsView } from "@/components/AccountantVisitsView";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -55,13 +56,15 @@ export default async function VisitsPage({
   const isAccountant = roleCanEditContractDetails(role);
 
   if (isAccountant) {
+    const { data: initialVisits } = await fetchAccountantVisits();
+    await ensureCompletedVisitLaborSynced(initialVisits.map((visit) => visit.id));
     const { data: visits } = await fetchAccountantVisits();
 
     return (
       <AppShell>
         <PageHeader
           title="Service Visits"
-          description="Accountant visit workspace with profitability, crew detail, variance, and audit controls."
+          description="Accountant visit workspace with crew hours × hourly rate labor costs, profitability, variance, and audit controls."
         />
         {visits.length === 0 ? (
           <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />

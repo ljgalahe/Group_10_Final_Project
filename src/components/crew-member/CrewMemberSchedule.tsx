@@ -10,6 +10,7 @@ import type {
   ExtraWorkItem,
   ScheduleJob,
 } from "@/components/crew-lead/schedule-types";
+import { loadVisitWorkState } from "@/components/crew-lead/crewLeadStorage";
 import {
   coworkerNamesForJob,
   crewLeadNameForJob,
@@ -17,6 +18,8 @@ import {
   mapsDirectionsUrl,
   scheduledArrivalForJob,
 } from "@/lib/crew-member";
+import { resolveMemberHours } from "@/lib/crew-hours";
+import { DEMO_CREW_MEMBER } from "@/lib/types";
 
 function formatDisplayDate(isoDate: string) {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -51,6 +54,18 @@ function JobCard({
   const coworkers = coworkerNamesForJob(job.id);
   const duration = estimatedDurationHours(job.id);
   const arrival = scheduledArrivalForJob(job.id);
+  const [yourHours, setYourHours] = useState(0);
+
+  useEffect(() => {
+    setYourHours(
+      resolveMemberHours({
+        visitId: job.id,
+        status: job.status,
+        memberId: DEMO_CREW_MEMBER.id,
+        localState: loadVisitWorkState(job.id),
+      })
+    );
+  }, [job.id, job.status]);
 
   return (
     <li className="rounded-lg border border-stone-200 bg-white p-4">
@@ -66,6 +81,10 @@ function JobCard({
             <span className="font-medium">Start:</span> {arrival}
             {" · "}
             <span className="font-medium">Est. duration:</span> {duration} hrs
+          </p>
+          <p className="mt-1 text-sm text-stone-700">
+            <span className="font-medium">Your hours:</span>{" "}
+            {yourHours > 0 ? `${yourHours.toFixed(1)} hrs` : "Not logged yet"}
           </p>
           <p className="mt-1 text-sm text-stone-700">
             <span className="font-medium">Crew lead:</span>{" "}
