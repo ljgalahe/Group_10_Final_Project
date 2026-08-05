@@ -10,13 +10,23 @@ import {
   CrewLeadVisitsBoard,
   type CrewLeadVisitCardData,
 } from "@/components/crew-lead/CrewLeadVisitsBoard";
-import { normalizeServiceName, oxfordAddressForCustomer } from "@/components/crew-lead/buildCrewSchedule";
+import {
+  normalizeServiceName,
+  oxfordAddressForCustomer,
+} from "@/components/crew-lead/buildCrewSchedule";
 import type {
   ExtraWorkItem,
   ScheduleJob,
 } from "@/components/crew-lead/schedule-types";
-import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
-import { requireAppAccess, createDataClient } from "@/lib/auth-access";
+import { OrganizedJobList } from "@/components/visits/JobList";
+import {
+  OrganizeToggle,
+  VisitPeriodFilters,
+} from "@/components/visits/VisitPeriodFilters";
+import { VisitsSummaryBlocks } from "@/components/visits/VisitsSummaryBlocks";
+import { Card, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { createDataClient, requireAppAccess } from "@/lib/auth-access";
+import { jobIncludesCrewMember } from "@/lib/crew-member";
 import {
   getViewRole,
   roleCanEditContractDetails,
@@ -27,9 +37,25 @@ import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
 import {
   fetchAccountantVisits,
   fetchExtraWorkByContractIds,
+  fetchAllVisitCosts,
   fetchVisitCosts,
   fetchVisits,
 } from "@/lib/queries";
+import type { VisitCost } from "@/lib/types";
+import {
+  buildJobRows,
+  groupJobsByCompany,
+  groupJobsByTask,
+  summaryFromJobs,
+} from "@/lib/visit-jobs";
+import {
+  buildVisitsQuery,
+  parseOrganizeMode,
+  parseVisitPeriod,
+  periodLabel,
+} from "@/lib/visit-period";
+
+type SearchParams = Record<string, string | string[] | undefined>;
 
 function formatVisitDescription(notes: string | null) {
   if (!notes?.trim()) {
@@ -49,10 +75,16 @@ function parseStatusFilter(raw?: string): VisitStatusFilterValue {
   return "scheduled";
 }
 
+function firstParam(
+  value: string | string[] | undefined
+): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export default async function VisitsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   await requireAppAccess();
 
@@ -82,14 +114,13 @@ export default async function VisitsPage({
 
   const isCustomer = role === "customer";
   const params = await searchParams;
-  const statusFilter = parseStatusFilter(params.status);
   const { data: visits } = await fetchVisits();
   const canManage = roleCanManageVisits(role);
 
   let extraWork: ExtraWorkItem[] = [];
   const crewJobsByVisitId = new Map<string, ScheduleJob>();
 
-  if (role === "crew_lead") {
+  if (role === "crew_lead" || role === "crew_member") {
     const supabase = await createDataClient();
     const [{ data: enrichedVisits }, { data: extraWorkRows }] =
       await Promise.all([
@@ -197,11 +228,14 @@ export default async function VisitsPage({
         source: "visit",
       });
     }
-  }
 
-  if (role === "crew_lead") {
+    const scopedVisits =
+      role === "crew_member"
+        ? visits.filter((visit) => jobIncludesCrewMember(visit.id))
+        : visits;
+
     const cardData: CrewLeadVisitCardData[] = await Promise.all(
-      visits.map(async (visit) => {
+      scopedVisits.map(async (visit) => {
         const contract = visit.contracts as {
           title: string;
           customers: { name: string } | null;
@@ -237,17 +271,100 @@ export default async function VisitsPage({
       <AppShell>
         <PageHeader
           title="Service Visits"
-          description="Scheduled and completed crew visits with Labor, Materials, and Equipment costs."
+          description={
+            role === "crew_member"
+              ? "Upcoming and completed visits assigned to you (read-only)."
+              : "Filter by company, employee, or job. Open a visit for location, hours, supplies, and photo proof."
+          }
         />
         {cardData.length === 0 ? (
-          <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />
+          <EmptyState
+            message={
+              role === "crew_member"
+                ? "No visits assigned to you yet."
+                : "No visits scheduled. Run the seed script to load demo visits."
+            }
+          />
         ) : (
-          <CrewLeadVisitsBoard visits={cardData} extraWork={extraWork} />
+          <CrewLeadVisitsBoard
+            visits={cardData}
+            extraWork={extraWork}
+            readOnly={role === "crew_member"}
+          />
         )}
       </AppShell>
     );
   }
 
+  if (role === "manager") {
+    const period = parseVisitPeriod(params);
+    const organize = parseOrganizeMode(params);
+
+    const { data: allCosts } = await fetchAllVisitCosts();
+    const costsByVisit = new Map<string, VisitCost[]>();
+    for (const cost of allCosts) {
+      const list = costsByVisit.get(cost.visit_id) ?? [];
+      list.push(cost);
+      costsByVisit.set(cost.visit_id, list);
+    }
+
+    const jobs = buildJobRows(visits, costsByVisit, period);
+    const summary = summaryFromJobs(jobs);
+    const groups =
+      organize === "jobs" ? groupJobsByTask(jobs) : groupJobsByCompany(jobs);
+    const completedHref = `/visits/completed?${buildVisitsQuery(period, organize, { sort: "date" })}`;
+    const pendingHref = `/visits/pending?${buildVisitsQuery(period, organize, { sort: "date" })}`;
+
+    return (
+      <AppShell>
+        <PageHeader
+          title="Service Visits"
+          description={`Summary and job list for ${periodLabel(period)}. Switch the time range or organize by company or job.`}
+        />
+
+        <div className="mb-6">
+          <VisitPeriodFilters period={period} organize={organize} />
+        </div>
+
+        <VisitsSummaryBlocks
+          scheduled={summary.scheduled}
+          completed={summary.completed}
+          weatherAffected={summary.weatherAffected}
+          weatherCount={summary.weatherCount}
+          periodLabelText={periodLabel(period)}
+          completedHref={completedHref}
+          pendingHref={pendingHref}
+          afterSummary={
+            <Card>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-green-950">
+                    Work directory
+                  </h3>
+                  <p className="mt-1 text-sm text-stone-500">
+                    {organize === "company"
+                      ? "Browse companies, open a job, then a visit for crew, pay, costs, and photo proof."
+                      : "Browse jobs across companies, then open a visit for crew, pay, costs, and photo proof."}
+                  </p>
+                </div>
+                <OrganizeToggle period={period} organize={organize} />
+              </div>
+
+              <div className="mt-4">
+                <OrganizedJobList
+                  groups={groups}
+                  organizeBy={organize}
+                  emptyMessage="No jobs in this time range. Try All time or June 2026."
+                />
+              </div>
+            </Card>
+          }
+        />
+      </AppShell>
+    );
+  }
+
+  const statusFilter = parseStatusFilter(firstParam(params.status));
   const filteredVisits =
     statusFilter === "all"
       ? visits

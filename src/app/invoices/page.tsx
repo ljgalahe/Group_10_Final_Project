@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import {
   InvoiceStatusFilter,
@@ -89,6 +90,7 @@ export default async function InvoicesPage({
   await requireAppAccess();
 
   const role = await getViewRole();
+  if (role === "crew_member") redirect("/dashboard");
   const isCustomer = role === "customer";
   const isAccountant = role === "accountant";
   const params = await searchParams;

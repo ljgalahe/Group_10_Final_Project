@@ -51,11 +51,14 @@ export function VisitWorkPanel({
   job,
   contractExtraWork,
   variant = "full",
+  readOnly = false,
 }: {
   job: ScheduleJob;
   contractExtraWork: ExtraWorkItem[];
   /** Planning: crew, hours, supplies only. Full: includes tasks / extras / exceptions. */
   variant?: "full" | "planning";
+  /** When true, hide all edit/save/status-change controls (crew member portal). */
+  readOnly?: boolean;
 }) {
   const materials = useMemo(
     () => materialsForServices(job.services),
@@ -102,7 +105,7 @@ export function VisitWorkPanel({
   }, [job.id, job.status, tasks, contractExtraWork.length]);
 
   const isCompleted = job.status === "completed";
-  const canEditCrew = job.status === "scheduled";
+  const canEditCrew = job.status === "scheduled" && !readOnly;
 
   function update(next: VisitWorkState) {
     if (!canEditCrew) return;
@@ -437,6 +440,11 @@ export function VisitWorkPanel({
               </p>
             </div>
           </div>
+          {clockedHours == null && readOnly ? (
+            <p className="basis-full text-xs text-stone-500">
+              Job clock has not been started yet.
+            </p>
+          ) : null}
           {canEditCrew ? (
             <div className="flex gap-2">
               <button
