@@ -1,10 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createDataClient, DEMO_SESSION_COOKIE } from "@/lib/auth-access";
 import { buildPaymentMethodDisplayLabel } from "@/lib/customer-payment-methods";
-import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
+import {
+  getViewCustomerId,
+  getViewRole,
+  roleCanEditContractDetails,
+} from "@/lib/demo-role";
 import {
   isValidPaymentMethod,
   nextInvoiceStatusAfterPayment,
@@ -65,22 +70,56 @@ export async function addVisitCost(formData: FormData): Promise<void> {
 
 export async function approveExtraWork(formData: FormData): Promise<void> {
   const extraWorkId = formData.get("extra_work_id") as string;
+  const role = await getViewRole();
   const supabase = await createDataClient();
-  const { error } = await supabase
+  const { data: order, error } = await supabase
     .from("extra_work_orders")
     .update({
       status: "approved",
       approved_at: new Date().toISOString(),
     })
-    .eq("id", extraWorkId);
+    .eq("id", extraWorkId)
+    .select("id, contract_id, title, quoted_amount")
+    .single();
 
-  if (error) return;
+  if (error || !order) return;
+
+  if (role === "accountant") {
+    await supabase.from("contract_audit_logs").insert({
+      contract_id: order.contract_id,
+      action: "change_order_approved",
+      actor_role: role,
+      details: {
+        extra_work_id: order.id,
+        title: order.title,
+        quoted_amount: order.quoted_amount,
+      },
+    });
+  }
+
   revalidatePath("/contracts");
+  revalidatePath(`/contracts/${order.contract_id}`);
 }
 
 export async function generateInvoice(formData: FormData): Promise<void> {
+  const role = await getViewRole();
   const contractId = formData.get("contract_id") as string;
   const supabase = await createDataClient();
+
+  // Internal control (accountant contracts): no invoice until visits are complete
+  if (role === "accountant") {
+    const { data: openVisits } = await supabase
+      .from("service_visits")
+      .select("id")
+      .eq("contract_id", contractId)
+      .eq("status", "scheduled");
+
+    if ((openVisits?.length ?? 0) > 0) {
+      redirect(
+        `/contracts/${contractId}?invoiceError=incomplete_visits&openVisits=${openVisits?.length ?? 0}`
+      );
+    }
+  }
 
   const { data: contract } = await supabase
     .from("contracts")
@@ -152,8 +191,275 @@ export async function generateInvoice(formData: FormData): Promise<void> {
     );
   }
 
+  if (role === "accountant") {
+    await supabase.from("contract_audit_logs").insert({
+      contract_id: contractId,
+      action: "invoice_generated",
+      actor_role: role,
+      details: { invoice_id: invoice.id, invoice_number: invoiceNumber },
+    });
+  }
+
   revalidatePath("/invoices");
   revalidatePath("/reports/ar-aging");
+  revalidatePath("/contracts");
+  revalidatePath("/visits");
+  revalidatePath(`/contracts/${contractId}`);
+}
+
+export async function createContract(formData: FormData): Promise<void> {
+  const role = await getViewRole();
+  if (!roleCanEditContractDetails(role)) {
+    return;
+  }
+
+  const supabase = await createDataClient();
+
+  const title = (formData.get("title") as string)?.trim();
+  const customerMode = formData.get("customer_mode") as string;
+  const existingCustomerId = formData.get("customer_id") as string;
+  const newCustomerName = (formData.get("new_customer_name") as string)?.trim();
+  const propertyAddress = (formData.get("property_address") as string)?.trim();
+  const contractValue = parseFloat(formData.get("contract_value") as string);
+  const startDate = formData.get("start_date") as string;
+  const endDate = formData.get("end_date") as string;
+  const assignedCrew = (formData.get("assigned_crew") as string)?.trim();
+  const accountManager = (formData.get("account_manager") as string)?.trim();
+  const renewalDate = (formData.get("renewal_date") as string) || null;
+  const billingFrequency = (formData.get("billing_frequency") as string) || "monthly";
+  const status = (formData.get("status") as string) || "active";
+  const visitsPerWeek = formData.get("visits_per_week")
+    ? parseInt(formData.get("visits_per_week") as string, 10)
+    : null;
+
+  if (!title || !startDate || !endDate) {
+    return;
+  }
+
+  let customerId = existingCustomerId;
+
+  if (customerMode === "new") {
+    if (!newCustomerName) return;
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .insert({
+        name: newCustomerName,
+        address: propertyAddress || null,
+        property_type: "Commercial",
+      })
+      .select("id")
+      .single();
+
+    if (customerError || !customer) return;
+    customerId = customer.id;
+  } else {
+    if (!customerId) return;
+    if (propertyAddress) {
+      await supabase
+        .from("customers")
+        .update({ address: propertyAddress })
+        .eq("id", customerId);
+    }
+  }
+
+  const { data: contract, error: contractError } = await supabase
+    .from("contracts")
+    .insert({
+      customer_id: customerId,
+      title,
+      status,
+      season_start: startDate,
+      season_end: endDate,
+      monthly_fee: Number.isFinite(contractValue) ? contractValue : null,
+      visits_per_week: Number.isFinite(visitsPerWeek as number)
+        ? visitsPerWeek
+        : null,
+      billing_method: billingFrequency,
+      assigned_crew: assignedCrew || null,
+      account_manager: accountManager || null,
+      renewal_date: renewalDate,
+    })
+    .select("id")
+    .single();
+
+  if (contractError || !contract) return;
+
+  await supabase.from("contract_audit_logs").insert({
+    contract_id: contract.id,
+    action: "contract_created",
+    actor_role: role,
+    details: { title, customer_id: customerId, status },
+  });
+
+  revalidatePath("/contracts");
+  revalidatePath("/dashboard");
+  revalidatePath("/reports/profitability");
+  redirect(`/contracts/${contract.id}`);
+}
+
+export async function updateContractDetails(formData: FormData): Promise<void> {
+  const role = await getViewRole();
+  if (!roleCanEditContractDetails(role)) {
+    return;
+  }
+
+  const supabase = await createDataClient();
+  const contractId = formData.get("contract_id") as string;
+  const customerId = formData.get("customer_id") as string;
+
+  const customerName = (formData.get("customer_name") as string)?.trim();
+  const propertyAddress = (formData.get("property_address") as string)?.trim();
+  const contractValue = parseFloat(formData.get("contract_value") as string);
+  const startDate = formData.get("start_date") as string;
+  const endDate = formData.get("end_date") as string;
+  const assignedCrew = (formData.get("assigned_crew") as string)?.trim();
+  const accountManager = (formData.get("account_manager") as string)?.trim();
+  const renewalDate = (formData.get("renewal_date") as string) || null;
+  const billingFrequency = formData.get("billing_frequency") as string;
+
+  if (!contractId || !customerId || !customerName || !startDate || !endDate) {
+    return;
+  }
+
+  const proposedContract = {
+    monthly_fee: Number.isFinite(contractValue) ? contractValue : null,
+    season_start: startDate,
+    season_end: endDate,
+    assigned_crew: assignedCrew || null,
+    account_manager: accountManager || null,
+    renewal_date: renewalDate,
+    billing_method: billingFrequency,
+  };
+
+  const proposedCustomer = {
+    name: customerName,
+    address: propertyAddress || null,
+  };
+
+  const { error } = await supabase.from("contract_change_requests").insert({
+    contract_id: contractId,
+    customer_id: customerId,
+    requested_by_role: role,
+    status: "pending",
+    proposed_contract: proposedContract,
+    proposed_customer: proposedCustomer,
+    summary: `Update contract terms and customer details for manager approval`,
+  });
+
+  if (error) return;
+
+  await supabase.from("contract_audit_logs").insert({
+    contract_id: contractId,
+    action: "edit_submitted_for_approval",
+    actor_role: role,
+    details: { proposedContract, proposedCustomer },
+  });
+
+  revalidatePath("/contracts");
+  revalidatePath(`/contracts/${contractId}`);
+}
+
+export async function approveContractChangeRequest(
+  formData: FormData
+): Promise<void> {
+  const role = await getViewRole();
+  if (!roleCanEditContractDetails(role)) {
+    return;
+  }
+
+  const requestId = formData.get("request_id") as string;
+  const supabase = await createDataClient();
+
+  const { data: request, error } = await supabase
+    .from("contract_change_requests")
+    .select("*")
+    .eq("id", requestId)
+    .eq("status", "pending")
+    .single();
+
+  if (error || !request) return;
+
+  const proposedContract = request.proposed_contract as Record<string, unknown>;
+  const proposedCustomer = request.proposed_customer as Record<
+    string,
+    unknown
+  > | null;
+
+  if (proposedCustomer && request.customer_id) {
+    const { error: customerError } = await supabase
+      .from("customers")
+      .update(proposedCustomer)
+      .eq("id", request.customer_id);
+    if (customerError) return;
+  }
+
+  const { error: contractError } = await supabase
+    .from("contracts")
+    .update(proposedContract)
+    .eq("id", request.contract_id);
+  if (contractError) return;
+
+  await supabase
+    .from("contract_change_requests")
+    .update({
+      status: "approved",
+      reviewed_at: new Date().toISOString(),
+      reviewed_by_role: "manager",
+    })
+    .eq("id", requestId);
+
+  await supabase.from("contract_audit_logs").insert({
+    contract_id: request.contract_id,
+    action: "edit_approved_by_manager",
+    actor_role: "manager",
+    details: {
+      request_id: requestId,
+      applied_by_demo_role: role,
+      proposedContract,
+      proposedCustomer,
+    },
+  });
+
+  revalidatePath("/contracts");
+  revalidatePath(`/contracts/${request.contract_id}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/reports/profitability");
+}
+
+export async function rejectContractChangeRequest(
+  formData: FormData
+): Promise<void> {
+  const role = await getViewRole();
+  if (!roleCanEditContractDetails(role)) {
+    return;
+  }
+
+  const requestId = formData.get("request_id") as string;
+  const supabase = await createDataClient();
+
+  const { data: request, error } = await supabase
+    .from("contract_change_requests")
+    .update({
+      status: "rejected",
+      reviewed_at: new Date().toISOString(),
+      reviewed_by_role: "manager",
+    })
+    .eq("id", requestId)
+    .eq("status", "pending")
+    .select("contract_id")
+    .single();
+
+  if (error || !request) return;
+
+  await supabase.from("contract_audit_logs").insert({
+    contract_id: request.contract_id,
+    action: "edit_rejected_by_manager",
+    actor_role: "manager",
+    details: { request_id: requestId, applied_by_demo_role: role },
+  });
+
+  revalidatePath("/contracts");
+  revalidatePath(`/contracts/${request.contract_id}`);
 }
 
 async function resolveRecorder(): Promise<{

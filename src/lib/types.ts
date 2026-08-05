@@ -5,6 +5,7 @@ export type BillingMethod = "monthly" | "per_visit" | "seasonal";
 export type VisitStatus = "scheduled" | "completed" | "cancelled";
 export type InvoiceStatus =
   | "draft"
+  | "approved"
   | "sent"
   | "paid"
   | "overdue"
@@ -62,6 +63,9 @@ export interface Contract {
   visits_per_week: number | null;
   billing_method: BillingMethod;
   notes: string | null;
+  assigned_crew: string | null;
+  account_manager: string | null;
+  renewal_date: string | null;
   created_at: string;
   customers?: Customer;
 }
@@ -205,6 +209,14 @@ export const SUPPORT_CATEGORIES: {
 /** Categories customers can pick on Contact Us (special flows have their own UI). */
 export const SUPPORT_FORM_CATEGORIES = SUPPORT_CATEGORIES.filter(
   (c) => c.value !== "renewal" && c.value !== "service_quote"
+);
+
+/** Field-relevant Contact Us categories for Crew Lead (excludes billing / sales). */
+export const CREW_APPLICABLE_SUPPORT_CATEGORIES = SUPPORT_CATEGORIES.filter(
+  (c) =>
+    c.value === "question" ||
+    c.value === "concern" ||
+    c.value === "complaint"
 );
 
 export const DEMO_ROLES: { role: UserRole; label: string; description: string }[] = [

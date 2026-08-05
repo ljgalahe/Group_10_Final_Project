@@ -23,6 +23,10 @@ export function roleCanManageBilling(role: UserRole) {
   return role === "manager" || role === "accountant";
 }
 
+export function roleCanEditContractDetails(role: UserRole) {
+  return role === "accountant";
+}
+
 export function roleCanManageVisits(role: UserRole) {
   return role === "manager" || role === "crew_lead" || role === "accountant";
 }

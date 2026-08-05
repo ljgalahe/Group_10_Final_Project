@@ -1,0 +1,13 @@
+---
+description: Always share the local app link after making changes
+alwaysApply: true
+---
+
+# Share app link after changes
+
+After making any UI or app code changes, always end the response by:
+
+1. Opening the app in the Cursor browser (`http://localhost:3001`, or the active local port if different)
+2. Including the clickable link in the reply
+
+Use Accountant features path when relevant: View as → Accountant → Contracts.

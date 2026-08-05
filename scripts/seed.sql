@@ -34,14 +34,14 @@ insert into customer_payment_methods (customer_id, nickname, display_label) valu
 
 -- ─── CONTRACTS (seasonal maintenance agreements) ───────────────────────────
 
-insert into contracts (id, customer_id, title, status, season_start, season_end, monthly_fee, visits_per_week, billing_method, notes) values
+insert into contracts (id, customer_id, title, status, season_start, season_end, monthly_fee, visits_per_week, billing_method, notes, assigned_crew, account_manager, renewal_date) values
   -- Riverside: only Grounds is near end (within 45 days as of ~Aug 2026); others farther out
-  ('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', '2026 Grounds Maintenance — Riverside', 'active', '2026-04-01', '2026-09-15', 2400.00, 2, 'monthly', 'Includes spring cleanup and fall leaf removal.'),
-  ('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111101', '2026 Irrigation Monitoring — Riverside', 'active', '2026-04-01', '2026-10-31', 650.00, 1, 'monthly', 'Weekly system checks and minor head adjustments. Major repairs billed separately.'),
-  ('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111101', '2026 Parking Lot Islands — Riverside', 'active', '2026-05-01', '2026-11-30', 900.00, 1, 'monthly', 'Shrub beds and tree rings in the north and south parking lots.'),
-  ('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', '2026 Landscape Care — Summit Retail', 'active', '2026-04-01', '2026-10-15', 3200.00, 3, 'monthly', 'High-traffic retail center requires extra edging.'),
-  ('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', '2026 HOA Common Areas — Harbor View', 'active', '2026-04-01', '2026-11-01', 1800.00, 1, 'monthly', 'Common areas and entrance beds only.'),
-  ('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', '2026 Industrial Grounds — Metro', 'active', '2026-04-01', '2026-12-15', 4500.00, 2, 'monthly', 'Large lot with detention pond maintenance.');
+  ('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', '2026 Grounds Maintenance — Riverside', 'active', '2026-04-01', '2026-09-15', 2400.00, 2, 'monthly', 'Includes spring cleanup and fall leaf removal.', 'Crew A', 'Alex Rivera', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111101', '2026 Irrigation Monitoring — Riverside', 'active', '2026-04-01', '2026-10-31', 650.00, 1, 'monthly', 'Weekly system checks and minor head adjustments. Major repairs billed separately.', 'Crew A', 'Alex Rivera', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111101', '2026 Parking Lot Islands — Riverside', 'active', '2026-05-01', '2026-11-30', 900.00, 1, 'monthly', 'Shrub beds and tree rings in the north and south parking lots.', 'Crew A', 'Alex Rivera', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', '2026 Landscape Care — Summit Retail', 'active', '2026-04-01', '2026-10-15', 3200.00, 3, 'monthly', 'High-traffic retail center requires extra edging.', 'Crew B', 'Jordan Lee', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', '2026 HOA Common Areas — Harbor View', 'active', '2026-04-01', '2026-11-01', 1800.00, 1, 'monthly', 'Common areas and entrance beds only.', 'Crew A', 'Alex Rivera', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', '2026 Industrial Grounds — Metro', 'active', '2026-04-01', '2026-12-15', 4500.00, 2, 'monthly', 'Large lot with detention pond maintenance.', 'Crew C', 'Sam Patel', '2026-11-30');
 
 -- ─── INCLUDED SERVICES ───────────────────────────────────────────────────────
 
@@ -115,9 +115,10 @@ insert into invoices (id, contract_id, customer_id, invoice_number, issue_date, 
   ('55555555-5555-5555-5555-555555555506', '22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111101', 'INV-0006', '2026-06-01', '2026-07-01', 'sent', 650.00, 650.00, 0.00),
   ('55555555-5555-5555-5555-555555555507', '22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111101', 'INV-0007', '2026-06-01', '2026-07-01', 'sent', 900.00, 900.00, 0.00),
   ('55555555-5555-5555-5555-555555555503', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0003', '2026-06-01', '2026-07-01', 'paid', 3200.00, 3200.00, 3200.00),
-  ('55555555-5555-5555-5555-555555555504', '22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'INV-0004', '2026-04-01', '2026-05-01', 'overdue', 4500.00, 4500.00, 0.00),
+  ('55555555-5555-5555-5555-555555555504', '22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'INV-0004', '2026-04-01', '2026-05-01', 'past_due', 4500.00, 4500.00, 0.00),
   ('55555555-5555-5555-5555-555555555505', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0005', '2026-07-01', '2026-07-15', 'partially_paid', 1800.00, 1800.00, 900.00),
-  ('55555555-5555-5555-5555-555555555506', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0006', '2026-03-01', '2026-03-31', 'canceled', 500.00, 500.00, 0.00);
+  ('55555555-5555-5555-5555-555555555508', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0008', '2026-08-01', '2026-08-31', 'draft', 1200.00, 1200.00, 0.00),
+  ('55555555-5555-5555-5555-555555555509', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0009', '2026-08-01', '2026-08-31', 'approved', 3200.00, 3200.00, 0.00);
 
 insert into invoice_lines (invoice_id, description, amount, line_type) values
   ('55555555-5555-5555-5555-555555555501', 'Monthly maintenance — Riverside (May 2026)', 2400.00, 'recurring'),
@@ -128,21 +129,22 @@ insert into invoice_lines (invoice_id, description, amount, line_type) values
   ('55555555-5555-5555-5555-555555555503', 'Monthly maintenance — Summit Retail (June 2026)', 3200.00, 'recurring'),
   ('55555555-5555-5555-5555-555555555504', 'Monthly maintenance — Metro Industrial (April 2026)', 4500.00, 'recurring'),
   ('55555555-5555-5555-5555-555555555505', 'Monthly maintenance — Harbor View HOA (July 2026)', 1800.00, 'recurring'),
-  ('55555555-5555-5555-5555-555555555506', 'Canceled seasonal add-on — Harbor View', 500.00, 'extra_work');
-
--- ─── PAYMENTS ────────────────────────────────────────────────────────────────
--- Demonstrates: full ACH, full check, multi-payment partial (check + card), August collection
+  ('55555555-5555-5555-5555-555555555508', 'Seasonal bed prep — Riverside (August 2026)', 1200.00, 'extra_work'),
+  ('55555555-5555-5555-5555-555555555509', 'Monthly maintenance — Summit Retail (August 2026)', 3200.00, 'recurring');
 
 -- ─── PAYMENTS (simulated) ────────────────────────────────────────────────────
-
-insert into payments (invoice_id, amount, payment_date, payment_method, notes) values
-  ('55555555-5555-5555-5555-555555555501', 2400.00, '2026-05-28', 'simulated_ach', 'On-time payment'),
-  ('55555555-5555-5555-5555-555555555503', 3200.00, '2026-06-15', 'simulated_check', 'Received by mail'),
-  ('55555555-5555-5555-5555-555555555505', 900.00, '2026-07-10', 'simulated_check', 'Partial payment — balance remaining');
+-- Demonstrates: full ACH, full check, multi-payment partial (check + card)
+insert into payments (payment_number, invoice_id, customer_id, amount, applied_amount, unapplied_amount, payment_date, payment_method, notes) values
+  ('CR-0001', '55555555-5555-5555-5555-555555555501', '11111111-1111-1111-1111-111111111101', 2400.00, 2400.00, 0, '2026-05-28', 'simulated_ach', 'On-time payment'),
+  ('CR-0002', '55555555-5555-5555-5555-555555555503', '11111111-1111-1111-1111-111111111102', 3200.00, 3200.00, 0, '2026-06-15', 'simulated_check', 'Received by mail'),
+  ('CR-0003', '55555555-5555-5555-5555-555555555505', '11111111-1111-1111-1111-111111111103', 900.00, 900.00, 0, '2026-07-10', 'simulated_check', 'Partial payment — balance remaining');
 
 -- ─── SUPPORT REQUESTS (Riverside customer portal demo) ─────────────────────
 
 insert into support_requests (customer_id, category, message, linked_type, linked_id, status, resolution_notes, created_at) values
   ('11111111-1111-1111-1111-111111111101', 'question', 'Can you confirm the irrigation visit schedule for July?', 'contract', '22222222-2222-2222-2222-222222222205', 'Resolved', 'We confirmed your irrigation schedule for July and emailed Maria Chen the visit dates (weekly zones on Tuesdays).', '2026-06-15 14:00:00+00'),
   -- Open requests should not include resolution notes until management resolves them
-  ('11111111-1111-1111-1111-111111111101', 'billing_dispute', 'Please review the mulch line item on INV-0002.', 'invoice', '55555555-5555-5555-5555-555555555502', 'Open', null, '2026-07-02 10:30:00+00');
+  ('11111111-1111-1111-1111-111111111101', 'billing_dispute', 'Please review the mulch line item on INV-0002.', 'invoice', '55555555-5555-5555-5555-555555555502', 'Open', null, '2026-07-02 10:30:00+00'),
+  -- Field requests visible to Crew Lead (questions / concerns / complaints)
+  ('11111111-1111-1111-1111-111111111102', 'concern', 'Gate code at the north entrance was changed — crews need the updated code before the next mow.', 'contract', '22222222-2222-2222-2222-222222222202', 'Open', null, '2026-08-01 15:20:00+00'),
+  ('11111111-1111-1111-1111-111111111103', 'complaint', 'Edging along the front walk was missed on the last visit. Please correct on the next stop.', 'contract', '22222222-2222-2222-2222-222222222203', 'In Progress', null, '2026-08-03 11:05:00+00');

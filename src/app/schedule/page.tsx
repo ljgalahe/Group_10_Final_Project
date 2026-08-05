@@ -53,7 +53,7 @@ export default async function SchedulePage() {
     <AppShell>
       <PageHeader
         title="Schedule"
-        description="Three-month crew job calendar, filters, today's route, and per-visit work tracking."
+        description="Monthly schedule calendar with company, employee, job, and status filters — plus today's route and visit work tracking."
       />
       <CrewLeadSchedule
         jobs={scheduleJobs}

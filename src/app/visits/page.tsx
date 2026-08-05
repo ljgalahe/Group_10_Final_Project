@@ -1,4 +1,5 @@
 import { completeVisit } from "@/app/actions/business";
+import { AccountantVisitsView } from "@/components/AccountantVisitsView";
 import { AppShell } from "@/components/AppShell";
 import {
   VisitStatusFilter,
@@ -16,9 +17,17 @@ import type {
 } from "@/components/crew-lead/schedule-types";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
-import { getViewRole, roleCanManageVisits } from "@/lib/demo-role";
+import {
+  getViewRole,
+  roleCanEditContractDetails,
+  roleCanManageVisits,
+} from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { fetchVisitCosts, fetchVisits } from "@/lib/queries";
+import {
+  fetchAccountantVisits,
+  fetchVisitCosts,
+  fetchVisits,
+} from "@/lib/queries";
 
 function formatVisitDescription(notes: string | null) {
   if (!notes?.trim()) {
@@ -42,6 +51,29 @@ export default async function VisitsPage({
   await requireAppAccess();
 
   const role = await getViewRole();
+  const isAccountant = roleCanEditContractDetails(role);
+
+  if (isAccountant) {
+    const { data: visits } = await fetchAccountantVisits();
+
+    return (
+      <AppShell>
+        <PageHeader
+          title="Service Visits"
+          description="Accountant visit workspace with profitability, crew detail, variance, and audit controls."
+        />
+        {visits.length === 0 ? (
+          <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />
+        ) : (
+          <AccountantVisitsView
+            visits={visits}
+            todayIso={new Date().toISOString().slice(0, 10)}
+          />
+        )}
+      </AppShell>
+    );
+  }
+
   const isCustomer = role === "customer";
   const params = await searchParams;
   const statusFilter = parseStatusFilter(params.status);
@@ -334,11 +366,11 @@ export default async function VisitsPage({
                         )}
                       </div>
 
-                      {(role === "accountant" || role === "manager") && (
+                      {role === "manager" ? (
                         <div className="mt-4 border-t border-stone-100 pt-4">
                           <VisitCostForm visitId={visit.id} />
                         </div>
-                      )}
+                      ) : null}
                     </>
                   ) : null}
                 </div>

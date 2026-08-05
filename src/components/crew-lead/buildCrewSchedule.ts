@@ -1,31 +1,14 @@
 import type { ScheduleJob } from "@/components/crew-lead/schedule-types";
+import {
+  OXFORD_CUSTOMER_COORDS,
+  generateDailySampleJobs,
+  oxfordAddressForCustomer,
+} from "@/lib/visit-demo";
+
+export { oxfordAddressForCustomer };
 
 /** Approximate Oxford, Mississippi coordinates for demo customer sites */
-const CUSTOMER_COORDS: Record<string, { lat: number; lng: number }> = {
-  "11111111-1111-1111-1111-111111111101": { lat: 34.3702, lng: -89.5251 },
-  "11111111-1111-1111-1111-111111111102": { lat: 34.3624, lng: -89.5128 },
-  "11111111-1111-1111-1111-111111111103": { lat: 34.3756, lng: -89.5084 },
-  "11111111-1111-1111-1111-111111111104": { lat: 34.3558, lng: -89.5302 },
-};
-
-const CUSTOMER_OXFORD_ADDRESSES: Record<string, string> = {
-  "11111111-1111-1111-1111-111111111101": "1200 University Ave, Oxford, MS",
-  "11111111-1111-1111-1111-111111111102": "450 Jackson Ave W, Oxford, MS",
-  "11111111-1111-1111-1111-111111111103": "88 South Lamar Blvd, Oxford, MS",
-  "11111111-1111-1111-1111-111111111104": "900 Molly Barr Rd, Oxford, MS",
-};
-
-/** Ensure displayed visit addresses are in Oxford, MS (not Austin). */
-export function oxfordAddressForCustomer(
-  customerId: string,
-  fallback: string | null | undefined
-): string {
-  if (CUSTOMER_OXFORD_ADDRESSES[customerId]) {
-    return CUSTOMER_OXFORD_ADDRESSES[customerId];
-  }
-  if (!fallback) return "Oxford, MS";
-  return fallback.replace(/Austin,\s*TX/gi, "Oxford, MS");
-}
+const CUSTOMER_COORDS = OXFORD_CUSTOMER_COORDS;
 
 type ContractRow = {
   id: string;
@@ -99,6 +82,61 @@ function coordsFor(customerId: string, index: number) {
       lng: -89.5192 - index * 0.006,
     }
   );
+}
+
+function sampleJobsAsScheduleJobs(existing: ScheduleJob[]): ScheduleJob[] {
+  const seen = new Set(
+    existing.map((j) => `${j.scheduledDate}::${j.customerName}`)
+  );
+  const siteByCompany = new Map(
+    [
+      {
+        companyName: "Riverside Office Park",
+        customerId: "11111111-1111-1111-1111-111111111101",
+        contractId: "22222222-2222-2222-2222-222222222201",
+      },
+      {
+        companyName: "Summit Retail Center",
+        customerId: "11111111-1111-1111-1111-111111111102",
+        contractId: "22222222-2222-2222-2222-222222222202",
+      },
+      {
+        companyName: "Harbor View HOA",
+        customerId: "11111111-1111-1111-1111-111111111103",
+        contractId: "22222222-2222-2222-2222-222222222203",
+      },
+      {
+        companyName: "Metro Industrial Complex",
+        customerId: "11111111-1111-1111-1111-111111111104",
+        contractId: "22222222-2222-2222-2222-222222222204",
+      },
+    ].map((s) => [s.companyName, s] as const)
+  );
+
+  return generateDailySampleJobs()
+    .filter((j) => !seen.has(`${j.date}::${j.companyName}`))
+    .map((j) => {
+      const site = siteByCompany.get(j.companyName);
+      const customerId =
+        site?.customerId ?? "11111111-1111-1111-1111-111111111101";
+      const coords = coordsFor(customerId, 0);
+      return {
+        id: j.visitId,
+        contractId:
+          site?.contractId ?? "22222222-2222-2222-2222-222222222201",
+        scheduledDate: j.date,
+        status: j.status,
+        customerId,
+        customerName: j.companyName,
+        customerIdShort: customerId.slice(-4),
+        address: j.location,
+        contractTitle: j.jobLabel,
+        services: [j.jobLabel],
+        lat: coords.lat,
+        lng: coords.lng,
+        source: "projected" as const,
+      };
+    });
 }
 
 /** Title-case and dedupe service names (fixes Bed Weeding / Bed weeding). */
@@ -210,7 +248,9 @@ export function buildCrewSchedule(
       }
     });
 
-  return jobs.sort((a, b) =>
+  const withSamples = [...jobs, ...sampleJobsAsScheduleJobs(jobs)];
+
+  return withSamples.sort((a, b) =>
     a.scheduledDate === b.scheduledDate
       ? a.customerName.localeCompare(b.customerName)
       : a.scheduledDate.localeCompare(b.scheduledDate)

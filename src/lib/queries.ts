@@ -29,6 +29,113 @@ export async function fetchContracts() {
   return { data: data ?? [], error };
 }
 
+export async function fetchContractsDetailed() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("contracts")
+    .select(
+      "*, customers(name, property_type, address, contact_name), contract_services(*), extra_work_orders(*)"
+    )
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+
+export async function fetchAccountantContractBilling() {
+  const supabase = await createDataClient();
+  const { data: visits } = await supabase
+    .from("service_visits")
+    .select("id, contract_id, status");
+
+  const visitIds = (visits ?? []).map((visit) => visit.id);
+  const { data: costs } = visitIds.length
+    ? await supabase
+        .from("visit_costs")
+        .select("visit_id, cost_type, amount")
+        .in("visit_id", visitIds)
+    : { data: [] as never[] };
+
+  return {
+    visits: visits ?? [],
+    costs: costs ?? [],
+  };
+}
+
+export async function fetchPendingContractChangeRequests() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("contract_change_requests")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+
+export async function fetchContractAuditLogs(contractId?: string) {
+  const supabase = await createDataClient();
+  let query = supabase
+    .from("contract_audit_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (contractId) {
+    query = query.eq("contract_id", contractId);
+  }
+
+  const { data, error } = await query;
+  return { data: data ?? [], error };
+}
+
+export async function fetchOpenVisitCount(contractId: string) {
+  const supabase = await createDataClient();
+  const { count } = await supabase
+    .from("service_visits")
+    .select("*", { count: "exact", head: true })
+    .eq("contract_id", contractId)
+    .eq("status", "scheduled");
+  return count ?? 0;
+}
+
+export async function fetchCustomers() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .order("name", { ascending: true });
+  return { data: data ?? [], error };
+}
+
+export async function fetchContractProfitabilityMap() {
+  const report = await fetchProfitabilityReport();
+  const map = new Map<string, { margin: number; unprofitable: boolean }>();
+  for (const row of report) {
+    map.set(row.contractId, {
+      margin: row.margin,
+      unprofitable: row.margin < 0,
+    });
+  }
+  return map;
+}
+
+export async function fetchContractOutstandingArMap() {
+  const supabase = await createDataClient();
+  const { data: invoices } = await supabase
+    .from("invoices")
+    .select("contract_id, total, amount_paid, status")
+    .in("status", ["sent", "overdue", "draft"]);
+
+  const map = new Map<string, number>();
+  for (const invoice of invoices ?? []) {
+    const balance = Number(invoice.total) - Number(invoice.amount_paid);
+    if (balance <= 0) continue;
+    map.set(
+      invoice.contract_id,
+      (map.get(invoice.contract_id) ?? 0) + balance
+    );
+  }
+  return map;
+}
+
 export async function fetchContract(id: string) {
   const supabase = await createDataClient();
   const { data, error } = await supabase
@@ -61,6 +168,47 @@ export async function fetchVisits() {
 
   const { data, error } = await query;
   return { data: data ?? [], error };
+}
+
+export async function fetchAccountantVisits() {
+  const supabase = await createDataClient();
+
+  const { data: visits, error } = await supabase
+    .from("service_visits")
+    .select(
+      "*, contracts(id, title, monthly_fee, visits_per_week, assigned_crew, billing_method, customer_id, customers(name))"
+    )
+    .order("scheduled_date", { ascending: false });
+
+  if (error || !visits) return { data: [], error };
+
+  const visitIds = visits.map((visit) => visit.id);
+  const contractIds = [
+    ...new Set(visits.map((visit) => visit.contract_id).filter(Boolean)),
+  ];
+
+  const [{ data: costs }, { data: invoices }] = await Promise.all([
+    visitIds.length
+      ? supabase.from("visit_costs").select("*").in("visit_id", visitIds)
+      : Promise.resolve({ data: [] as never[] }),
+    contractIds.length
+      ? supabase
+          .from("invoices")
+          .select("id, contract_id, status, issue_date, created_at")
+          .in("contract_id", contractIds)
+      : Promise.resolve({ data: [] as never[] }),
+  ]);
+
+  return {
+    data: visits.map((visit) => ({
+      ...visit,
+      visit_costs: (costs ?? []).filter((cost) => cost.visit_id === visit.id),
+      invoices: (invoices ?? []).filter(
+        (invoice) => invoice.contract_id === visit.contract_id
+      ),
+    })),
+    error: null,
+  };
 }
 
 export async function fetchVisitCosts(visitId: string) {
@@ -115,15 +263,6 @@ export async function fetchPayments() {
     enrichPaymentRow(payment)
   );
   return { data: enriched, error };
-}
-
-export async function fetchCustomers() {
-  const supabase = await createDataClient();
-  const { data, error } = await supabase
-    .from("customers")
-    .select("id, name")
-    .order("name", { ascending: true });
-  return { data: data ?? [], error };
 }
 
 export async function fetchOpenInvoicesForCustomer(customerId: string) {
@@ -689,6 +828,16 @@ export async function fetchAllSupportRequests(): Promise<{
   });
 
   return { data: items, error: null };
+}
+
+/** Contact Us requests relevant to crew (questions, concerns, complaints). */
+export async function fetchCrewApplicableSupportRequests() {
+  const { data, error } = await fetchAllSupportRequests();
+  const applicable = new Set(["question", "concern", "complaint"]);
+  return {
+    data: data.filter((item) => applicable.has(item.category)),
+    error,
+  };
 }
 
 export async function fetchSupportRequestForCustomer(
