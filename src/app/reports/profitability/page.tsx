@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { ContractRankings } from "@/components/ContractRankings";
-import { ManagerRecommendations } from "@/components/ManagerRecommendations";
-import { ProfitLeakDetector } from "@/components/ProfitLeakDetector";
+import { ContractPerformanceAnalysis } from "@/components/ContractPerformanceAnalysis";
 import { Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
 import { buildContractRankings } from "@/lib/contract-rankings";
@@ -58,69 +56,87 @@ export default async function ProfitabilityPage() {
       {report.length === 0 ? (
         <EmptyState message="No active contracts to analyze." />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead className="bg-stone-50 text-left text-stone-600">
-              <tr>
-                <th className="px-4 py-3 font-medium">Contract</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Monthly Fee</th>
-                <th className="px-4 py-3 font-medium">Revenue Billed</th>
-                <th className="px-4 py-3 font-medium">Direct Costs</th>
-                <th className="px-4 py-3 font-medium">Margin</th>
-                <th className="px-4 py-3 font-medium">Margin %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.map((row) => (
-                <tr key={row.contractId} className="border-t border-stone-100">
-                  <td className="px-4 py-3 font-medium">{row.title}</td>
-                  <td className="px-4 py-3">{row.customerName}</td>
-                  <td className="px-4 py-3">{formatCurrency(row.monthlyFee)}</td>
-                  <td className="px-4 py-3">{formatCurrency(row.revenue)}</td>
-                  <td className="px-4 py-3">{formatCurrency(row.costs)}</td>
-                  <td
-                    className={`px-4 py-3 font-medium ${row.margin >= 0 ? "text-green-800" : "text-red-700"}`}
-                  >
-                    {formatCurrency(row.margin)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        row.marginPct >= 25
-                          ? "bg-green-100 text-green-800"
-                          : row.marginPct >= 10
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {row.marginPct.toFixed(1)}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <ContractPerformanceAnalysis
+            report={report}
+            profitLeaks={profitLeaks}
+            recommendations={recommendations}
+          />
+
+          <section className="mt-10 space-y-3">
+            <div>
+              <h2 className="text-base font-semibold text-stone-700">
+                All contracts
+              </h2>
+              <p className="text-sm text-stone-500">
+                Reference table of billed revenue, direct costs, and margin for
+                every active contract.
+              </p>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+              <table className="min-w-full text-sm">
+                <thead className="bg-stone-50 text-left text-stone-600">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Contract</th>
+                    <th className="px-4 py-3 font-medium">Customer</th>
+                    <th className="px-4 py-3 font-medium">Monthly Fee</th>
+                    <th className="px-4 py-3 font-medium">Revenue Billed</th>
+                    <th className="px-4 py-3 font-medium">Direct Costs</th>
+                    <th className="px-4 py-3 font-medium">Margin</th>
+                    <th className="px-4 py-3 font-medium">Margin %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.map((row) => (
+                    <tr key={row.contractId} className="border-t border-stone-100">
+                      <td className="px-4 py-3 font-medium">{row.title}</td>
+                      <td className="px-4 py-3">{row.customerName}</td>
+                      <td className="px-4 py-3">
+                        {formatCurrency(row.monthlyFee)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {formatCurrency(row.revenue)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {formatCurrency(row.costs)}
+                      </td>
+                      <td
+                        className={`px-4 py-3 font-medium ${row.margin >= 0 ? "text-green-800" : "text-red-700"}`}
+                      >
+                        {formatCurrency(row.margin)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            row.marginPct >= 25
+                              ? "bg-green-100 text-green-800"
+                              : row.marginPct >= 10
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {row.marginPct.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
       )}
 
-      <ContractRankings
-        mostProfitable={rankings.mostProfitable}
-        leastProfitable={rankings.leastProfitable}
-      />
-
-      <ProfitLeakDetector rows={profitLeaks} />
-
-      <ManagerRecommendations rows={recommendations} />
-
       <Card className="mt-8">
-        <h2 className="text-lg font-semibold text-green-950">How to read this report</h2>
+        <h2 className="text-lg font-semibold text-green-950">
+          How to read this report
+        </h2>
         <p className="mt-2 text-sm text-stone-600">
           <strong>Revenue</strong> comes from invoices billed on each contract.
-          <strong> Direct costs</strong> are labor, materials, and equipment logged on
-          service visits. A contract with high crew hours or mulch costs will show a
-          lower margin — that helps managers decide whether to renegotiate pricing.
-          Manager Recommendations translate those signals into prioritized next steps.
+          <strong> Direct costs</strong> are labor, materials, and equipment
+          logged on service visits. Use Contract Performance Analysis to select
+          a contract, review estimated profit leaks, and act on manager
+          recommendations before renewal.
         </p>
       </Card>
     </AppShell>

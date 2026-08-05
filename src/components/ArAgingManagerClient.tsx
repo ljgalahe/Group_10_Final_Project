@@ -22,22 +22,6 @@ export type AgingInvoice = {
 
 export type AgingBuckets = Record<string, AgingInvoice[]>;
 
-type DashboardFilter =
-  | "total_outstanding"
-  | "overdue"
-  | "high_risk"
-  | "avg_days_past_due"
-  | "largest_invoice"
-  | null;
-
-const FILTER_LABELS: Record<Exclude<DashboardFilter, null>, string> = {
-  total_outstanding: "All outstanding receivables",
-  overdue: "Overdue balances only",
-  high_risk: "Invoices for high-risk customers",
-  avg_days_past_due: "Past-due invoices (avg days past due)",
-  largest_invoice: "Largest outstanding invoice",
-};
-
 const BUCKET_ORDER = ["current", "1-30", "31-60", "61-90", "90+"] as const;
 type AgingBucketKey = (typeof BUCKET_ORDER)[number];
 
@@ -120,7 +104,8 @@ export function ArAgingManagerClient({
   buckets: AgingBuckets;
   payments: Payment[];
 }) {
-  const [dashboardFilter, setDashboardFilter] = useState<DashboardFilter>(null);
+  const [selectedBucket, setSelectedBucket] =
+    useState<AgingBucketKey>("current");
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(
     () => new Set()
   );
@@ -292,80 +277,16 @@ export function ArAgingManagerClient({
     };
   }, [allInvoices, highRiskCustomerIds]);
 
-  const filteredBuckets = useMemo(() => {
-    const result: AgingBuckets = {
-      current: [],
-      "1-30": [],
-      "31-60": [],
-      "61-90": [],
-      "90+": [],
-    };
-
-    for (const key of BUCKET_ORDER) {
-      const invoices = buckets[key] ?? [];
-      result[key] = invoices.filter((invoice) => {
-        if (!dashboardFilter || dashboardFilter === "total_outstanding") {
-          return true;
-        }
-
-        if (dashboardFilter === "overdue") {
-          return key !== "current";
-        }
-
-        if (dashboardFilter === "avg_days_past_due") {
-          return daysPastDue(invoice.due_date) > 0;
-        }
-
-        if (dashboardFilter === "high_risk") {
-          const customerId = invoice.customer_id;
-          return Boolean(customerId && highRiskCustomerIds.has(customerId));
-        }
-
-        if (dashboardFilter === "largest_invoice") {
-          return invoice.id === summary.largestInvoice?.id;
-        }
-
-        return true;
-      });
-    }
-
-    return result;
-  }, [buckets, dashboardFilter, highRiskCustomerIds, summary.largestInvoice?.id]);
-
-  function applyFilter(next: Exclude<DashboardFilter, null>) {
-    setDashboardFilter((current) => (current === next ? null : next));
-  }
-
-  const filtersActive = Boolean(dashboardFilter);
-
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-semibold text-green-950">
-              AR management dashboard
-            </h2>
-            <p className="text-sm text-stone-500">
-              Click a card to filter the aging report below.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {dashboardFilter ? (
-              <p className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-900">
-                Showing: {FILTER_LABELS[dashboardFilter]}
-              </p>
-            ) : null}
-            {filtersActive ? (
-              <button
-                type="button"
-                onClick={() => setDashboardFilter(null)}
-                className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
-              >
-                Clear filter
-              </button>
-            ) : null}
-          </div>
+        <div>
+          <h2 className="text-lg font-semibold text-green-950">
+            AR management dashboard
+          </h2>
+          <p className="text-sm text-stone-500">
+            Snapshot of outstanding receivables and collection risk.
+          </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -373,22 +294,16 @@ export function ArAgingManagerClient({
             label="Total Outstanding AR"
             value={formatCurrency(summary.totalOutstanding)}
             hint="All open invoice balances"
-            active={dashboardFilter === "total_outstanding"}
-            onClick={() => applyFilter("total_outstanding")}
           />
           <DashboardStatCard
             label="Total Overdue Balance"
             value={formatCurrency(summary.totalOverdue)}
             hint="Past-due receivables only"
-            active={dashboardFilter === "overdue"}
-            onClick={() => applyFilter("overdue")}
           />
           <DashboardStatCard
             label="High-Risk Customers"
             value={summary.highRiskCustomerCount}
             hint="Based on collection risk signals"
-            active={dashboardFilter === "high_risk"}
-            onClick={() => applyFilter("high_risk")}
           />
           <DashboardStatCard
             label="Average Days Past Due"
@@ -398,8 +313,6 @@ export function ArAgingManagerClient({
                 : `${summary.averageDaysPastDue} days`
             }
             hint="Across overdue invoices"
-            active={dashboardFilter === "avg_days_past_due"}
-            onClick={() => applyFilter("avg_days_past_due")}
           />
           <DashboardStatCard
             label="Largest Outstanding Invoice"
@@ -413,8 +326,6 @@ export function ArAgingManagerClient({
                 ? `${summary.largestInvoice.invoice_number} · ${summary.largestInvoice.customers?.name ?? "Customer"}`
                 : "No open balances"
             }
-            active={dashboardFilter === "largest_invoice"}
-            onClick={() => applyFilter("largest_invoice")}
           />
         </div>
       </section>
@@ -428,24 +339,37 @@ export function ArAgingManagerClient({
       <CollectionActionCenter rows={customerCollectionRows} />
 
       <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold text-green-950">
-            AR Aging Report
-          </h2>
-          <p className="text-sm text-stone-500">
-            Outstanding receivables grouped by how long they&apos;ve been past
-            due.
-          </p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-green-950">
+              AR Aging Report
+            </h2>
+            <p className="text-sm text-stone-500">
+              Outstanding receivables grouped by how long they&apos;ve been past
+              due. Choose a bucket to review its invoices.
+            </p>
+          </div>
+          <label className="block text-xs font-medium text-stone-500">
+            Aging bucket
+            <select
+              value={selectedBucket}
+              onChange={(e) =>
+                setSelectedBucket(e.target.value as AgingBucketKey)
+              }
+              className="mt-1 block min-w-[14rem] rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800"
+            >
+              {BUCKET_ORDER.map((key) => (
+                <option key={key} value={key}>
+                  {BUCKET_TITLES[key]}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-        <div className="grid gap-6 lg:grid-cols-2">
-          {BUCKET_ORDER.map((key) => (
-            <AgingSection
-              key={key}
-              title={BUCKET_TITLES[key]}
-              invoices={filteredBuckets[key] ?? []}
-            />
-          ))}
-        </div>
+        <AgingSection
+          title={BUCKET_TITLES[selectedBucket]}
+          invoices={buckets[selectedBucket] ?? []}
+        />
       </section>
     </div>
   );
@@ -872,32 +796,16 @@ function DashboardStatCard({
   label,
   value,
   hint,
-  active,
-  onClick,
 }: {
   label: string;
   value: string | number;
   hint?: string;
-  active: boolean;
-  onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-xl border p-5 text-left shadow-sm transition ${
-        active
-          ? "border-green-700 bg-green-50 ring-2 ring-green-700/20"
-          : "border-stone-200 bg-white hover:border-green-300 hover:bg-green-50/40"
-      }`}
-    >
+    <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-stone-500">{label}</p>
       <p className="mt-2 text-3xl font-bold text-green-900">{value}</p>
       {hint ? <p className="mt-1 text-xs text-stone-400">{hint}</p> : null}
-      <p className="mt-3 text-xs font-medium text-green-800">
-        {active ? "Click to clear filter" : "Click to filter report"}
-      </p>
-    </button>
+    </div>
   );
 }
