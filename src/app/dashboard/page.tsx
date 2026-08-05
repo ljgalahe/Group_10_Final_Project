@@ -409,11 +409,7 @@ export default async function DashboardPage({
         </>
       ) : null}
 
-      {role !== "customer" ? (
-        <div className={role === "customer" ? "mt-8" : undefined}>
-          {staffStatsRow}
-        </div>
-      ) : null}
+      {role !== "customer" ? staffStatsRow : null}
 
       {role === "manager" ? (
         <div className="mt-8 space-y-6">
