@@ -3,7 +3,16 @@ export type UserRole = "manager" | "accountant" | "crew_lead" | "customer";
 export type ContractStatus = "draft" | "active" | "completed" | "cancelled";
 export type BillingMethod = "monthly" | "per_visit" | "seasonal";
 export type VisitStatus = "scheduled" | "completed" | "cancelled";
-export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "disputed";
+export type InvoiceStatus =
+  | "draft"
+  | "approved"
+  | "sent"
+  | "partially_paid"
+  | "paid"
+  | "past_due"
+  | "voided"
+  | "overdue"
+  | "disputed";
 export type ExtraWorkStatus = "quoted" | "approved" | "completed" | "declined";
 export type CostType = "labor" | "materials" | "equipment";
 export type SupportCategory =

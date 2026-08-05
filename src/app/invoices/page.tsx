@@ -15,6 +15,10 @@ import {
   fetchInvoice,
   fetchInvoices,
 } from "@/lib/queries";
+import { getOutstandingBalance } from "@/app/invoices/lib/accounting";
+import { InvoiceStatusBadge } from "@/app/invoices/components/InvoiceStatusBadge";
+import { AddInvoiceButton } from "@/app/invoices/components/AddInvoiceButton";
+import { fetchContractsForInvoice } from "@/app/invoices/queries";
 
 async function CustomerReceiptCell({
   invoiceId,
@@ -86,9 +90,11 @@ export default async function InvoicesPage({
 
   const role = await getViewRole();
   const isCustomer = role === "customer";
+  const isAccountant = role === "accountant";
   const params = await searchParams;
   const statusFilter = parseStatusFilter(params.status);
   const { data: invoices } = await fetchInvoices();
+  const contracts = isAccountant ? await fetchContractsForInvoice() : [];
   const customerId = isCustomer ? await getViewCustomerId() : null;
   const paymentMethods =
     customerId != null
@@ -116,7 +122,6 @@ export default async function InvoicesPage({
       const pastA = isPastDue(a.due_date, balA) ? 0 : 1;
       const pastB = isPastDue(b.due_date, balB) ? 0 : 1;
       if (pastA !== pastB) return pastA - pastB;
-      // Within group: earlier due dates first; paid invoices sort by issue date desc
       if (balA > 0.001 || balB > 0.001) {
         return a.due_date.localeCompare(b.due_date);
       }
@@ -145,7 +150,13 @@ export default async function InvoicesPage({
             ? "Your bills from GreenScape. Pay open invoices, review payment history, and download PDF receipts after payment."
             : "Bills generated from contract terms and approved extra work."
         }
-        action={<InvoiceStatusFilter value={statusFilter} />}
+        action={
+          isAccountant ? (
+            <AddInvoiceButton contracts={contracts} />
+          ) : (
+            <InvoiceStatusFilter value={statusFilter} />
+          )
+        }
       />
 
       {filteredInvoices.length === 0 ? (
@@ -163,7 +174,9 @@ export default async function InvoicesPage({
                 <th className="px-4 py-3 font-medium">Issue Date</th>
                 <th className="px-4 py-3 font-medium">Due Date</th>
                 <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Balance</th>
+                <th className="px-4 py-3 font-medium">
+                  {isAccountant ? "Outstanding Balance" : "Balance"}
+                </th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 {isCustomer ? (
                   <th className="px-4 py-3 font-medium">Actions</th>
@@ -172,8 +185,10 @@ export default async function InvoicesPage({
             </thead>
             <tbody>
               {filteredInvoices.map((invoice) => {
-                const balance =
-                  Number(invoice.total) - Number(invoice.amount_paid);
+                const balance = getOutstandingBalance(
+                  Number(invoice.total),
+                  Number(invoice.amount_paid)
+                );
                 const amountPaid = Number(invoice.amount_paid);
                 return (
                   <tr key={invoice.id} className="border-t border-stone-100">
@@ -204,14 +219,18 @@ export default async function InvoicesPage({
                     </td>
                     <td className="px-4 py-3">{formatCurrency(balance)}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge
-                        status={getDisplayInvoiceStatus(
-                          invoice.status,
-                          invoice.due_date,
-                          balance,
-                          amountPaid
-                        )}
-                      />
+                      {isAccountant ? (
+                        <InvoiceStatusBadge invoice={invoice} />
+                      ) : (
+                        <StatusBadge
+                          status={getDisplayInvoiceStatus(
+                            invoice.status,
+                            invoice.due_date,
+                            balance,
+                            amountPaid
+                          )}
+                        />
+                      )}
                     </td>
                     {isCustomer ? (
                       <td className="px-4 py-3">
