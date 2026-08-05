@@ -218,7 +218,10 @@ export function CrewLeadSchedule({
                             status={job.status}
                             services={job.services}
                           />
-                          <CrewSiteNotes notes={job.customerNotes} compact />
+                          <CrewSiteNotes
+                            notes={job.customerNotes}
+                            compact
+                          />
                           <button
                             type="button"
                             onClick={() =>

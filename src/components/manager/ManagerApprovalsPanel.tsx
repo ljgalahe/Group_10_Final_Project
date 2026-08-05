@@ -16,13 +16,15 @@ import type {
 } from "@/components/crew-lead/schedule-types";
 import { formatStatusLabel } from "@/components/crew-lead/visitWorkDefaults";
 import {
-  approveMemberRequest,
-  denyMemberRequest,
-  loadMemberSchedulingRequests,
-  markMemberRequestSeen,
-  requestMoreInfoMemberRequest,
-  type MemberSchedulingRequest,
-} from "@/components/crew-member/memberSchedulingStorage";
+  decisionLabel,
+  loadConcernDecisions,
+  loadFieldConcerns,
+  saveConcernDecision,
+  type ConcernDecision,
+  type FieldConcernRecord,
+} from "@/lib/concern-decisions";
+import { chatHrefForCrewLead } from "@/lib/chat-demo";
+import { formatDate } from "@/lib/format";
 
 const VISIT_WORK_PREFIX = "greenscape-crew-visit-work:";
 
@@ -49,19 +51,6 @@ function loadAllVisitExtraWorkNotes(): VisitExtraWorkItem[] {
   return items.sort((a, b) => a.jobId.localeCompare(b.jobId));
 }
 
-function memberStatusClass(status: MemberSchedulingRequest["status"]) {
-  switch (status) {
-    case "approved":
-      return "bg-green-100 text-green-800";
-    case "denied":
-      return "bg-red-100 text-red-800";
-    case "needs_info":
-      return "bg-amber-100 text-amber-900";
-    default:
-      return "bg-amber-100 text-amber-900";
-  }
-}
-
 /**
  * Manager inbox for crew-lead extra-work approvals and field exceptions.
  * Uses the same localStorage keys as the Crew Lead screens so both stay in sync.
@@ -77,29 +66,29 @@ export function ManagerApprovalsPanel({
   >([]);
   const [visitNotes, setVisitNotes] = useState<VisitExtraWorkItem[]>([]);
   const [exceptions, setExceptions] = useState<FieldExceptionReport[]>([]);
-  const [memberRequests, setMemberRequests] = useState<
-    MemberSchedulingRequest[]
-  >([]);
-  const [denyDrafts, setDenyDrafts] = useState<Record<string, string>>({});
-  const [infoDrafts, setInfoDrafts] = useState<Record<string, string>>({});
-  const [actionError, setActionError] = useState<Record<string, string>>({});
+  const [fieldConcerns, setFieldConcerns] = useState<FieldConcernRecord[]>([]);
+  const [concernDecisions, setConcernDecisions] = useState<
+    Record<string, ConcernDecision>
+  >({});
 
   function refresh() {
     setExtraRequests(loadManagementExtraRequests());
     setVisitNotes(loadAllVisitExtraWorkNotes());
     setExceptions(loadFieldExceptions());
-    setMemberRequests(loadMemberSchedulingRequests());
+    setFieldConcerns(loadFieldConcerns());
+    setConcernDecisions(loadConcernDecisions());
   }
 
   useEffect(() => {
-    const sync = () => refresh();
-    const timer = window.setTimeout(sync, 0);
-    window.addEventListener("storage", sync);
-    window.addEventListener("focus", sync);
+    refresh();
+    const onStorage = () => refresh();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onStorage);
+    window.addEventListener("greenscape-concerns-updated", onStorage);
     return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("storage", sync);
-      window.removeEventListener("focus", sync);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onStorage);
+      window.removeEventListener("greenscape-concerns-updated", onStorage);
     };
   }, []);
 
@@ -110,18 +99,15 @@ export function ManagerApprovalsPanel({
     const fromVisits = visitNotes.filter(
       (n) => n.status === "pending_approval" || n.status === "needed"
     ).length;
-    const fromMembers = memberRequests.filter(
-      (r) => r.status === "pending" || r.status === "needs_info"
-    ).length;
-    return fromDashboard + fromVisits + fromMembers;
-  }, [extraRequests, visitNotes, memberRequests]);
+    return fromDashboard + fromVisits;
+  }, [extraRequests, visitNotes]);
 
-  const newMemberRequestCount = useMemo(
+  const openConcernCount = useMemo(
     () =>
-      memberRequests.filter(
-        (r) => !r.seenByManager && r.status === "pending"
+      fieldConcerns.filter(
+        (c) => (concernDecisions[c.visitId] ?? "open") === "open"
       ).length,
-    [memberRequests]
+    [fieldConcerns, concernDecisions]
   );
 
   function setExtraRequestStatus(
@@ -151,60 +137,9 @@ export function ManagerApprovalsPanel({
     setVisitNotes(loadAllVisitExtraWorkNotes());
   }
 
-  function openMemberRequest(id: string) {
-    markMemberRequestSeen(id);
-    refresh();
-  }
-
-  function handleApproveMember(id: string) {
-    approveMemberRequest(id);
-    refresh();
-  }
-
-  function handleDenyMember(id: string) {
-    const reason = (denyDrafts[id] ?? "").trim();
-    if (!reason) {
-      setActionError((prev) => ({
-        ...prev,
-        [id]: "Denial reason is required.",
-      }));
-      return;
-    }
-    setActionError((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-    denyMemberRequest(id, reason);
-    setDenyDrafts((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-    refresh();
-  }
-
-  function handleMoreInfoMember(id: string) {
-    const message = (infoDrafts[id] ?? "").trim();
-    if (!message) {
-      setActionError((prev) => ({
-        ...prev,
-        [id]: "Please describe what information is needed.",
-      }));
-      return;
-    }
-    setActionError((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-    requestMoreInfoMemberRequest(id, message);
-    setInfoDrafts((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-    refresh();
+  function setConcernStatus(visitId: string, decision: ConcernDecision) {
+    saveConcernDecision(visitId, decision);
+    setConcernDecisions(loadConcernDecisions());
   }
 
   return (
@@ -216,173 +151,127 @@ export function ManagerApprovalsPanel({
               Approvals & Crew Alerts
             </h2>
           </div>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-            {pendingExtraCount} pending approval
-            {pendingExtraCount === 1 ? "" : "s"}
-          </span>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+              {pendingExtraCount} pending approval
+              {pendingExtraCount === 1 ? "" : "s"}
+            </span>
+            {openConcernCount > 0 ? (
+              <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
+                {openConcernCount} field concern
+                {openConcernCount === 1 ? "" : "s"}
+              </span>
+            ) : null}
+          </div>
         </div>
       </Card>
 
       <Card>
         <h3 className="text-base font-semibold text-green-950">
-          Crew Member Scheduling
+          Field concerns
         </h3>
         <p className="mt-1 text-sm text-stone-500">
-          {newMemberRequestCount} new request
-          {newMemberRequestCount === 1 ? "" : "s"}
+          Photo concerns from Visits work directory. Approve & clear to proceed,
+          or place the job on hold.
         </p>
 
-        {memberRequests.length === 0 ? (
+        {fieldConcerns.length === 0 ? (
           <p className="mt-3 text-sm text-stone-500">
-            No member scheduling requests yet.
+            No field concerns synced yet. Open Visits → Work directory once to
+            load them.
           </p>
         ) : (
           <ul className="mt-3 max-h-96 space-y-3 overflow-y-auto">
-            {memberRequests.map((request) => {
-              const actionable =
-                request.status === "pending" || request.status === "needs_info";
+            {fieldConcerns.map((concern) => {
+              const decision = concernDecisions[concern.visitId] ?? "open";
               return (
                 <li
-                  key={request.id}
+                  key={concern.visitId}
                   className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm"
-                  onMouseEnter={() => {
-                    if (!request.seenByManager) openMemberRequest(request.id);
-                  }}
                 >
-                  <div className="flex gap-3">
-                    <span
-                      className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
-                        !request.seenByManager && request.status === "pending"
-                          ? "bg-green-500"
-                          : "bg-transparent"
-                      }`}
-                      title={
-                        !request.seenByManager && request.status === "pending"
-                          ? "New / unseen"
-                          : undefined
-                      }
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium text-green-950">
-                            {request.memberName}
-                          </p>
-                          <p className="text-xs font-semibold text-stone-600">
-                            {request.kind === "time_off"
-                              ? "Time off"
-                              : "Availability"}
-                            {" · "}
-                            {request.startDate}
-                            {request.endDate !== request.startDate
-                              ? ` → ${request.endDate}`
-                              : ""}
-                          </p>
-                          {request.reason ? (
-                            <p className="mt-1 text-stone-700">
-                              {request.reason}
-                            </p>
-                          ) : null}
-                          {request.availabilityNotes ? (
-                            <p className="mt-1 text-stone-700">
-                              {request.availabilityNotes}
-                            </p>
-                          ) : null}
-                          {request.denialReason ? (
-                            <p className="mt-1 text-xs text-red-700">
-                              Denial reason: {request.denialReason}
-                            </p>
-                          ) : null}
-                          {request.managerMessage ? (
-                            <p className="mt-1 text-xs text-amber-800">
-                              More info asked: {request.managerMessage}
-                            </p>
-                          ) : null}
-                          <p className="mt-1 text-xs text-stone-500">
-                            {new Date(request.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${memberStatusClass(request.status)}`}
-                        >
-                          {formatStatusLabel(request.status)}
-                        </span>
-                      </div>
-
-                      {actionable ? (
-                        <div className="mt-3 space-y-2">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleApproveMember(request.id)}
-                              className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
-                            >
-                              Approve
-                            </button>
-                          </div>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <div>
-                              <label className="mb-1 block text-xs font-medium text-stone-600">
-                                Deny (reason required)
-                              </label>
-                              <div className="flex gap-2">
-                                <input
-                                  value={denyDrafts[request.id] ?? ""}
-                                  onChange={(e) =>
-                                    setDenyDrafts((prev) => ({
-                                      ...prev,
-                                      [request.id]: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Reason for denial"
-                                  className="w-full rounded-md border border-stone-300 px-2 py-1.5 text-xs"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleDenyMember(request.id)}
-                                  className="shrink-0 rounded-md border border-red-700 px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50"
-                                >
-                                  Deny
-                                </button>
-                              </div>
-                            </div>
-                            <div>
-                              <label className="mb-1 block text-xs font-medium text-stone-600">
-                                Ask for more info / resubmit
-                              </label>
-                              <div className="flex gap-2">
-                                <input
-                                  value={infoDrafts[request.id] ?? ""}
-                                  onChange={(e) =>
-                                    setInfoDrafts((prev) => ({
-                                      ...prev,
-                                      [request.id]: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="What do you need?"
-                                  className="w-full rounded-md border border-stone-300 px-2 py-1.5 text-xs"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleMoreInfoMember(request.id)
-                                  }
-                                  className="shrink-0 rounded-md border border-amber-700 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50"
-                                >
-                                  Request
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                          {actionError[request.id] ? (
-                            <p className="text-xs text-red-700">
-                              {actionError[request.id]}
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-green-950">
+                        {concern.companyName}
+                      </p>
+                      <p className="mt-1 text-stone-700">
+                        {concern.concernLabel}
+                      </p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {concern.jobLabel} · {formatDate(concern.date)} ·{" "}
+                        {concern.location}
+                      </p>
                     </div>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                        decision === "approved"
+                          ? "bg-green-100 text-green-800"
+                          : decision === "on_hold"
+                            ? "bg-amber-100 text-amber-900"
+                            : "bg-rose-100 text-rose-900"
+                      }`}
+                    >
+                      {decisionLabel(decision)}
+                    </span>
+                  </div>
+                  {concern.concernImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={concern.concernImage}
+                      alt={concern.concernLabel}
+                      className="mt-3 h-32 w-full rounded-md border border-stone-200 object-cover"
+                    />
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConcernStatus(concern.visitId, "approved")
+                      }
+                      className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                    >
+                      Approve & clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConcernStatus(concern.visitId, "on_hold")
+                      }
+                      className="rounded-md border border-amber-700 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50"
+                    >
+                      Place on hold
+                    </button>
+                    {concern.crewLeadName ? (
+                      <a
+                        href={chatHrefForCrewLead({
+                          crewLeadName: concern.crewLeadName,
+                          visitId: concern.visitId,
+                          jobLabel: concern.jobLabel,
+                          companyName: concern.companyName,
+                          concernLabel: concern.concernLabel,
+                        })}
+                        className="rounded-md border border-sky-700 px-3 py-1.5 text-xs font-medium text-sky-900 hover:bg-sky-50"
+                      >
+                        Contact crew leader ({concern.crewLeadName})
+                      </a>
+                    ) : null}
+                    {decision !== "open" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConcernStatus(concern.visitId, "open")
+                        }
+                        className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-white"
+                      >
+                        Reopen
+                      </button>
+                    ) : null}
+                    <a
+                      href="/visits"
+                      className="rounded-md border border-green-800 px-3 py-1.5 text-xs font-medium text-green-900 hover:bg-green-50"
+                    >
+                      Open Visits
+                    </a>
                   </div>
                 </li>
               );
