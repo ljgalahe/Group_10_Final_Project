@@ -14,6 +14,8 @@ export type ScheduleJob = {
   lat: number;
   lng: number;
   source: "visit" | "projected";
+  /** True when the customer is on automatic Service Hold (credit hold). */
+  serviceHold?: boolean;
 };
 
 export type ExtraWorkItem = {

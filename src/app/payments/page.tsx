@@ -23,6 +23,7 @@ import {
   fetchPayments,
   fetchPaymentsSummary,
 } from "@/lib/queries";
+import { buildCustomerServiceHolds } from "@/lib/service-hold";
 
 export default async function PaymentsPage() {
   await requireAppAccess();
@@ -205,18 +206,33 @@ export default async function PaymentsPage() {
   ]);
 
   const collectionRisk = buildCollectionRisk(invoices, payments);
+  const serviceHolds = buildCustomerServiceHolds(
+    invoices.map((invoice) => ({
+      id: invoice.id,
+      invoice_number: invoice.invoice_number,
+      customer_id: String(invoice.customer_id),
+      total: Number(invoice.total),
+      amount_paid: Number(invoice.amount_paid),
+      status: invoice.status,
+      due_date: invoice.due_date,
+      customers: invoice.customers
+        ? { name: invoice.customers.name }
+        : null,
+    }))
+  );
 
   return (
     <AppShell>
       <PageHeader
         title="Payments"
-        description="Record full and partial invoice payments, track collections, and review payment history."
+        description="Record full and partial invoice payments, track collections, and review payment history. Paying past-due balances automatically releases Service Hold when no invoices remain 30+ days overdue."
       />
       <PaymentsManagerClient
         payments={payments}
         customers={customers}
         summary={summary}
         collectionRisk={collectionRisk}
+        serviceHolds={serviceHolds}
       />
     </AppShell>
   );

@@ -12,10 +12,22 @@ import {
 import { CrewMemberAvailabilityPanel } from "@/components/crew-member/CrewMemberAvailabilityPanel";
 import { CrewMemberHoursWorked } from "@/components/crew-member/CrewMemberHoursWorked";
 import { CrewMemberTodayJobs } from "@/components/crew-member/CrewMemberTodayJobs";
+import { CompanyPerformanceLeaderboard } from "@/components/CompanyPerformanceLeaderboard";
 import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPanel";
+import { ServiceHoldDashboardCard } from "@/components/ServiceHoldDashboardCard";
 import { Card, PageHeader, StatCard } from "@/components/ui";
+import {
+  buildCustomerServiceHolds,
+  type CustomerServiceHold,
+} from "@/lib/service-hold";
+import {
+  fetchEquipment,
+  fetchEquipmentUsage,
+} from "@/app/equipment/queries";
 import { filterJobsForCrewMember } from "@/lib/crew-member";
 import type { VisitLaborEntry } from "@/lib/crew-hours";
+import { buildCollectionRisk } from "@/lib/collection-risk";
+import { buildCompanyPerformanceLeaderboard } from "@/lib/company-performance";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type {
@@ -23,12 +35,18 @@ import type {
   SupportRequestQueueItem,
 } from "@/lib/queries";
 import {
+  fetchAllVisitCosts,
+  fetchContracts,
   fetchCrewApplicableSupportRequests,
   fetchCustomerAccountHealth,
   fetchCustomerNeedsAttention,
   fetchCustomerUpcomingVisits,
   fetchDashboardStats,
+  fetchInvoices,
+  fetchPayments,
+  fetchProfitabilityReport,
   fetchVisitLaborEntries,
+  fetchVisits,
 } from "@/lib/queries";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
 
@@ -202,6 +220,131 @@ export default async function DashboardPage({
   > = {};
   const visitLabels: Record<string, string> = {};
   let crewSupportRequests: SupportRequestQueueItem[] = [];
+  let performanceCategories: ReturnType<
+    typeof buildCompanyPerformanceLeaderboard
+  > = [];
+  let serviceHolds: CustomerServiceHold[] = [];
+
+  if (role === "manager") {
+    const [
+      { data: contracts },
+      { data: visits },
+      { data: visitCosts },
+      equipment,
+      equipmentUsage,
+      { data: invoices },
+      { data: payments },
+      profitability,
+    ] = await Promise.all([
+      fetchContracts(),
+      fetchVisits(),
+      fetchAllVisitCosts(),
+      fetchEquipment(),
+      fetchEquipmentUsage(),
+      fetchInvoices(),
+      fetchPayments(),
+      fetchProfitabilityReport(),
+    ]);
+
+    const contractCustomerById = new Map(
+      contracts.map((contract) => [
+        contract.id,
+        String(contract.customer_id),
+      ])
+    );
+
+    serviceHolds = buildCustomerServiceHolds(
+      invoices.map((invoice) => ({
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        customer_id: String(invoice.customer_id),
+        total: Number(invoice.total),
+        amount_paid: Number(invoice.amount_paid),
+        status: invoice.status,
+        due_date: invoice.due_date,
+        customers: invoice.customers
+          ? { name: invoice.customers.name }
+          : null,
+      })),
+      visits.map((visit) => ({
+        id: visit.id,
+        customer_id:
+          (visit.contracts as { customer_id?: string } | null)?.customer_id ??
+          null,
+        contract_id: visit.contract_id,
+        status: visit.status,
+        scheduled_date: visit.scheduled_date,
+      })),
+      { today, contractCustomerById }
+    );
+
+    const customerRisk = buildCollectionRisk(
+      invoices.map((invoice) => ({
+        id: invoice.id,
+        customer_id: String(invoice.customer_id),
+        total: Number(invoice.total),
+        amount_paid: Number(invoice.amount_paid),
+        status: invoice.status,
+        due_date: invoice.due_date,
+        issue_date: invoice.issue_date ?? null,
+        customers: invoice.customers ?? null,
+      })),
+      payments
+    );
+
+    performanceCategories = buildCompanyPerformanceLeaderboard({
+      contracts: contracts.map((contract) => ({
+        id: contract.id,
+        title: contract.title,
+        status: contract.status,
+        assigned_crew: contract.assigned_crew ?? null,
+        customer_id: contract.customer_id,
+        visits_per_week: contract.visits_per_week ?? null,
+      })),
+      visits: visits.map((visit) => ({
+        id: visit.id,
+        contract_id: visit.contract_id,
+        status: visit.status,
+        scheduled_date: visit.scheduled_date,
+        crew_notes: visit.crew_notes ?? null,
+        completed_at: visit.completed_at ?? null,
+      })),
+      visitCosts: visitCosts.map((cost) => ({
+        visit_id: cost.visit_id,
+        cost_type: cost.cost_type,
+        amount: Number(cost.amount),
+        quantity: cost.quantity == null ? null : Number(cost.quantity),
+        description: cost.description ?? null,
+      })),
+      equipment: equipment.map((asset) => ({
+        id: asset.id,
+        name: asset.name,
+        status: asset.status,
+        cost: asset.cost,
+        salvage_value: asset.salvage_value,
+        estimated_total_hours: asset.estimated_total_hours,
+        hours_used: asset.hours_used,
+      })),
+      equipmentUsage: equipmentUsage.map((row) => ({
+        equipment_id: row.equipment_id,
+        visit_id: row.visit_id,
+        hours: row.hours,
+      })),
+      invoices: invoices.map((invoice) => ({
+        id: invoice.id,
+        customer_id: String(invoice.customer_id),
+        contract_id: invoice.contract_id ?? null,
+        total: Number(invoice.total),
+        amount_paid: Number(invoice.amount_paid),
+        status: invoice.status,
+        due_date: invoice.due_date,
+        issue_date: invoice.issue_date ?? null,
+        customers: invoice.customers ?? null,
+      })),
+      profitability,
+      customerRisk,
+    });
+  }
 
   if (role === "crew_lead" || role === "manager" || role === "crew_member") {
     const supabase = await createDataClient();
@@ -500,6 +643,8 @@ export default async function DashboardPage({
 
       {role === "manager" ? (
         <div className="mt-8 space-y-6">
+          <ServiceHoldDashboardCard holds={serviceHolds} />
+          <CompanyPerformanceLeaderboard categories={performanceCategories} />
           <ManagerApprovalsPanel visitLabels={visitLabels} />
           <Card>
             <h2 className="text-lg font-semibold text-green-950">

@@ -1,12 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ServiceHoldBadge,
+  ServiceHoldBanner,
+} from "@/components/ServiceHoldBanner";
+import { ServiceHoldAuditSync } from "@/components/ServiceHoldDashboardCard";
 import { Card } from "@/components/ui";
 import {
   buildCollectionRisk,
   type CollectionRiskLevel,
 } from "@/lib/collection-risk";
 import { formatCurrency, formatDate } from "@/lib/format";
+import {
+  buildCustomerServiceHolds,
+  heldCustomerIdSet,
+} from "@/lib/service-hold";
 import type { Payment } from "@/lib/types";
 
 export type AgingInvoice = {
@@ -100,17 +109,51 @@ function flattenBuckets(buckets: AgingBuckets): AgingInvoice[] {
 export function ArAgingManagerClient({
   buckets,
   payments,
+  highlightCustomerId,
 }: {
   buckets: AgingBuckets;
   payments: Payment[];
+  highlightCustomerId?: string;
 }) {
   const [selectedBucket, setSelectedBucket] =
     useState<AgingBucketKey>("current");
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(
-    () => new Set()
+    () => new Set(highlightCustomerId ? [highlightCustomerId] : [])
   );
 
   const allInvoices = useMemo(() => flattenBuckets(buckets), [buckets]);
+
+  const serviceHolds = useMemo(
+    () =>
+      buildCustomerServiceHolds(
+        allInvoices
+          .filter((invoice) => Boolean(invoice.customer_id))
+          .map((invoice) => ({
+            id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            customer_id: String(invoice.customer_id),
+            total: Number(invoice.total),
+            amount_paid: Number(invoice.amount_paid),
+            status: invoice.status ?? "sent",
+            due_date: invoice.due_date,
+            customers: invoice.customers,
+          }))
+      ),
+    [allInvoices]
+  );
+  const heldIds = useMemo(
+    () => heldCustomerIdSet(serviceHolds),
+    [serviceHolds]
+  );
+
+  useEffect(() => {
+    if (!highlightCustomerId) return;
+    setExpandedCustomers((prev) => {
+      const next = new Set(prev);
+      next.add(highlightCustomerId);
+      return next;
+    });
+  }, [highlightCustomerId]);
 
   const collectionRisk = useMemo(
     () =>
@@ -279,6 +322,13 @@ export function ArAgingManagerClient({
 
   return (
     <div className="space-y-6">
+      <ServiceHoldAuditSync holds={serviceHolds} />
+      {serviceHolds.length > 0 ? (
+        <ServiceHoldBanner
+          reason={`${serviceHolds.length} customer${serviceHolds.length === 1 ? "" : "s"} currently on automatic Service Hold for invoices 30+ days overdue. Future visits are On Hold and new crew assignments are blocked until payment clears the past-due balance.`}
+        />
+      ) : null}
+
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-green-950">
@@ -334,6 +384,8 @@ export function ArAgingManagerClient({
         rows={customerCollectionRows}
         expandedCustomers={expandedCustomers}
         onToggle={toggleCustomer}
+        heldCustomerIds={heldIds}
+        highlightCustomerId={highlightCustomerId}
       />
 
       <CollectionActionCenter rows={customerCollectionRows} />
@@ -578,11 +630,22 @@ function CustomerCollectionCenter({
   rows,
   expandedCustomers,
   onToggle,
+  heldCustomerIds,
+  highlightCustomerId,
 }: {
   rows: CustomerCollectionRow[];
   expandedCustomers: Set<string>;
   onToggle: (customerId: string) => void;
+  heldCustomerIds: Set<string>;
+  highlightCustomerId?: string;
 }) {
+  const orderedRows = highlightCustomerId
+    ? [
+        ...rows.filter((row) => row.customerId === highlightCustomerId),
+        ...rows.filter((row) => row.customerId !== highlightCustomerId),
+      ]
+    : rows;
+
   return (
     <section className="space-y-3">
       <div>
@@ -591,11 +654,11 @@ function CustomerCollectionCenter({
         </h2>
         <p className="text-sm text-stone-500">
           Expand a customer to review all outstanding invoices and prioritize
-          follow-up.
+          follow-up. Accounts with invoices 30+ days overdue show Service Hold.
         </p>
       </div>
 
-      {rows.length === 0 ? (
+      {orderedRows.length === 0 ? (
         <Card>
           <p className="text-sm text-stone-500">
             No customers with outstanding balances.
@@ -614,10 +677,19 @@ function CustomerCollectionCenter({
           </div>
 
           <ul className="divide-y divide-stone-100">
-            {rows.map((row) => {
+            {orderedRows.map((row) => {
               const expanded = expandedCustomers.has(row.customerId);
+              const onHold = heldCustomerIds.has(row.customerId);
               return (
-                <li key={row.customerId}>
+                <li
+                  key={row.customerId}
+                  id={`ar-customer-${row.customerId}`}
+                  className={
+                    highlightCustomerId === row.customerId
+                      ? "bg-red-50/40"
+                      : undefined
+                  }
+                >
                   <button
                     type="button"
                     onClick={() => onToggle(row.customerId)}
@@ -625,9 +697,12 @@ function CustomerCollectionCenter({
                     className="grid w-full grid-cols-1 gap-2 px-4 py-4 text-left transition hover:bg-green-50/50 lg:grid-cols-[1.4fr_0.9fr_0.8fr_1.3fr_0.9fr_0.9fr_auto] lg:items-center lg:gap-3"
                   >
                     <div>
-                      <p className="font-medium text-stone-800">
-                        {row.customerName}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-stone-800">
+                          {row.customerName}
+                        </p>
+                        <ServiceHoldBadge onHold={onHold} />
+                      </div>
                       <p className="mt-0.5 text-xs text-stone-400 lg:hidden">
                         {row.invoices.length} outstanding{" "}
                         {row.invoices.length === 1 ? "invoice" : "invoices"}
