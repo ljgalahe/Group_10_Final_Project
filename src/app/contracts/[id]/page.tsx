@@ -17,6 +17,7 @@ export default async function ContractDetailPage({
   await requireAppAccess();
 
   const role = await getViewRole();
+  if (role === "crew_member") redirect("/dashboard");
   const { data: contract } = await fetchContract(id);
   if (!contract) notFound();
 

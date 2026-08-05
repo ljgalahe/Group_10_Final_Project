@@ -59,13 +59,15 @@ function employeeNamesForVisit(visit: CrewLeadVisitCardData): string[] {
   return getAssignedEmployeesForJob(visit.id).map((row) => row.name);
 }
 
-/** Filterable Service Visits list for Crew Lead. */
+/** Filterable Service Visits list for Crew Lead (or read-only crew member). */
 export function CrewLeadVisitsBoard({
   visits,
   extraWork,
+  readOnly = false,
 }: {
   visits: CrewLeadVisitCardData[];
   extraWork: ExtraWorkItem[];
+  readOnly?: boolean;
 }) {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "completed" | "incomplete"
@@ -80,16 +82,17 @@ export function CrewLeadVisitsBoard({
   }, [visits]);
 
   const employeeOptions = useMemo(() => {
+    if (readOnly) return [];
     const names = new Set<string>();
     for (const visit of visits) {
       employeeNamesForVisit(visit).forEach((name) => names.add(name));
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [visits]);
+  }, [visits, readOnly]);
 
   const filtered = useMemo(() => {
     const customerQuery = customerName.trim().toLowerCase();
-    const employeeQuery = employeeName.trim().toLowerCase();
+    const employeeQuery = readOnly ? "" : employeeName.trim().toLowerCase();
 
     return visits.filter((visit) => {
       if (statusFilter === "completed" && visit.status !== "completed") {
@@ -120,16 +123,22 @@ export function CrewLeadVisitsBoard({
 
       return true;
     });
-  }, [visits, statusFilter, customerName, employeeName]);
+  }, [visits, statusFilter, customerName, employeeName, readOnly]);
 
   return (
     <div className="space-y-4">
       <Card>
         <h2 className="text-lg font-semibold text-green-950">Filters</h2>
         <p className="mt-1 text-sm text-stone-500">
-          Filter by completion status, customer name, or employee name.
+          {readOnly
+            ? "Filter by completion status or customer name."
+            : "Filter by completion status, customer name, or employee name."}
         </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div
+          className={`mt-4 grid gap-4 ${
+            readOnly ? "sm:grid-cols-2" : "sm:grid-cols-3"
+          }`}
+        >
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-stone-700">
               Status
@@ -167,23 +176,25 @@ export function CrewLeadVisitsBoard({
             </datalist>
           </label>
 
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-stone-700">
-              Employee Name
-            </span>
-            <input
-              list="crew-visit-employees"
-              value={employeeName}
-              onChange={(e) => setEmployeeName(e.target.value)}
-              placeholder="Search employee..."
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
-            />
-            <datalist id="crew-visit-employees">
-              {employeeOptions.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-          </label>
+          {!readOnly ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-stone-700">
+                Employee Name
+              </span>
+              <input
+                list="crew-visit-employees"
+                value={employeeName}
+                onChange={(e) => setEmployeeName(e.target.value)}
+                placeholder="Search employee..."
+                className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
+              />
+              <datalist id="crew-visit-employees">
+                {employeeOptions.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            </label>
+          ) : null}
         </div>
         <p className="mt-3 text-xs text-stone-500">
           Showing {filtered.length} of {visits.length} visits
@@ -232,7 +243,7 @@ export function CrewLeadVisitsBoard({
                     <span className="inline-flex rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-800">
                       {formatStatusLabel(visit.status)}
                     </span>
-                    {visit.status === "scheduled" ? (
+                    {!readOnly && visit.status === "scheduled" ? (
                       <form action={completeVisit}>
                         <input
                           type="hidden"
@@ -282,6 +293,7 @@ export function CrewLeadVisitsBoard({
                   <CrewLeadVisitDetails
                     job={crewJob}
                     extraWork={extraWork}
+                    readOnly={readOnly}
                   />
                 ) : null}
               </div>

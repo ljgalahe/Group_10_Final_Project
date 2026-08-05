@@ -4,9 +4,12 @@ import { EmptyState, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { fetchPayments } from "@/lib/queries";
 import { requireAppAccess } from "@/lib/auth-access";
+import { getViewRole } from "@/lib/demo-role";
 
 export default async function PaymentsPage() {
   await requireAppAccess();
+  const role = await getViewRole();
+  if (role === "crew_member") redirect("/dashboard");
 
   const { data: payments } = await fetchPayments();
 

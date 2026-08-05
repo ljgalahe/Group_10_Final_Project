@@ -32,9 +32,12 @@ const EXTRA_STATUSES = [
 export function VisitWorkPanel({
   job,
   contractExtraWork,
+  readOnly = false,
 }: {
   job: ScheduleJob;
   contractExtraWork: ExtraWorkItem[];
+  /** When true, hide all edit/save/status-change controls (crew member portal). */
+  readOnly?: boolean;
 }) {
   const materials = useMemo(
     () => materialsForServices(job.services),
@@ -67,20 +70,23 @@ export function VisitWorkPanel({
   const [exceptionMessage, setExceptionMessage] = useState("");
 
   useEffect(() => {
-    setState(
-      loadVisitWorkStateForStatus(
-        job.id,
-        job.status,
-        tasks.map((task) => task.id),
-        contractExtraWork.length > 0
-      )
-    );
-    setRoster(loadDailyRoster());
+    const timer = window.setTimeout(() => {
+      setState(
+        loadVisitWorkStateForStatus(
+          job.id,
+          job.status,
+          tasks.map((task) => task.id),
+          contractExtraWork.length > 0
+        )
+      );
+      setRoster(loadDailyRoster());
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [job.id, job.status, tasks, contractExtraWork.length]);
 
   const isScheduled = job.status === "scheduled";
   const isCompleted = job.status === "completed";
-  const canEditCrew = isScheduled;
+  const canEditCrew = isScheduled && !readOnly;
 
   function update(next: VisitWorkState) {
     if (!canEditCrew) return;
@@ -297,7 +303,7 @@ export function VisitWorkPanel({
             </button>
           </form>
         ) : null}
-        {!canEditCrew && !isCompleted ? (
+        {!canEditCrew && !isCompleted && !readOnly ? (
           <p className="mt-2 text-xs text-stone-500">
             Employees can only be assigned on scheduled visits.
           </p>
@@ -381,7 +387,9 @@ export function VisitWorkPanel({
             </p>
           ) : (
             <p className="mt-2 text-xs text-stone-500">
-              Start the job clock when the crew begins work.
+              {readOnly
+                ? "Job clock has not been started yet."
+                : "Start the job clock when the crew begins work."}
             </p>
           )}
           {canEditCrew ? (
@@ -604,51 +612,53 @@ export function VisitWorkPanel({
         ) : null}
       </div>
 
-      <div>
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
-          Exception Report
-        </h4>
-        <p className="mt-1 text-xs text-stone-500">
-          Notify management about field issues (access, animals, equipment).
-        </p>
-        {canEditCrew ? (
-          <form onSubmit={submitException} className="mt-3 space-y-2">
-            <select
-              value={exceptionType}
-              onChange={(e) =>
-                setExceptionType(e.target.value as FieldExceptionType)
-              }
-              className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="could_not_access">Could Not Access Site</option>
-              <option value="dog_loose">Dog Loose / Unsafe Animal</option>
-              <option value="equipment_failure">Equipment Failure</option>
-              <option value="other">Other</option>
-            </select>
-            <textarea
-              value={exceptionDetails}
-              onChange={(e) => setExceptionDetails(e.target.value)}
-              placeholder="Describe what happened and what you need from management..."
-              rows={2}
-              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-              required
-            />
-            <button
-              type="submit"
-              className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
-            >
-              Send to Manager
-            </button>
-            {exceptionMessage ? (
-              <p className="text-sm text-green-800">{exceptionMessage}</p>
-            ) : null}
-          </form>
-        ) : (
-          <p className="mt-2 text-sm text-stone-500">
-            Exception reporting is available on scheduled visits.
+      {!readOnly ? (
+        <div>
+          <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
+            Exception Report
+          </h4>
+          <p className="mt-1 text-xs text-stone-500">
+            Notify management about field issues (access, animals, equipment).
           </p>
-        )}
-      </div>
+          {canEditCrew ? (
+            <form onSubmit={submitException} className="mt-3 space-y-2">
+              <select
+                value={exceptionType}
+                onChange={(e) =>
+                  setExceptionType(e.target.value as FieldExceptionType)
+                }
+                className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="could_not_access">Could Not Access Site</option>
+                <option value="dog_loose">Dog Loose / Unsafe Animal</option>
+                <option value="equipment_failure">Equipment Failure</option>
+                <option value="other">Other</option>
+              </select>
+              <textarea
+                value={exceptionDetails}
+                onChange={(e) => setExceptionDetails(e.target.value)}
+                placeholder="Describe what happened and what you need from management..."
+                rows={2}
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                required
+              />
+              <button
+                type="submit"
+                className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
+              >
+                Send to Manager
+              </button>
+              {exceptionMessage ? (
+                <p className="text-sm text-green-800">{exceptionMessage}</p>
+              ) : null}
+            </form>
+          ) : (
+            <p className="mt-2 text-sm text-stone-500">
+              Exception reporting is available on scheduled visits.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       <CrewSiteNotes customerId={job.customerId} />
     </div>

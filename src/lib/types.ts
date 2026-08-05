@@ -1,4 +1,9 @@
-export type UserRole = "manager" | "accountant" | "crew_lead" | "customer";
+export type UserRole =
+  | "manager"
+  | "accountant"
+  | "crew_lead"
+  | "crew_member"
+  | "customer";
 
 export type ContractStatus = "draft" | "active" | "completed" | "cancelled";
 export type BillingMethod = "monthly" | "per_visit" | "seasonal";
@@ -162,7 +167,21 @@ export const DEMO_ROLES: { role: UserRole; label: string; description: string }[
   { role: "manager", label: "Manager", description: "Oversee contracts and profitability" },
   { role: "accountant", label: "Accountant", description: "Billing, payments, and AR" },
   { role: "crew_lead", label: "Crew Lead", description: "Schedule and complete visits" },
+  {
+    role: "crew_member",
+    label: "Crew Member",
+    description: "View assigned jobs, schedule, and request time off",
+  },
   { role: "customer", label: "Customer", description: "View contracts and pay invoices" },
 ];
 
 export const DEMO_CUSTOMER_ID = "11111111-1111-1111-1111-111111111101";
+
+/** Demo identity for the View-as Crew Member portal (matches default roster). */
+export const DEMO_CREW_MEMBER = {
+  id: "crew-1",
+  name: "Jordan Miles",
+  roleTitle: "Crew Member",
+} as const;
+
+export const DEMO_CREW_LEAD_NAME = "Morgan Hale";

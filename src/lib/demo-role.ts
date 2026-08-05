@@ -30,3 +30,13 @@ export function roleCanManageVisits(role: UserRole) {
 export function roleCanViewReports(role: UserRole) {
   return role === "manager" || role === "accountant";
 }
+
+/** Crew Lead or Crew Member field portals (schedule / assigned visits). */
+export function roleCanAccessCrewSchedule(role: UserRole) {
+  return role === "crew_lead" || role === "crew_member";
+}
+
+/** Crew members are read-only on visits/schedules (except own scheduling requests). */
+export function roleIsReadOnlyCrew(role: UserRole) {
+  return role === "crew_member";
+}

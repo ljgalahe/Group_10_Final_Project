@@ -1,12 +1,16 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { fetchContracts } from "@/lib/queries";
 import { requireAppAccess } from "@/lib/auth-access";
+import { getViewRole } from "@/lib/demo-role";
 
 export default async function ContractsPage() {
   await requireAppAccess();
+  const role = await getViewRole();
+  if (role === "crew_member") redirect("/dashboard");
 
   const { data: contracts } = await fetchContracts();
 

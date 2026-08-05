@@ -3,18 +3,20 @@ import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
 import { PageHeader } from "@/components/ui";
 import { CrewLeadSchedule } from "@/components/crew-lead/CrewLeadSchedule";
+import { CrewMemberSchedule } from "@/components/crew-member/CrewMemberSchedule";
 import {
   buildCrewSchedule,
   todayDateOnly,
 } from "@/components/crew-lead/buildCrewSchedule";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
-import { getViewRole } from "@/lib/demo-role";
+import { filterJobsForCrewMember } from "@/lib/crew-member";
+import { getViewRole, roleCanAccessCrewSchedule } from "@/lib/demo-role";
 
 export default async function SchedulePage() {
   await requireAppAccess();
 
   const role = await getViewRole();
-  if (role !== "crew_lead") {
+  if (!roleCanAccessCrewSchedule(role)) {
     redirect("/dashboard");
   }
 
@@ -38,7 +40,9 @@ export default async function SchedulePage() {
         .select("id, contract_id, title, description, quoted_amount, status"),
     ]);
 
-  const scheduleJobs = buildCrewSchedule(contracts ?? [], visits ?? []);
+  const allJobs = buildCrewSchedule(contracts ?? [], visits ?? []);
+  const scheduleJobs =
+    role === "crew_member" ? filterJobsForCrewMember(allJobs) : allJobs;
   const today = todayDateOnly();
   const extraWork: ExtraWorkItem[] = (extraWorkRows ?? []).map((row) => ({
     id: row.id,
@@ -53,13 +57,25 @@ export default async function SchedulePage() {
     <AppShell>
       <PageHeader
         title="Schedule"
-        description="Three-month crew job calendar, filters, today's route, and per-visit work tracking."
+        description={
+          role === "crew_member"
+            ? "Day and week views of visits assigned to you (read-only)."
+            : "Three-month crew job calendar, filters, today's route, and per-visit work tracking."
+        }
       />
-      <CrewLeadSchedule
-        jobs={scheduleJobs}
-        today={today}
-        extraWork={extraWork}
-      />
+      {role === "crew_member" ? (
+        <CrewMemberSchedule
+          jobs={scheduleJobs}
+          today={today}
+          extraWork={extraWork}
+        />
+      ) : (
+        <CrewLeadSchedule
+          jobs={scheduleJobs}
+          today={today}
+          extraWork={extraWork}
+        />
+      )}
     </AppShell>
   );
 }
