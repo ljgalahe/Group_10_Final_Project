@@ -5,6 +5,7 @@ import { completeVisit } from "@/app/actions/business";
 import { AssignedEmployeesList } from "@/components/crew-lead/AssignedEmployeesList";
 import { CrewLeadVisitDetails } from "@/components/crew-lead/CrewLeadVisitDetails";
 import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
+import { CrewVisitPhotos } from "@/components/crew-lead/CrewVisitPhotos";
 import {
   getAssignedEmployeesForJob,
   loadVisitWorkStateForStatus,
@@ -73,11 +74,18 @@ export function CrewLeadVisitsBoard({
     "all" | "completed" | "incomplete"
   >("all");
   const [customerName, setCustomerName] = useState("");
+  const [jobName, setJobName] = useState("");
   const [employeeName, setEmployeeName] = useState("");
 
   const customerOptions = useMemo(() => {
     return Array.from(
       new Set(visits.map((visit) => visit.customerName).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+  }, [visits]);
+
+  const jobNameOptions = useMemo(() => {
+    return Array.from(
+      new Set(visits.map((visit) => visit.contractTitle).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b));
   }, [visits]);
 
@@ -92,16 +100,14 @@ export function CrewLeadVisitsBoard({
 
   const filtered = useMemo(() => {
     const customerQuery = customerName.trim().toLowerCase();
+    const jobQuery = jobName.trim().toLowerCase();
     const employeeQuery = readOnly ? "" : employeeName.trim().toLowerCase();
 
     return visits.filter((visit) => {
       if (statusFilter === "completed" && visit.status !== "completed") {
         return false;
       }
-      if (
-        statusFilter === "incomplete" &&
-        visit.status === "completed"
-      ) {
+      if (statusFilter === "incomplete" && visit.status === "completed") {
         return false;
       }
 
@@ -109,6 +115,10 @@ export function CrewLeadVisitsBoard({
         customerQuery &&
         !visit.customerName.toLowerCase().includes(customerQuery)
       ) {
+        return false;
+      }
+
+      if (jobQuery && !visit.contractTitle.toLowerCase().includes(jobQuery)) {
         return false;
       }
 
@@ -123,7 +133,7 @@ export function CrewLeadVisitsBoard({
 
       return true;
     });
-  }, [visits, statusFilter, customerName, employeeName, readOnly]);
+  }, [visits, statusFilter, customerName, jobName, employeeName, readOnly]);
 
   return (
     <div className="space-y-4">
@@ -131,12 +141,12 @@ export function CrewLeadVisitsBoard({
         <h2 className="text-lg font-semibold text-green-950">Filters</h2>
         <p className="mt-1 text-sm text-stone-500">
           {readOnly
-            ? "Filter by completion status or customer name."
-            : "Filter by completion status, customer name, or employee name."}
+            ? "Filter by completion status, customer name, or job name."
+            : "Filter by completion status, customer name, job name, or employee name."}
         </p>
         <div
-          className={`mt-4 grid gap-4 ${
-            readOnly ? "sm:grid-cols-2" : "sm:grid-cols-3"
+          className={`mt-4 grid gap-4 sm:grid-cols-2 ${
+            readOnly ? "lg:grid-cols-3" : "lg:grid-cols-4"
           }`}
         >
           <label className="block text-sm">
@@ -171,6 +181,24 @@ export function CrewLeadVisitsBoard({
             />
             <datalist id="crew-visit-customers">
               {customerOptions.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-stone-700">
+              Job Name
+            </span>
+            <input
+              list="crew-visit-jobs"
+              value={jobName}
+              onChange={(e) => setJobName(e.target.value)}
+              placeholder="Search job name..."
+              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
+            />
+            <datalist id="crew-visit-jobs">
+              {jobNameOptions.map((name) => (
                 <option key={name} value={name} />
               ))}
             </datalist>
@@ -288,6 +316,8 @@ export function CrewLeadVisitsBoard({
                     </p>
                   )}
                 </div>
+
+                <CrewVisitPhotos jobId={visit.id} status={visit.status} />
 
                 {crewJob ? (
                   <CrewLeadVisitDetails
