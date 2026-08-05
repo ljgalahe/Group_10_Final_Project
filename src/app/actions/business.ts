@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createDataClient, DEMO_SESSION_COOKIE } from "@/lib/auth-access";
-import { getViewRole } from "@/lib/demo-role";
+import { buildPaymentMethodDisplayLabel } from "@/lib/customer-payment-methods";
+import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import {
   isValidPaymentMethod,
   nextInvoiceStatusAfterPayment,
@@ -459,7 +460,19 @@ export async function getOpenInvoicesForCustomer(customerId: string) {
 
 export async function customerPayInvoice(formData: FormData): Promise<void> {
   const invoiceId = formData.get("invoice_id") as string;
+  const methodId = ((formData.get("payment_method_id") as string) || "").trim();
+  const isNew = formData.get("is_new_method") === "1";
+  const newNickname = ((formData.get("new_method_nickname") as string) || "").trim();
+  const newDetails = ((formData.get("new_method_details") as string) || "").trim();
+  const requestedAmount = parseFloat(
+    (formData.get("amount") as string) || ""
+  );
+
   const supabase = await createDataClient();
+  const role = await getViewRole();
+  const customerId =
+    role === "customer" ? await getViewCustomerId() : null;
+
   const { data: invoice } = await supabase
     .from("invoices")
     .select("*")
@@ -468,16 +481,75 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
 
   if (!invoice) return;
 
+  // Customers may only pay their own invoices
+  if (customerId && invoice.customer_id !== customerId) return;
+
   const balance = Number(invoice.total) - Number(invoice.amount_paid);
   if (balance <= 0) return;
 
+  // Default to full balance if amount missing; allow any amount up to balance
+  let payAmount = Number.isFinite(requestedAmount)
+    ? requestedAmount
+    : balance;
+  payAmount = Math.round(payAmount * 100) / 100;
+  if (payAmount <= 0 || payAmount > balance + 0.001) return;
+  payAmount = Math.min(payAmount, balance);
+
+  let paymentMethodLabel = "Card ending in 4242";
+
+  if (isNew && customerId) {
+    const displayLabel = buildPaymentMethodDisplayLabel(
+      newNickname,
+      newDetails
+    );
+    if (!displayLabel) return;
+
+    const { data: saved, error } = await supabase
+      .from("customer_payment_methods")
+      .insert({
+        customer_id: customerId,
+        nickname: newNickname || null,
+        display_label: displayLabel,
+      })
+      .select("display_label")
+      .single();
+
+    if (error || !saved) return;
+    paymentMethodLabel = saved.display_label;
+  } else if (methodId && customerId) {
+    const { data: method } = await supabase
+      .from("customer_payment_methods")
+      .select("display_label")
+      .eq("id", methodId)
+      .eq("customer_id", customerId)
+      .single();
+
+    if (!method) return;
+    paymentMethodLabel = method.display_label;
+  } else if (methodId) {
+    const { data: method } = await supabase
+      .from("customer_payment_methods")
+      .select("display_label")
+      .eq("id", methodId)
+      .single();
+    if (method) paymentMethodLabel = method.display_label;
+  }
+
   const paymentFormData = new FormData();
   paymentFormData.set("invoice_id", invoiceId);
-  paymentFormData.set("amount", balance.toString());
+  paymentFormData.set("amount", payAmount.toFixed(2));
   paymentFormData.set("payment_method", "card");
   paymentFormData.set("payment_date", new Date().toISOString().slice(0, 10));
-  paymentFormData.set("notes", "Customer portal simulated payment");
+  paymentFormData.set(
+    "notes",
+    payAmount + 0.001 >= balance
+      ? `Customer portal payment (full) · ${paymentMethodLabel}`
+      : `Customer portal payment (partial) · ${paymentMethodLabel}`
+  );
   paymentFormData.set("reference_number", "CUSTOMER-PORTAL");
 
   await recordPayment(paymentFormData);
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/invoices");
+  revalidatePath("/dashboard");
 }

@@ -11,11 +11,21 @@ export type InvoiceStatus =
   | "past_due"
   | "partially_paid"
   | "canceled"
-  | "voided";
+  | "voided"
+  | "disputed";
 export type ExtraWorkStatus = "quoted" | "approved" | "completed" | "declined";
 export type CostType = "labor" | "materials" | "equipment";
 export type PaymentMethod = "check" | "ach" | "card" | "bank_transfer";
 export type PaymentStatus = "applied" | "unapplied" | "void";
+export type SupportCategory =
+  | "question"
+  | "concern"
+  | "complaint"
+  | "billing_dispute"
+  | "renewal"
+  | "service_quote";
+export type SupportLinkType = "contract" | "visit" | "invoice";
+export type SupportRequestStatus = "Open" | "In Progress" | "Resolved";
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "check", label: "Check" },
@@ -159,6 +169,43 @@ export interface PaymentsSummary {
   unappliedPayments: number;
   partialPaymentsCount: number;
 }
+
+export interface CustomerPaymentMethod {
+  id: string;
+  customer_id: string;
+  nickname: string | null;
+  display_label: string;
+  created_at: string;
+}
+
+export interface SupportRequest {
+  id: string;
+  customer_id: string;
+  category: SupportCategory;
+  message: string;
+  linked_type: SupportLinkType | null;
+  linked_id: string | null;
+  status: string;
+  resolution_notes: string | null;
+  created_at: string;
+}
+
+export const SUPPORT_CATEGORIES: {
+  value: SupportCategory;
+  label: string;
+}[] = [
+  { value: "question", label: "Question" },
+  { value: "concern", label: "Concern" },
+  { value: "complaint", label: "Complaint" },
+  { value: "billing_dispute", label: "Billing Dispute" },
+  { value: "renewal", label: "Renewal Request" },
+  { value: "service_quote", label: "Service Quote" },
+];
+
+/** Categories customers can pick on Contact Us (special flows have their own UI). */
+export const SUPPORT_FORM_CATEGORIES = SUPPORT_CATEGORIES.filter(
+  (c) => c.value !== "renewal" && c.value !== "service_quote"
+);
 
 export const DEMO_ROLES: { role: UserRole; label: string; description: string }[] = [
   { role: "manager", label: "Manager", description: "Oversee contracts and profitability" },

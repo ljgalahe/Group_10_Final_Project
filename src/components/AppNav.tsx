@@ -6,8 +6,11 @@ import { signOut } from "@/app/actions/auth";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", roles: ["manager", "accountant", "crew_lead", "customer"] },
   { href: "/contracts", label: "Contracts", roles: ["manager", "accountant", "crew_lead", "customer"] },
+  { href: "/schedule", label: "Schedule", roles: ["crew_lead"] },
   { href: "/visits", label: "Visits", roles: ["manager", "accountant", "crew_lead", "customer"] },
   { href: "/invoices", label: "Invoices", roles: ["manager", "accountant", "customer"] },
+  { href: "/contact", label: "Contact Us", roles: ["customer"] },
+  { href: "/support", label: "Customer Support", roles: ["manager"] },
   { href: "/payments", label: "Payments", roles: ["manager", "accountant"] },
   { href: "/reports/ar-aging", label: "AR Aging", roles: ["manager", "accountant"] },
   { href: "/reports/profitability", label: "Profitability", roles: ["manager", "accountant"] },
