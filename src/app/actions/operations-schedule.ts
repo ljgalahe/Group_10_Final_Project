@@ -123,3 +123,35 @@ export async function createServiceVisit(formData: FormData): Promise<void> {
   revalidatePath("/visits");
   redirect("/schedule?created=1");
 }
+
+/** Put a missed/cancelled/overdue visit back on the schedule. */
+export async function rescheduleServiceVisit(formData: FormData): Promise<void> {
+  const role = await getViewRole();
+  if (!roleCanManageCompanySchedule(role)) {
+    redirect("/dashboard");
+  }
+
+  const visitId = (formData.get("visit_id") as string) || "";
+  const scheduledDate = (formData.get("scheduled_date") as string) || "";
+  const crewLead =
+    ((formData.get("crew_lead_name") as string) || "").trim() ||
+    DEMO_CREW_LEAD_NAME;
+
+  if (!visitId || !scheduledDate) {
+    redirect("/schedule?error=reschedule");
+  }
+
+  const supabase = await createDataClient();
+  await supabase
+    .from("service_visits")
+    .update({
+      scheduled_date: scheduledDate,
+      crew_lead_name: crewLead,
+      status: "scheduled",
+    })
+    .eq("id", visitId);
+
+  revalidatePath("/schedule");
+  revalidatePath("/visits");
+  redirect("/schedule?rescheduled=1");
+}

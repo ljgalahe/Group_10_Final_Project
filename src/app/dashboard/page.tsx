@@ -13,7 +13,6 @@ import { CrewMemberAvailabilityPanel } from "@/components/crew-member/CrewMember
 import { CrewMemberHoursWorked } from "@/components/crew-member/CrewMemberHoursWorked";
 import { CrewMemberTodayJobs } from "@/components/crew-member/CrewMemberTodayJobs";
 import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPanel";
-import { OperationsMemberSchedulingPanel } from "@/components/operations/OperationsMemberSchedulingPanel";
 import { Card, PageHeader, StatCard } from "@/components/ui";
 import { filterJobsForCrewMember } from "@/lib/crew-member";
 import type { VisitLaborEntry } from "@/lib/crew-hours";
@@ -559,7 +558,35 @@ export default async function DashboardPage({
 
       {role === "operations" ? (
         <div className="mt-8 space-y-6">
-          <OperationsMemberSchedulingPanel />
+          <Card>
+            <h2 className="text-lg font-semibold text-green-950">
+              Scheduling hub
+            </h2>
+            <p className="mt-1 text-sm text-stone-600">
+              Calendar, visit create/assign, missed visits needing reschedule,
+              and crew time-off live on Scheduling.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/schedule"
+                className="rounded-lg bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+              >
+                Open Scheduling
+              </Link>
+              <Link
+                href="/schedule#needs-rescheduling"
+                className="rounded-lg border border-amber-700 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-50"
+              >
+                Needs rescheduling
+              </Link>
+              <Link
+                href="/schedule#crew-availability"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Crew time-off
+              </Link>
+            </div>
+          </Card>
           <Card>
             <h2 className="text-lg font-semibold text-green-950">
               Operations Quick Actions

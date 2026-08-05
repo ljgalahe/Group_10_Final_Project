@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import { AssignedEmployeesList } from "@/components/crew-lead/AssignedEmployeesList";
 import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
 import { ScheduleWeatherStrip } from "@/components/crew-lead/ScheduleWeatherStrip";
@@ -36,6 +35,16 @@ function StopsMap({ jobs }: { jobs: ScheduleJob[] }) {
     let cancelled = false;
 
     async function setupMap() {
+      // Serve Leaflet CSS from /public so Turbopack does not try to resolve
+      // relative url(images/…) paths inside node_modules/leaflet/dist/leaflet.css.
+      if (!document.getElementById("leaflet-stylesheet")) {
+        const link = document.createElement("link");
+        link.id = "leaflet-stylesheet";
+        link.rel = "stylesheet";
+        link.href = "/leaflet/leaflet.css";
+        document.head.appendChild(link);
+      }
+
       const L = (await import("leaflet")).default;
 
       if (cancelled || !mapRef.current) return;

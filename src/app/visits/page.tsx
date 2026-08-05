@@ -350,7 +350,7 @@ export default async function VisitsPage({
       <AppShell>
         <PageHeader
           title="Service Visits"
-          description={`Summary and job list for ${periodLabel(period)}. Switch the time range or organize by company or job.`}
+          description={`Work directory and visit outcomes for ${periodLabel(period)}. Company scheduling (create, assign, calendar, reschedule) is owned by Operations.`}
         />
 
         <div className="mb-6">
@@ -365,6 +365,7 @@ export default async function VisitsPage({
           periodLabelText={periodLabel(period)}
           completedHref={completedHref}
           pendingHref={pendingHref}
+          showSchedule={false}
           afterSummary={
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-4">

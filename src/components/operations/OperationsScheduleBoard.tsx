@@ -5,9 +5,12 @@ import {
   assignVisitCrewLead,
   autoGroupVisitsByLocation,
   createServiceVisit,
+  rescheduleServiceVisit,
 } from "@/app/actions/operations-schedule";
-import { Card } from "@/components/ui";
+import { Card, StatusBadge } from "@/components/ui";
+import { ScheduleCalendar } from "@/components/visits/ScheduleCalendar";
 import { locationKey } from "@/lib/location-group";
+import type { JobRow } from "@/lib/visit-jobs";
 import { DEMO_CREW_LEADS } from "@/lib/types";
 
 export type OpsVisitRow = {
@@ -28,6 +31,45 @@ export type OpsContractOption = {
   customer_name: string;
 };
 
+function visitNeedsReschedule(v: OpsVisitRow, today: string): boolean {
+  if (v.status === "cancelled") return true;
+  if (v.status === "scheduled" && v.scheduled_date < today) return true;
+  return false;
+}
+
+function missReason(v: OpsVisitRow, today: string): string {
+  if (v.status === "cancelled") return "Cancelled — needs rescheduling";
+  if (v.status === "scheduled" && v.scheduled_date < today) {
+    return "Missed / overdue — past scheduled date";
+  }
+  return "Needs rescheduling";
+}
+
+function opsVisitsToJobRows(visits: OpsVisitRow[]): JobRow[] {
+  return visits.map((v) => ({
+    visitId: v.id,
+    companyName: v.customer_name,
+    location: v.address ?? "—",
+    jobLabel: v.contract_title,
+    date: v.scheduled_date,
+    status: v.status,
+    crew: v.crew_lead_name
+      ? [
+          {
+            name: v.crew_lead_name,
+            role: "Crew Lead",
+            hours: 0,
+            payRate: 0,
+          },
+        ]
+      : [],
+    crewPay: 0,
+    costTotal: 0,
+    weather: null,
+    proof: null,
+  }));
+}
+
 export function OperationsScheduleBoard({
   visits,
   contracts,
@@ -39,27 +81,156 @@ export function OperationsScheduleBoard({
 }) {
   const [filterLead, setFilterLead] = useState("all");
 
+  const needsReschedule = useMemo(
+    () =>
+      visits
+        .filter((v) => visitNeedsReschedule(v, today))
+        .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)),
+    [visits, today]
+  );
+
+  const needsIds = useMemo(
+    () => new Set(needsReschedule.map((v) => v.id)),
+    [needsReschedule]
+  );
+
   const clusters = useMemo(() => {
     const map = new Map<string, OpsVisitRow[]>();
-    for (const v of visits.filter((x) => x.status === "scheduled")) {
+    for (const v of visits.filter(
+      (x) => x.status === "scheduled" && !needsIds.has(x.id)
+    )) {
       const key = locationKey(v.address);
       const list = map.get(key) ?? [];
       list.push(v);
       map.set(key, list);
     }
     return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
-  }, [visits]);
+  }, [visits, needsIds]);
 
-  const visible = visits.filter(
-    (v) => filterLead === "all" || v.crew_lead_name === filterLead
+  const activeBoard = visits.filter(
+    (v) =>
+      v.status === "scheduled" &&
+      !needsIds.has(v.id) &&
+      (filterLead === "all" || v.crew_lead_name === filterLead)
   );
 
   const unassigned = visits.filter(
-    (v) => v.status === "scheduled" && !v.crew_lead_name
+    (v) =>
+      v.status === "scheduled" && !needsIds.has(v.id) && !v.crew_lead_name
   );
+
+  const calendarJobs = useMemo(() => opsVisitsToJobRows(visits), [visits]);
 
   return (
     <div className="space-y-6">
+      <Card
+        id="needs-rescheduling"
+        className="scroll-mt-24 border-amber-300 bg-amber-50/50"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-green-950">
+              Needs rescheduling
+            </h2>
+            <p className="mt-1 text-sm text-stone-600">
+              Missed or cancelled visits from live{" "}
+              <code className="text-xs">service_visits</code> data — overdue
+              scheduled dates and cancelled status.
+            </p>
+          </div>
+          <span className="rounded-full bg-amber-200 px-3 py-1 text-sm font-semibold text-amber-950">
+            {needsReschedule.length}
+          </span>
+        </div>
+
+        {needsReschedule.length === 0 ? (
+          <p className="mt-4 text-sm text-stone-500">
+            No missed or cancelled visits waiting to be rescheduled.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {needsReschedule.map((v) => (
+              <li
+                key={v.id}
+                className="rounded-lg border border-amber-200 bg-white px-4 py-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-green-950">
+                      {v.customer_name}
+                    </p>
+                    <p className="text-sm text-stone-600">{v.contract_title}</p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      Original date {v.scheduled_date}
+                      {v.address ? ` · ${v.address}` : ""}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <StatusBadge status={v.status} />
+                      <span className="text-xs font-medium text-amber-900">
+                        {missReason(v, today)}
+                      </span>
+                    </div>
+                  </div>
+                  <form
+                    action={rescheduleServiceVisit}
+                    className="flex flex-wrap items-end gap-2"
+                  >
+                    <input type="hidden" name="visit_id" value={v.id} />
+                    <label className="text-xs text-stone-600">
+                      New date
+                      <input
+                        type="date"
+                        name="scheduled_date"
+                        required
+                        defaultValue={today}
+                        className="mt-1 block rounded border border-stone-300 px-2 py-1 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-stone-600">
+                      Crew Lead
+                      <select
+                        name="crew_lead_name"
+                        defaultValue={v.crew_lead_name || DEMO_CREW_LEADS[0]}
+                        className="mt-1 block rounded border border-stone-300 px-2 py-1 text-sm"
+                      >
+                        {DEMO_CREW_LEADS.map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="submit"
+                      className="rounded bg-amber-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+                    >
+                      Reschedule
+                    </button>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-semibold text-green-950">Schedule</h2>
+        <p className="mt-1 text-sm text-stone-500">
+          Company calendar (moved from Manager Visits). Filter by company,
+          employee, job, or status, then click a day.
+        </p>
+        {calendarJobs.length === 0 ? (
+          <p className="mt-4 text-sm text-stone-400">
+            No visits to show on the calendar.
+          </p>
+        ) : (
+          <div className="mt-4">
+            <ScheduleCalendar jobs={calendarJobs} />
+          </div>
+        )}
+      </Card>
+
       <Card>
         <h2 className="text-lg font-semibold text-green-950">
           Efficient same-day routing
@@ -202,6 +373,10 @@ export function OperationsScheduleBoard({
             </select>
           </label>
         </div>
+        <p className="mt-1 text-sm text-stone-500">
+          Active upcoming visits — assign Crew Lead and adjust dates. Missed
+          items are listed under Needs rescheduling above.
+        </p>
 
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -216,7 +391,7 @@ export function OperationsScheduleBoard({
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {visible.map((v) => (
+              {activeBoard.map((v) => (
                 <tr key={v.id}>
                   <td className="py-3 pr-3 whitespace-nowrap">
                     {v.scheduled_date}
@@ -273,8 +448,8 @@ export function OperationsScheduleBoard({
               ))}
             </tbody>
           </table>
-          {visible.length === 0 ? (
-            <p className="py-6 text-sm text-stone-500">No visits to show.</p>
+          {activeBoard.length === 0 ? (
+            <p className="py-6 text-sm text-stone-500">No active visits to show.</p>
           ) : null}
         </div>
       </Card>

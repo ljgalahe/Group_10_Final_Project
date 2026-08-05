@@ -9,6 +9,7 @@ import {
   type OpsContractOption,
   type OpsVisitRow,
 } from "@/components/operations/OperationsScheduleBoard";
+import { OperationsMemberSchedulingPanel } from "@/components/operations/OperationsMemberSchedulingPanel";
 import {
   buildCrewSchedule,
   todayDateOnly,
@@ -29,6 +30,7 @@ export default async function SchedulePage({
     assigned?: string;
     grouped?: string;
     created?: string;
+    rescheduled?: string;
     error?: string;
   }>;
 }) {
@@ -88,7 +90,7 @@ export default async function SchedulePage({
       <AppShell>
         <PageHeader
           title="Scheduling"
-          description="Create and assign visits by location efficiency. Assign a Crew Lead so field teams can execute on their schedule."
+          description="Company scheduling hub — calendar, create/assign visits, location routing, missed-visit reschedule, and crew time-off."
         />
         {params.assigned === "1" ? (
           <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
@@ -98,6 +100,11 @@ export default async function SchedulePage({
         {params.created === "1" ? (
           <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
             Visit created.
+          </p>
+        ) : null}
+        {params.rescheduled === "1" ? (
+          <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+            Visit rescheduled and restored to the active board.
           </p>
         ) : null}
         {params.grouped ? (
@@ -110,11 +117,16 @@ export default async function SchedulePage({
             Could not complete scheduling action.
           </p>
         ) : null}
-        <OperationsScheduleBoard
-          visits={visits}
-          contracts={contracts}
-          today={todayDateOnly()}
-        />
+        <div className="space-y-6">
+          <OperationsScheduleBoard
+            visits={visits}
+            contracts={contracts}
+            today={todayDateOnly()}
+          />
+          <div id="crew-availability" className="scroll-mt-24">
+            <OperationsMemberSchedulingPanel />
+          </div>
+        </div>
       </AppShell>
     );
   }
