@@ -11,10 +11,13 @@ import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate, getDisplayInvoiceStatus } from "@/lib/format";
+import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
+import { invoiceJournalReadyReason } from "@/lib/journal";
 import {
   fetchCustomerPaymentMethods,
   fetchInvoice,
   fetchInvoices,
+  fetchJournalSourceStates,
 } from "@/lib/queries";
 import { getOutstandingBalance } from "@/app/invoices/lib/accounting";
 import { InvoiceStatusBadge } from "@/app/invoices/components/InvoiceStatusBadge";
@@ -96,6 +99,9 @@ export default async function InvoicesPage({
   const params = await searchParams;
   const statusFilter = parseStatusFilter(params.status);
   const { data: invoices } = await fetchInvoices();
+  const invoiceJournalStates = isAccountant
+    ? (await fetchJournalSourceStates()).invoice
+    : new Map();
   const contracts = isAccountant ? await fetchContractsForInvoice() : [];
   const customerId = isCustomer ? await getViewCustomerId() : null;
   const paymentMethods =
@@ -180,8 +186,10 @@ export default async function InvoicesPage({
                   {isAccountant ? "Outstanding Balance" : "Balance"}
                 </th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                {isCustomer ? (
-                  <th className="px-4 py-3 font-medium">Actions</th>
+                {isCustomer || isAccountant ? (
+                  <th className="px-4 py-3 font-medium">
+                    {isAccountant ? "Journal" : "Actions"}
+                  </th>
                 ) : null}
               </tr>
             </thead>
@@ -234,7 +242,16 @@ export default async function InvoicesPage({
                         />
                       )}
                     </td>
-                    {isCustomer ? (
+                    {isAccountant ? (
+                      <td className="px-4 py-3">
+                        <PostJournalEntryButton
+                          source="invoice"
+                          sourceId={invoice.id}
+                          journalStatus={invoiceJournalStates.get(invoice.id) ?? null}
+                          disabledReason={invoiceJournalReadyReason(invoice.status) ?? undefined}
+                        />
+                      </td>
+                    ) : isCustomer ? (
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-2">
                           {balance > 0 ? (

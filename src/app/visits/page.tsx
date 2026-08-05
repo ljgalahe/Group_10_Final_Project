@@ -37,8 +37,9 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
 import {
   fetchAccountantVisits,
-  fetchExtraWorkByContractIds,
   fetchAllVisitCosts,
+  fetchExtraWorkByContractIds,
+  fetchJournalSourceStates,
   fetchVisitCosts,
   fetchVisits,
 } from "@/lib/queries";
@@ -96,6 +97,9 @@ export default async function VisitsPage({
     const { data: initialVisits } = await fetchAccountantVisits();
     await ensureCompletedVisitLaborSynced(initialVisits.map((visit) => visit.id));
     const { data: visits } = await fetchAccountantVisits();
+    const visitJournalStates = Object.fromEntries(
+      (await fetchJournalSourceStates()).visit
+    );
 
     return (
       <AppShell>
@@ -109,6 +113,7 @@ export default async function VisitsPage({
           <AccountantVisitsView
             visits={visits}
             todayIso={new Date().toISOString().slice(0, 10)}
+            visitJournalStates={visitJournalStates}
           />
         )}
       </AppShell>

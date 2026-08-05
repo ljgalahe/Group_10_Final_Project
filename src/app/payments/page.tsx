@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { PaymentsManagerClient } from "@/components/PaymentsManagerClient";
+import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
 import { RecordPaymentButton } from "@/app/payments/components/RecordPaymentButton";
 import { fetchOpenInvoicesForPayment } from "@/app/invoices/queries";
 import {
@@ -14,9 +15,11 @@ import { requireAppAccess } from "@/lib/auth-access";
 import { buildCollectionRisk } from "@/lib/collection-risk";
 import { getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { paymentJournalReadyReason } from "@/lib/journal";
 import {
   fetchCustomers,
   fetchInvoices,
+  fetchJournalSourceStates,
   fetchPayments,
   fetchPaymentsSummary,
 } from "@/lib/queries";
@@ -29,6 +32,7 @@ export default async function PaymentsPage() {
 
   if (isAccountant) {
     const { data: payments } = await fetchPaymentsForAccountant();
+    const paymentJournalStates = (await fetchJournalSourceStates()).payment;
     const openInvoices = await fetchOpenInvoicesForPayment();
     const customers = await fetchCustomersForPayment();
     const unappliedCash = await fetchUnappliedCashPayments();
@@ -60,6 +64,7 @@ export default async function PaymentsPage() {
                   <th className="px-4 py-3 font-medium">Method</th>
                   <th className="px-4 py-3 font-medium">Amount</th>
                   <th className="px-4 py-3 font-medium">Unapplied</th>
+                  <th className="px-4 py-3 font-medium">Journal</th>
                 </tr>
               </thead>
               <tbody>
@@ -110,6 +115,21 @@ export default async function PaymentsPage() {
                         ) : (
                           "—"
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <PostJournalEntryButton
+                          source="payment"
+                          sourceId={payment.id}
+                          journalStatus={
+                            paymentJournalStates.get(payment.id) ?? null
+                          }
+                          disabledReason={
+                            paymentJournalReadyReason({
+                              amount: Number(payment.amount),
+                              invoiceId: payment.invoice_id,
+                            }) ?? undefined
+                          }
+                        />
                       </td>
                     </tr>
                   );

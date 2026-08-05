@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
 import { VisitAuditLog } from "@/components/VisitAuditLog";
 import { EmptyState, StatCard, StatusBadge } from "@/components/ui";
+import { visitJournalReadyReason, type JournalStatus } from "@/lib/journal";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   allocatedVisitRevenue,
@@ -68,9 +70,11 @@ function DottedRow({ label, value }: { label: string; value: string }) {
 export function AccountantVisitsView({
   visits,
   todayIso,
+  visitJournalStates = {},
 }: {
   visits: AccountantVisit[];
   todayIso: string;
+  visitJournalStates?: Record<string, JournalStatus>;
 }) {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "scheduled" | "completed"
@@ -428,6 +432,17 @@ export function AccountantVisitsView({
 
               {isExpanded ? (
               <div className="border-t border-stone-100 px-5 pb-6 pt-5">
+              <div className="mb-4 flex justify-end">
+                <PostJournalEntryButton
+                  source="visit"
+                  sourceId={visit.id}
+                  journalStatus={visitJournalStates[visit.id] ?? null}
+                  disabledReason={
+                    visitJournalReadyReason(visit.status, visit.visit_costs.length) ??
+                    undefined
+                  }
+                />
+              </div>
               <div className="grid gap-4 lg:grid-cols-2">
                 <section className="rounded-lg bg-stone-100 p-4">
                   <h3 className="mb-3 text-sm font-semibold text-green-950">

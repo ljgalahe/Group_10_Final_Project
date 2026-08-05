@@ -5,7 +5,11 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { getOutstandingBalance } from "@/app/invoices/lib/accounting";
 import { InvoiceStatusBadge } from "@/app/invoices/components/InvoiceStatusBadge";
 import { fetchPayment, fetchPaymentAuditTrail } from "@/app/payments/queries";
+import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
 import { requireAppAccess } from "@/lib/auth-access";
+import { getViewRole } from "@/lib/demo-role";
+import { paymentJournalReadyReason } from "@/lib/journal";
+import { fetchJournalSourceStates } from "@/lib/queries";
 import { notFound } from "next/navigation";
 
 export default async function PaymentDetailPage({
@@ -15,11 +19,16 @@ export default async function PaymentDetailPage({
 }) {
   const { id } = await params;
   await requireAppAccess();
+  const role = await getViewRole();
+  const isAccountant = role === "accountant";
 
   const { data: payment } = await fetchPayment(id);
   if (!payment) notFound();
 
   const { activity: auditTrail } = await fetchPaymentAuditTrail(id);
+  const paymentJournalStatus = isAccountant
+    ? ((await fetchJournalSourceStates()).payment.get(id) ?? null)
+    : null;
   const invoice = payment.invoices as {
     id: string;
     invoice_number: string;
@@ -41,6 +50,21 @@ export default async function PaymentDetailPage({
       <PageHeader
         title={`Payment ${payment.payment_number}`}
         description={`${formatCurrency(Number(payment.amount))} · ${formatDate(payment.payment_date)} · ${payment.payment_method.replace(/_/g, " ")}`}
+        action={
+          isAccountant ? (
+            <PostJournalEntryButton
+              source="payment"
+              sourceId={id}
+              journalStatus={paymentJournalStatus}
+              disabledReason={
+                paymentJournalReadyReason({
+                  amount: Number(payment.amount),
+                  invoiceId: payment.invoice_id,
+                }) ?? undefined
+              }
+            />
+          ) : null
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-2">

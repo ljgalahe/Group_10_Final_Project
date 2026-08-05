@@ -86,6 +86,8 @@ export function StatusBadge({ status }: { status: string }) {
     expired: "bg-red-100 text-red-800",
     controls_breached: "bg-red-100 text-red-800",
     unprofitable: "bg-red-100 text-red-800",
+    ready: "bg-amber-100 text-amber-900",
+    posted: "bg-green-100 text-green-800",
   };
 
   return (

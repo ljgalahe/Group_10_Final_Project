@@ -32,6 +32,7 @@ const navItems = [
   { href: "/equipment", label: "Equipment", roles: ["accountant"] },
   { href: "/reports/ar-aging", label: "AR Aging", roles: ["manager", "accountant"] },
   { href: "/reports/profitability", label: "Profitability", roles: ["manager", "accountant"] },
+  { href: "/reports/journal-entries", label: "Journal Entries", roles: ["accountant"] },
 ];
 
 export async function AppNav() {
