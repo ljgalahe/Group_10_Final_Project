@@ -15,6 +15,16 @@ import type {
   FieldExceptionReport,
 } from "@/components/crew-lead/schedule-types";
 import { formatStatusLabel } from "@/components/crew-lead/visitWorkDefaults";
+import {
+  decisionLabel,
+  loadConcernDecisions,
+  loadFieldConcerns,
+  saveConcernDecision,
+  type ConcernDecision,
+  type FieldConcernRecord,
+} from "@/lib/concern-decisions";
+import { chatHrefForCrewLead } from "@/lib/chat-demo";
+import { formatDate } from "@/lib/format";
 
 const VISIT_WORK_PREFIX = "greenscape-crew-visit-work:";
 
@@ -56,11 +66,17 @@ export function ManagerApprovalsPanel({
   >([]);
   const [visitNotes, setVisitNotes] = useState<VisitExtraWorkItem[]>([]);
   const [exceptions, setExceptions] = useState<FieldExceptionReport[]>([]);
+  const [fieldConcerns, setFieldConcerns] = useState<FieldConcernRecord[]>([]);
+  const [concernDecisions, setConcernDecisions] = useState<
+    Record<string, ConcernDecision>
+  >({});
 
   function refresh() {
     setExtraRequests(loadManagementExtraRequests());
     setVisitNotes(loadAllVisitExtraWorkNotes());
     setExceptions(loadFieldExceptions());
+    setFieldConcerns(loadFieldConcerns());
+    setConcernDecisions(loadConcernDecisions());
   }
 
   useEffect(() => {
@@ -68,9 +84,11 @@ export function ManagerApprovalsPanel({
     const onStorage = () => refresh();
     window.addEventListener("storage", onStorage);
     window.addEventListener("focus", onStorage);
+    window.addEventListener("greenscape-concerns-updated", onStorage);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("focus", onStorage);
+      window.removeEventListener("greenscape-concerns-updated", onStorage);
     };
   }, []);
 
@@ -83,6 +101,14 @@ export function ManagerApprovalsPanel({
     ).length;
     return fromDashboard + fromVisits;
   }, [extraRequests, visitNotes]);
+
+  const openConcernCount = useMemo(
+    () =>
+      fieldConcerns.filter(
+        (c) => (concernDecisions[c.visitId] ?? "open") === "open"
+      ).length,
+    [fieldConcerns, concernDecisions]
+  );
 
   function setExtraRequestStatus(
     id: string,
@@ -111,6 +137,11 @@ export function ManagerApprovalsPanel({
     setVisitNotes(loadAllVisitExtraWorkNotes());
   }
 
+  function setConcernStatus(visitId: string, decision: ConcernDecision) {
+    saveConcernDecision(visitId, decision);
+    setConcernDecisions(loadConcernDecisions());
+  }
+
   return (
     <div className="space-y-6">
       <Card className="border-amber-200 bg-amber-50/40">
@@ -120,11 +151,133 @@ export function ManagerApprovalsPanel({
               Approvals & Crew Alerts
             </h2>
           </div>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-            {pendingExtraCount} pending approval
-            {pendingExtraCount === 1 ? "" : "s"}
-          </span>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+              {pendingExtraCount} pending approval
+              {pendingExtraCount === 1 ? "" : "s"}
+            </span>
+            {openConcernCount > 0 ? (
+              <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
+                {openConcernCount} field concern
+                {openConcernCount === 1 ? "" : "s"}
+              </span>
+            ) : null}
+          </div>
         </div>
+      </Card>
+
+      <Card>
+        <h3 className="text-base font-semibold text-green-950">
+          Field concerns
+        </h3>
+        <p className="mt-1 text-sm text-stone-500">
+          Photo concerns from Visits work directory. Approve & clear to proceed,
+          or place the job on hold.
+        </p>
+
+        {fieldConcerns.length === 0 ? (
+          <p className="mt-3 text-sm text-stone-500">
+            No field concerns synced yet. Open Visits → Work directory once to
+            load them.
+          </p>
+        ) : (
+          <ul className="mt-3 max-h-96 space-y-3 overflow-y-auto">
+            {fieldConcerns.map((concern) => {
+              const decision = concernDecisions[concern.visitId] ?? "open";
+              return (
+                <li
+                  key={concern.visitId}
+                  className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-green-950">
+                        {concern.companyName}
+                      </p>
+                      <p className="mt-1 text-stone-700">
+                        {concern.concernLabel}
+                      </p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {concern.jobLabel} · {formatDate(concern.date)} ·{" "}
+                        {concern.location}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                        decision === "approved"
+                          ? "bg-green-100 text-green-800"
+                          : decision === "on_hold"
+                            ? "bg-amber-100 text-amber-900"
+                            : "bg-rose-100 text-rose-900"
+                      }`}
+                    >
+                      {decisionLabel(decision)}
+                    </span>
+                  </div>
+                  {concern.concernImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={concern.concernImage}
+                      alt={concern.concernLabel}
+                      className="mt-3 h-32 w-full rounded-md border border-stone-200 object-cover"
+                    />
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConcernStatus(concern.visitId, "approved")
+                      }
+                      className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                    >
+                      Approve & clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConcernStatus(concern.visitId, "on_hold")
+                      }
+                      className="rounded-md border border-amber-700 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50"
+                    >
+                      Place on hold
+                    </button>
+                    {concern.crewLeadName ? (
+                      <a
+                        href={chatHrefForCrewLead({
+                          crewLeadName: concern.crewLeadName,
+                          visitId: concern.visitId,
+                          jobLabel: concern.jobLabel,
+                          companyName: concern.companyName,
+                          concernLabel: concern.concernLabel,
+                        })}
+                        className="rounded-md border border-sky-700 px-3 py-1.5 text-xs font-medium text-sky-900 hover:bg-sky-50"
+                      >
+                        Contact crew leader ({concern.crewLeadName})
+                      </a>
+                    ) : null}
+                    {decision !== "open" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConcernStatus(concern.visitId, "open")
+                        }
+                        className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-white"
+                      >
+                        Reopen
+                      </button>
+                    ) : null}
+                    <a
+                      href="/visits"
+                      className="rounded-md border border-green-800 px-3 py-1.5 text-xs font-medium text-green-900 hover:bg-green-50"
+                    >
+                      Open Visits
+                    </a>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -216,7 +369,8 @@ export function ManagerApprovalsPanel({
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="font-medium text-green-950">
-                        {visitLabels[note.jobId] ?? `Visit ${note.jobId.slice(0, 8)}…`}
+                        {visitLabels[note.jobId] ??
+                          `Visit ${note.jobId.slice(0, 8)}…`}
                       </p>
                       <p className="mt-1 text-stone-700">{note.description}</p>
                       <p className="mt-1 text-xs text-stone-500">

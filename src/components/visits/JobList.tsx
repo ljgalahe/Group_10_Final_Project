@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SectionSearch, matchesJobSearch } from "@/components/visits/SectionSearch";
 import { VisitJobDetail } from "@/components/visits/VisitJobDetail";
+import { WorkDirectoryConcernAlerts } from "@/components/visits/WorkDirectoryConcernAlerts";
 import { formatDate } from "@/lib/format";
 import type { JobRow } from "@/lib/visit-jobs";
 
@@ -87,10 +88,24 @@ function groupJobsByCompany(jobs: JobRow[]) {
 }
 
 /** Under a company: nest by job type, then visit details (with photos). */
-function CompanyJobGroups({ jobs }: { jobs: JobRow[] }) {
+function CompanyJobGroups({
+  jobs,
+  focusVisitId = null,
+}: {
+  jobs: JobRow[];
+  focusVisitId?: string | null;
+}) {
   const jobGroups = useMemo(() => groupJobsByLabel(jobs), [jobs]);
   const [openJobLabel, setOpenJobLabel] = useState<string | null>(null);
   const [openJobId, setOpenJobId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusVisitId) return;
+    const job = jobs.find((j) => j.visitId === focusVisitId);
+    if (!job) return;
+    setOpenJobLabel(job.jobLabel);
+    setOpenJobId(job.visitId);
+  }, [focusVisitId, jobs]);
 
   return (
     <div className="space-y-2">
@@ -169,10 +184,24 @@ function CompanyJobGroups({ jobs }: { jobs: JobRow[] }) {
 }
 
 /** Under a job type: nest by company, then visit details (with photos). */
-function JobCompanyGroups({ jobs }: { jobs: JobRow[] }) {
+function JobCompanyGroups({
+  jobs,
+  focusVisitId = null,
+}: {
+  jobs: JobRow[];
+  focusVisitId?: string | null;
+}) {
   const companyGroups = useMemo(() => groupJobsByCompany(jobs), [jobs]);
   const [openCompany, setOpenCompany] = useState<string | null>(null);
   const [openJobId, setOpenJobId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusVisitId) return;
+    const job = jobs.find((j) => j.visitId === focusVisitId);
+    if (!job) return;
+    setOpenCompany(job.companyName);
+    setOpenJobId(job.visitId);
+  }, [focusVisitId, jobs]);
 
   return (
     <div className="space-y-2">
@@ -267,6 +296,21 @@ export function OrganizedJobList({
   const [openJobId, setOpenJobId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
+  const allJobs = useMemo(() => groups.flatMap(([, jobs]) => jobs), [groups]);
+
+  function followVisit(visitId: string) {
+    const job = allJobs.find((j) => j.visitId === visitId);
+    if (!job) return;
+    const groupKey =
+      organizeBy === "company"
+        ? job.companyName
+        : organizeBy === "jobs"
+          ? job.jobLabel
+          : job.date;
+    setOpenGroup(groupKey);
+    setOpenJobId(visitId);
+  }
+
   const filteredGroups = useMemo(() => {
     if (!query.trim()) return groups;
     return groups
@@ -297,6 +341,11 @@ export function OrganizedJobList({
 
   return (
     <div className="space-y-3">
+      <WorkDirectoryConcernAlerts
+        jobs={allJobs}
+        onFollowVisit={followVisit}
+      />
+
       <SectionSearch
         value={query}
         onChange={(value) => {
@@ -364,9 +413,9 @@ export function OrganizedJobList({
               {isOpen ? (
                 <div className="border-t border-stone-100 bg-stone-50 px-4 py-4">
                   {organizeBy === "company" ? (
-                    <CompanyJobGroups jobs={jobs} />
+                    <CompanyJobGroups jobs={jobs} focusVisitId={openJobId} />
                   ) : organizeBy === "jobs" ? (
-                    <JobCompanyGroups jobs={jobs} />
+                    <JobCompanyGroups jobs={jobs} focusVisitId={openJobId} />
                   ) : (
                     <div className="space-y-2">
                       <p className="mb-2 text-xs text-stone-500">

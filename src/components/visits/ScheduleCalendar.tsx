@@ -355,7 +355,8 @@ export function ScheduleCalendar({
                           : "text-stone-700"
                   }`}
                 >
-                  {dayJobs.length}
+                  {dayJobs.length}{" "}
+                  {dayJobs.length === 1 ? "job" : "jobs"}
                 </span>
               ) : null}
             </button>

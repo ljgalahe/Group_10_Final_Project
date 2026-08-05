@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, EmptyState, StatusBadge } from "@/components/ui";
+import { AssignedEmployeesList } from "@/components/crew-lead/AssignedEmployeesList";
+import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
+import { ScheduleWeatherStrip } from "@/components/crew-lead/ScheduleWeatherStrip";
 import type {
   ExtraWorkItem,
   ScheduleJob,
 } from "@/components/crew-lead/schedule-types";
-import { normalizeServiceName } from "@/components/crew-lead/buildCrewSchedule";
 import { VisitWorkPanel } from "@/components/crew-lead/VisitWorkPanel";
-import { AssignedEmployeesList } from "@/components/crew-lead/AssignedEmployeesList";
-import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
-import { ScheduleWeatherStrip } from "@/components/crew-lead/ScheduleWeatherStrip";
+import { Card, EmptyState, StatusBadge } from "@/components/ui";
+import { ScheduleCalendar } from "@/components/visits/ScheduleCalendar";
+import { SCHEDULE_CREW, crewPayTotal, generateDailySampleJobs } from "@/lib/visit-demo";
+import type { JobRow } from "@/lib/visit-jobs";
 
 function formatDisplayDate(isoDate: string) {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -23,16 +25,36 @@ function formatDisplayDate(isoDate: string) {
   });
 }
 
-function monthLabel(year: number, monthIndex: number) {
-  return new Date(Date.UTC(year, monthIndex, 1)).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
+function scheduleJobsToJobRows(jobs: ScheduleJob[]): JobRow[] {
+  const samples = new Map(
+    generateDailySampleJobs().map((j) => [j.visitId, j] as const)
+  );
+  return jobs.map((job) => {
+    const overlay = SCHEDULE_CREW[job.id];
+    const sample = samples.get(job.id);
+    const crew = overlay?.crew ?? sample?.crew ?? [];
+    return {
+      visitId: job.id,
+      companyName: job.customerName,
+      location: job.address,
+      jobLabel:
+        overlay?.jobLabel ??
+        sample?.jobLabel ??
+        (job.services.length > 0
+          ? job.services.join(", ")
+          : job.contractTitle),
+      date: job.scheduledDate,
+      status: job.status,
+      crew,
+      crewPay: crew.length ? crewPayTotal(crew) : (sample?.crewPay ?? 0),
+      costTotal: sample?.costTotal ?? 0,
+      weather: sample?.weather ?? null,
+      proof: sample?.proof ?? null,
+    };
   });
 }
 
 function RouteMap({ jobs }: { jobs: ScheduleJob[] }) {
-  // Oxford, MS city bounds
   const oxfordMinLat = 34.34;
   const oxfordMaxLat = 34.39;
   const oxfordMinLng = -89.56;
@@ -114,83 +136,6 @@ function RouteMap({ jobs }: { jobs: ScheduleJob[] }) {
   );
 }
 
-function MonthCalendar({
-  year,
-  monthIndex,
-  jobsByDate,
-  selectedDate,
-  today,
-  onSelect,
-}: {
-  year: number;
-  monthIndex: number;
-  jobsByDate: Map<string, ScheduleJob[]>;
-  selectedDate: string;
-  today: string;
-  onSelect: (date: string) => void;
-}) {
-  const first = new Date(Date.UTC(year, monthIndex, 1));
-  const startWeekday = first.getUTCDay();
-  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
-  const cells: (number | null)[] = [
-    ...Array.from({ length: startWeekday }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  return (
-    <Card className="p-4">
-      <h3 className="mb-3 text-center text-sm font-semibold text-green-950">
-        {monthLabel(year, monthIndex)}
-      </h3>
-      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase tracking-wide text-stone-500">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <div key={d}>{d}</div>
-        ))}
-      </div>
-      <div className="mt-1 grid grid-cols-7 gap-1">
-        {cells.map((day, index) => {
-          if (!day) {
-            return <div key={`empty-${index}`} className="aspect-square" />;
-          }
-          const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          const count = jobsByDate.get(iso)?.length ?? 0;
-          const isSelected = selectedDate === iso;
-          const isToday = today === iso;
-
-          return (
-            <button
-              key={iso}
-              type="button"
-              onClick={() => onSelect(iso)}
-              className={`aspect-square rounded-md border p-0.5 text-left transition ${
-                isSelected
-                  ? "border-green-800 bg-green-800 text-white"
-                  : isToday
-                    ? "border-green-600 bg-green-50 text-green-950"
-                    : "border-stone-200 bg-white text-stone-800 hover:border-green-700"
-              }`}
-            >
-              <span className="block text-[11px] font-semibold leading-none">
-                {day}
-              </span>
-              {count > 0 ? (
-                <span
-                  className={`mt-1 block truncate text-[9px] leading-none ${
-                    isSelected ? "text-green-100" : "text-green-800"
-                  }`}
-                >
-                  {count} job{count === 1 ? "" : "s"}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
-
 export function CrewLeadSchedule({
   jobs,
   today,
@@ -200,10 +145,11 @@ export function CrewLeadSchedule({
   today: string;
   extraWork?: ExtraWorkItem[];
 }) {
-  const [customerId, setCustomerId] = useState("");
-  const [service, setService] = useState("");
   const [selectedDate, setSelectedDate] = useState(today);
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [filteredVisitIds, setFilteredVisitIds] = useState<Set<string> | null>(
+    null
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -215,64 +161,13 @@ export function CrewLeadSchedule({
     }
   }, []);
 
-  const customers = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const job of jobs) {
-      map.set(job.customerId, `${job.customerName} (${job.customerIdShort})`);
-    }
-    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [jobs]);
-
-  const services = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const job of jobs) {
-      for (const raw of job.services) {
-        const normalized = normalizeServiceName(raw);
-        map.set(normalized.toLowerCase(), normalized);
-      }
-    }
-    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
-  }, [jobs]);
-
-  const filtered = useMemo(() => {
-    return jobs.filter((job) => {
-      if (customerId && job.customerId !== customerId) return false;
-      if (
-        service &&
-        !job.services.some(
-          (s) => normalizeServiceName(s).toLowerCase() === service.toLowerCase()
-        )
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [jobs, customerId, service]);
-
-  const todaysRoute = filtered.filter((job) => job.scheduledDate === today);
-
-  const jobsByDate = useMemo(() => {
-    const groups = new Map<string, ScheduleJob[]>();
-    for (const job of filtered) {
-      const list = groups.get(job.scheduledDate) ?? [];
-      list.push(job);
-      groups.set(job.scheduledDate, list);
-    }
-    return groups;
-  }, [filtered]);
-
-  const selectedJobs = jobsByDate.get(selectedDate) ?? [];
-
-  const calendarMonths = useMemo(() => {
-    const [y, m] = today.split("-").map(Number);
-    const start = new Date(Date.UTC(y, m - 1, 1));
-    return [0, 1, 2].map((offset) => {
-      const d = new Date(
-        Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + offset, 1)
-      );
-      return { year: d.getUTCFullYear(), monthIndex: d.getUTCMonth() };
-    });
-  }, [today]);
+  const calendarJobs = useMemo(() => scheduleJobsToJobRows(jobs), [jobs]);
+  const todaysRoute = jobs.filter((job) => job.scheduledDate === today);
+  const selectedJobs = jobs.filter((job) => {
+    if (job.scheduledDate !== selectedDate) return false;
+    if (filteredVisitIds && !filteredVisitIds.has(job.id)) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -294,7 +189,7 @@ export function CrewLeadSchedule({
             </h3>
             {todaysRoute.length === 0 ? (
               <p className="mt-3 text-sm text-stone-500">
-                No jobs on today&apos;s route for the current filters.
+                No jobs on today&apos;s route.
               </p>
             ) : (
               <ol className="mt-3 max-h-[28rem] space-y-3 overflow-y-auto">
@@ -342,6 +237,7 @@ export function CrewLeadSchedule({
                               contractExtraWork={extraWork.filter(
                                 (item) => item.contractId === job.contractId
                               )}
+                              variant="planning"
                             />
                           ) : null}
                         </div>
@@ -368,126 +264,62 @@ export function CrewLeadSchedule({
       </section>
 
       <Card>
-        <h2 className="text-lg font-semibold text-green-950">Filters</h2>
+        <h3 className="text-lg font-semibold text-green-950">Schedule</h3>
         <p className="mt-1 text-sm text-stone-500">
-          Narrow the next 3 months of crew work by customer ID and service.
+          Filter by company, employee, job, or status (green = completed, orange
+          = pending), then click a day.
         </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-stone-700">
-              Customer ID
-            </span>
-            <select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
-            >
-              <option value="">All customers</option>
-              {customers.map(([id, label]) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-stone-700">
-              Service being performed
-            </span>
-            <select
-              value={service}
-              onChange={(e) => setService(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
-            >
-              <option value="">All services</option>
-              {services.map((name) => (
-                <option key={name.toLowerCase()} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        {calendarJobs.length === 0 ? (
+          <p className="mt-4 text-sm text-stone-400">
+            No jobs in this range to show on the calendar.
+          </p>
+        ) : (
+          <ScheduleCalendar
+            jobs={calendarJobs}
+            onDateChange={(date) => {
+              if (date) setSelectedDate(date);
+            }}
+            onFilteredJobsChange={(filtered) => {
+              setFilteredVisitIds(new Set(filtered.map((j) => j.visitId)));
+            }}
+          />
+        )}
       </Card>
 
-      <section>
-        <div className="mb-3">
-          <h2 className="text-2xl font-bold text-green-950">
-            3-Month Calendar
-          </h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Select a day to see jobs ({filtered.length} total in range).
-          </p>
+      <Card>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold text-green-950">
+            {formatDisplayDate(selectedDate)}
+          </h3>
+          <span className="text-xs text-stone-500">
+            {selectedJobs.length} job{selectedJobs.length === 1 ? "" : "s"}
+          </span>
         </div>
+        {selectedJobs.length === 0 ? (
+          <EmptyState message="No jobs scheduled on this day. Use the calendar filters and pick another day." />
+        ) : (
+          <ul className="space-y-3">
+            {selectedJobs.map((job) => {
+              const open = expandedJobId === `cal-${job.id}`;
+              const serviceLabel =
+                job.services.length > 0
+                  ? job.services.join(", ")
+                  : "General Maintenance";
+              const showSeparateServices =
+                serviceLabel.toLowerCase() !==
+                job.contractTitle.trim().toLowerCase();
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          {calendarMonths.map(({ year, monthIndex }) => (
-            <MonthCalendar
-              key={`${year}-${monthIndex}`}
-              year={year}
-              monthIndex={monthIndex}
-              jobsByDate={jobsByDate}
-              selectedDate={selectedDate}
-              today={today}
-              onSelect={setSelectedDate}
-            />
-          ))}
-        </div>
-
-        <Card className="mt-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold text-green-950">
-              {formatDisplayDate(selectedDate)}
-            </h3>
-            <span className="text-xs text-stone-500">
-              {selectedJobs.length} job{selectedJobs.length === 1 ? "" : "s"}
-            </span>
-          </div>
-          {selectedJobs.length === 0 ? (
-            <EmptyState message="No jobs scheduled on this day for the current filters." />
-          ) : (
-            <ul className="space-y-4">
-              {selectedJobs.map((job) => {
-                const open = expandedJobId === `cal-${job.id}`;
-                return (
-                  <li
-                    key={job.id}
-                    className="rounded-lg border border-stone-200 p-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
+              return (
+                <li
+                  key={job.id}
+                  className="rounded-lg border border-stone-200 px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium text-green-950">
                           {job.customerName}
                         </p>
-                        <p className="text-sm text-stone-500">
-                          ID …{job.customerIdShort} · {job.contractTitle}
-                        </p>
-                        <p className="mt-1 text-sm text-stone-600">
-                          {job.address}
-                        </p>
-                        <p className="mt-1 text-xs text-stone-500">
-                          Services:{" "}
-                          {job.services.length > 0
-                            ? job.services.join(", ")
-                            : "General Maintenance"}
-                        </p>
-                        <AssignedEmployeesList
-                          jobId={job.id}
-                          status={job.status}
-                          services={job.services}
-                        />
-                        <CrewSiteNotes customerId={job.customerId} compact />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedJobId(open ? null : `cal-${job.id}`)
-                          }
-                          className="mt-2 text-xs font-semibold text-green-800 hover:underline"
-                        >
-                          {open ? "Hide Visit Details" : "Open Visit Details"}
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
                         <StatusBadge status={job.status} />
                         {job.source === "projected" ? (
                           <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-stone-600">
@@ -495,22 +327,40 @@ export function CrewLeadSchedule({
                           </span>
                         ) : null}
                       </div>
+                      <p className="mt-1 text-sm text-stone-600">
+                        {job.contractTitle}
+                        {showSeparateServices ? ` · ${serviceLabel}` : null}
+                      </p>
+                      <p className="mt-0.5 text-sm text-stone-500">
+                        {job.address}
+                      </p>
+                      <CrewSiteNotes customerId={job.customerId} compact />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedJobId(open ? null : `cal-${job.id}`)
+                        }
+                        className="mt-2 text-xs font-semibold text-green-800 hover:underline"
+                      >
+                        {open ? "Hide Visit Details" : "Open Visit Details"}
+                      </button>
                     </div>
-                    {open ? (
-                      <VisitWorkPanel
-                        job={job}
-                        contractExtraWork={extraWork.filter(
-                          (item) => item.contractId === job.contractId
-                        )}
-                      />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Card>
-      </section>
+                  </div>
+                  {open ? (
+                    <VisitWorkPanel
+                      job={job}
+                      contractExtraWork={extraWork.filter(
+                        (item) => item.contractId === job.contractId
+                      )}
+                      variant="planning"
+                    />
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

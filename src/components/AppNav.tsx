@@ -8,6 +8,7 @@ const navItems = [
   { href: "/contracts", label: "Contracts", roles: ["manager", "accountant", "crew_lead", "customer"] },
   { href: "/schedule", label: "Schedule", roles: ["crew_lead"] },
   { href: "/visits", label: "Visits", roles: ["manager", "accountant", "crew_lead", "customer"] },
+  { href: "/chat", label: "Chat", roles: ["manager", "accountant", "crew_lead", "customer"] },
   { href: "/invoices", label: "Invoices", roles: ["manager", "accountant", "customer"] },
   { href: "/payments", label: "Payments", roles: ["manager", "accountant"] },
   { href: "/reports/ar-aging", label: "AR Aging", roles: ["manager", "accountant"] },

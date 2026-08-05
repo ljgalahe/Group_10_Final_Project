@@ -1,12 +1,23 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { approveExtraWork, generateInvoice } from "@/app/actions/business";
 import { AppShell } from "@/components/AppShell";
+import {
+  ContractProgressChart,
+  ContractPromiseSummary,
+  PromiseVsActualTable,
+} from "@/components/contracts/ContractPromiseUI";
+import { OutOfScopeWorkWatch } from "@/components/contracts/OutOfScopeWorkWatch";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
+import { requireAppAccess } from "@/lib/auth-access";
+import {
+  buildContractProgress,
+  buildScopeCreepAlerts,
+} from "@/lib/contract-controls";
 import { getViewRole, roleCanManageBilling } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { fetchContract } from "@/lib/queries";
-import { requireAppAccess } from "@/lib/auth-access";
+import { fetchContract, fetchVisits } from "@/lib/queries";
+import type { ServiceVisit } from "@/lib/types";
 
 export default async function ContractDetailPage({
   params,
@@ -17,7 +28,10 @@ export default async function ContractDetailPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  const { data: contract } = await fetchContract(id);
+  const [{ data: contract }, { data: visits }] = await Promise.all([
+    fetchContract(id),
+    fetchVisits(),
+  ]);
   if (!contract) notFound();
 
   const customer = contract.customers as {
@@ -39,6 +53,14 @@ export default async function ContractDetailPage({
     status: string;
   }[];
 
+  const contractVisits = (visits as ServiceVisit[]).filter(
+    (v) => v.contract_id === id
+  );
+  const progress = buildContractProgress(contract, contractVisits);
+  const scopeAlerts = buildScopeCreepAlerts([contract]).filter(
+    (a) => a.contractId === id
+  );
+
   return (
     <AppShell>
       <PageHeader
@@ -59,113 +81,177 @@ export default async function ContractDetailPage({
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
         <Card>
-          <h2 className="text-lg font-semibold text-green-950">Contract Terms</h2>
-          <dl className="mt-4 space-y-3 text-sm">
-            <div className="flex justify-between gap-4">
-              <dt className="text-stone-500">Status</dt>
-              <dd>
-                <StatusBadge status={contract.status} />
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-stone-500">Season</dt>
-              <dd>
-                {formatDate(contract.season_start)} – {formatDate(contract.season_end)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-stone-500">Monthly Fee</dt>
-              <dd>{formatCurrency(Number(contract.monthly_fee ?? 0))}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-stone-500">Visit Frequency</dt>
-              <dd>{contract.visits_per_week} visits per week</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-stone-500">Billing Method</dt>
-              <dd className="capitalize">{contract.billing_method.replace("_", " ")}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-stone-500">Property Address</dt>
-              <dd className="text-right">{customer.address ?? "—"}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-stone-500">Contact</dt>
-              <dd>{customer.contact_name ?? "—"}</dd>
-            </div>
-          </dl>
-          {contract.notes ? (
-            <p className="mt-4 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">
-              {contract.notes}
-            </p>
-          ) : null}
-        </Card>
-
-        <Card>
-          <h2 className="text-lg font-semibold text-green-950">Included Services</h2>
-          <ul className="mt-4 space-y-2">
-            {services.map((service) => (
-              <li
-                key={service.id}
-                className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-sm"
-              >
-                <span>{service.service_name}</span>
-                <span className="text-green-700">
-                  {service.included ? "Included" : "Add-on"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
-
-      <Card className="mt-6">
-        <h2 className="text-lg font-semibold text-green-950">Extra Work Orders</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Work requested outside the original agreement — quoted, approved, then billed separately.
-        </p>
-        {extraWork.length === 0 ? (
-          <p className="mt-4 text-sm text-stone-500">No extra work on this contract.</p>
-        ) : (
-          <div className="mt-4 space-y-3">
-            {extraWork.map((work) => (
-              <div
-                key={work.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 p-4"
-              >
-                <div>
-                  <p className="font-medium text-stone-800">{work.title}</p>
-                  <p className="text-sm text-stone-500">{work.description}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-green-900">
-                    {formatCurrency(Number(work.quoted_amount))}
-                  </span>
-                  <StatusBadge status={work.status} />
-                  {roleCanManageBilling(role) && work.status === "quoted" && (
-                    <form action={approveExtraWork}>
-                      <input type="hidden" name="extra_work_id" value={work.id} />
-                      <button
-                        type="submit"
-                        className="rounded-md bg-green-800 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
-                      >
-                        Approve
-                      </button>
-                    </form>
-                  )}
-                </div>
-              </div>
-            ))}
+          <h3 className="text-lg font-semibold text-green-950">
+            Contract completion
+          </h3>
+          <p className="mt-1 text-sm text-stone-500">
+            Percent complete, on-track status, and agreement status for this
+            property.
+          </p>
+          <div className="mt-6">
+            <ContractProgressChart
+              percentComplete={progress.percentComplete}
+              trackStatus={progress.trackStatus}
+              contractStatus={progress.contractStatus}
+              seasonElapsedPct={progress.seasonElapsedPct}
+              completedVisits={progress.completedVisits}
+              promisedVisits={progress.promisedVisits}
+            />
           </div>
-        )}
-      </Card>
+        </Card>
 
-      <div className="mt-6">
-        <Link href="/contracts" className="text-sm text-green-800 hover:underline">
-          ← Back to contracts
-        </Link>
+        <Card>
+          <h3 className="text-lg font-semibold text-green-950">
+            Contract Promise vs Actual Work Map
+          </h3>
+          <p className="mt-1 text-sm text-stone-500">
+            What the contract promised, what was scheduled/completed/skipped, and
+            extras not included in the agreement.
+          </p>
+          <ContractPromiseSummary progress={progress} />
+          <PromiseVsActualTable rows={progress.rows} />
+        </Card>
+
+        <Card>
+          <h3 className="text-lg font-semibold text-green-950">
+            Out-of-scope work watch
+          </h3>
+          <p className="mt-1 text-sm text-stone-500">
+            Detects repeated uncontracted work and offers change-order, renewal,
+            or goodwill actions. Filter by company or task.
+          </p>
+          <OutOfScopeWorkWatch alerts={scopeAlerts} />
+        </Card>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <h2 className="text-lg font-semibold text-green-950">
+              Contract Terms
+            </h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-stone-500">Status</dt>
+                <dd>
+                  <StatusBadge status={contract.status} />
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-stone-500">Season</dt>
+                <dd>
+                  {formatDate(contract.season_start)} –{" "}
+                  {formatDate(contract.season_end)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-stone-500">Monthly Fee</dt>
+                <dd>{formatCurrency(Number(contract.monthly_fee ?? 0))}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-stone-500">Visit Frequency</dt>
+                <dd>{contract.visits_per_week} visits per week</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-stone-500">Billing Method</dt>
+                <dd className="capitalize">
+                  {contract.billing_method.replace("_", " ")}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-stone-500">Property Address</dt>
+                <dd className="text-right">{customer.address ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-stone-500">Contact</dt>
+                <dd>{customer.contact_name ?? "—"}</dd>
+              </div>
+            </dl>
+            {contract.notes ? (
+              <p className="mt-4 rounded-lg bg-stone-50 p-3 text-sm text-stone-600 whitespace-pre-wrap">
+                {contract.notes}
+              </p>
+            ) : null}
+          </Card>
+
+          <Card>
+            <h2 className="text-lg font-semibold text-green-950">
+              Included Services
+            </h2>
+            <ul className="mt-4 space-y-2">
+              {services.map((service) => (
+                <li
+                  key={service.id}
+                  className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-sm"
+                >
+                  <span>{service.service_name}</span>
+                  <span className="text-green-700">
+                    {service.included ? "Included" : "Add-on"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+
+        <Card>
+          <h2 className="text-lg font-semibold text-green-950">
+            Extra Work Orders
+          </h2>
+          <p className="mt-1 text-sm text-stone-500">
+            Work requested outside the original agreement — quoted, approved,
+            then billed separately.
+          </p>
+          {extraWork.length === 0 ? (
+            <p className="mt-4 text-sm text-stone-500">
+              No extra work on this contract.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {extraWork.map((work) => (
+                <div
+                  key={work.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 p-4"
+                >
+                  <div>
+                    <p className="font-medium text-stone-800">{work.title}</p>
+                    <p className="text-sm text-stone-500">{work.description}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-green-900">
+                      {formatCurrency(Number(work.quoted_amount))}
+                    </span>
+                    <StatusBadge status={work.status} />
+                    {roleCanManageBilling(role) && work.status === "quoted" && (
+                      <form action={approveExtraWork}>
+                        <input
+                          type="hidden"
+                          name="extra_work_id"
+                          value={work.id}
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-md bg-green-800 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                        >
+                          Approve
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <div>
+          <Link
+            href="/contracts"
+            className="text-sm text-green-800 hover:underline"
+          >
+            ← Back to contracts
+          </Link>
+        </div>
       </div>
     </AppShell>
   );

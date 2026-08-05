@@ -1,5 +1,17 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/ui";
 import { supplyCostBreakdown } from "@/components/crew-lead/visitWorkDefaults";
+import {
+  decisionLabel,
+  getConcernDecision,
+  isActiveFieldConcern,
+  loadConcernDecisions,
+  saveConcernDecision,
+  type ConcernDecision,
+} from "@/lib/concern-decisions";
+import { chatHrefForCrewLead } from "@/lib/chat-demo";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { ProofOverlay } from "@/lib/visit-demo";
 import type { JobRow } from "@/lib/visit-jobs";
@@ -48,6 +60,28 @@ export function VisitJobDetail({ job }: { job: JobRow }) {
     job.costTotal,
     job.visitId
   );
+  const hasConcern = isActiveFieldConcern(
+    proof?.concernLabel,
+    proof?.concernImage
+  );
+  const [concernDecision, setConcernDecision] =
+    useState<ConcernDecision>("open");
+
+  useEffect(() => {
+    setConcernDecision(getConcernDecision(job.visitId));
+    const onUpdate = () => setConcernDecision(getConcernDecision(job.visitId));
+    window.addEventListener("greenscape-concerns-updated", onUpdate);
+    window.addEventListener("storage", onUpdate);
+    return () => {
+      window.removeEventListener("greenscape-concerns-updated", onUpdate);
+      window.removeEventListener("storage", onUpdate);
+    };
+  }, [job.visitId]);
+
+  function setDecision(decision: ConcernDecision) {
+    saveConcernDecision(job.visitId, decision);
+    setConcernDecision(loadConcernDecisions()[job.visitId] ?? decision);
+  }
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
@@ -58,7 +92,22 @@ export function VisitJobDetail({ job }: { job: JobRow }) {
           <p className="mt-1 text-sm text-stone-500">{formatDate(job.date)}</p>
           <p className="mt-1 text-xs text-stone-400">{job.location}</p>
         </div>
-        <StatusBadge status={job.status} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={job.status} />
+          {hasConcern ? (
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                concernDecision === "approved"
+                  ? "bg-green-100 text-green-800"
+                  : concernDecision === "on_hold"
+                    ? "bg-amber-100 text-amber-900"
+                    : "bg-rose-100 text-rose-900"
+              }`}
+            >
+              {decisionLabel(concernDecision)}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -214,6 +263,63 @@ export function VisitJobDetail({ job }: { job: JobRow }) {
                 caption={proof.concernLabel ?? "No concerns noted"}
               />
             </div>
+            {hasConcern ? (
+              <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50/60 p-3">
+                <p className="text-sm font-medium text-rose-950">
+                  Manager decision
+                </p>
+                <p className="mt-1 text-xs text-rose-800/80">
+                  Approve & clear to proceed, place this job on hold, or contact
+                  the crew leader for this visit.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDecision("approved")}
+                    className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                  >
+                    Approve & clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDecision("on_hold")}
+                    className="rounded-md border border-amber-700 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50"
+                  >
+                    Place on hold
+                  </button>
+                  {(() => {
+                    const lead =
+                      job.crew.find((m) => /lead/i.test(m.role)) ??
+                      job.crew[0];
+                    if (!lead) return null;
+                    return (
+                      <a
+                        href={chatHrefForCrewLead({
+                          crewLeadName: lead.name,
+                          visitId: job.visitId,
+                          jobLabel: job.jobLabel,
+                          companyName: job.companyName,
+                          concernLabel:
+                            proof?.concernLabel ?? "Potential concern noted",
+                        })}
+                        className="rounded-md border border-sky-700 px-3 py-1.5 text-xs font-medium text-sky-900 hover:bg-sky-50"
+                      >
+                        Contact crew leader ({lead.name})
+                      </a>
+                    );
+                  })()}
+                  {concernDecision !== "open" ? (
+                    <button
+                      type="button"
+                      onClick={() => setDecision("open")}
+                      className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-white"
+                    >
+                      Reopen
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </>
         ) : (
           <p className="mt-2 text-sm text-stone-500">
