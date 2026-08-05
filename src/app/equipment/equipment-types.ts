@@ -31,6 +31,7 @@ export type EquipmentUsageRow = {
   id: string;
   equipment_id: string;
   equipment_name: string;
+  equipment_category: EquipmentCategory;
   visit_id: string;
   hours: number;
   used_on: string;

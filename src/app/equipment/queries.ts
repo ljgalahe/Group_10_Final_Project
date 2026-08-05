@@ -66,7 +66,7 @@ export async function fetchEquipmentUsage(): Promise<EquipmentUsageRow[]> {
   const { data, error } = await supabase
     .from("equipment_usage")
     .select(
-      "id, equipment_id, visit_id, hours, used_on, notes, equipment(name), service_visits(scheduled_date, contracts(title, customers(name)))"
+      "id, equipment_id, visit_id, hours, used_on, notes, equipment(name, category), service_visits(scheduled_date, contracts(title, customers(name)))"
     )
     .order("used_on", { ascending: false });
 
@@ -82,7 +82,10 @@ export async function fetchEquipmentUsage(): Promise<EquipmentUsageRow[]> {
     hours: number;
     used_on: string;
     notes: string | null;
-    equipment: { name: string } | { name: string }[] | null;
+    equipment:
+      | { name: string; category: string }
+      | { name: string; category: string }[]
+      | null;
     service_visits:
       | {
           scheduled_date: string;
@@ -127,6 +130,7 @@ export async function fetchEquipmentUsage(): Promise<EquipmentUsageRow[]> {
       id: row.id,
       equipment_id: row.equipment_id,
       equipment_name: equip?.name ?? "Unknown",
+      equipment_category: (equip?.category as EquipmentCategory) ?? "Other",
       visit_id: row.visit_id,
       hours: Number(row.hours),
       used_on: row.used_on,

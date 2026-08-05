@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { approveExtraWork, generateInvoice } from "@/app/actions/business";
+import { AccountantContractDetail } from "@/components/AccountantContractDetail";
 import { AppShell } from "@/components/AppShell";
 import {
   ContractProgressChart,
@@ -14,21 +15,42 @@ import {
   buildContractProgress,
   buildScopeCreepAlerts,
 } from "@/lib/contract-controls";
-import { getViewRole, roleCanManageBilling } from "@/lib/demo-role";
+import {
+  getViewRole,
+  roleCanEditContractDetails,
+  roleCanManageBilling,
+} from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { fetchContract, fetchVisits } from "@/lib/queries";
 import type { ServiceVisit } from "@/lib/types";
 
 export default async function ContractDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{
+    edit?: string;
+    invoiceError?: string;
+    openVisits?: string;
+  }>;
 }) {
   const { id } = await params;
   await requireAppAccess();
 
   const role = await getViewRole();
-  const showOpsDashboard = role === "manager" || role === "accountant";
+  if (roleCanEditContractDetails(role)) {
+    const query = searchParams ? await searchParams : {};
+    return (
+      <AccountantContractDetail
+        id={id}
+        edit={query.edit}
+        invoiceError={query.invoiceError}
+      />
+    );
+  }
+
+  const showOpsDashboard = role === "manager";
 
   const [{ data: contract }, visitsResult] = await Promise.all([
     fetchContract(id),
