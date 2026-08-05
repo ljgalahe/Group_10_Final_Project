@@ -13,6 +13,7 @@ import { CrewMemberAvailabilityPanel } from "@/components/crew-member/CrewMember
 import { CrewMemberHoursWorked } from "@/components/crew-member/CrewMemberHoursWorked";
 import { CrewMemberTodayJobs } from "@/components/crew-member/CrewMemberTodayJobs";
 import { CompanyPerformanceLeaderboard } from "@/components/CompanyPerformanceLeaderboard";
+import { ManagerAlertsCenter } from "@/components/ManagerAlertsCenter";
 import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPanel";
 import { ServiceHoldDashboardCard } from "@/components/ServiceHoldDashboardCard";
 import { Card, PageHeader, StatCard } from "@/components/ui";
@@ -28,6 +29,11 @@ import { filterJobsForCrewMember } from "@/lib/crew-member";
 import type { VisitLaborEntry } from "@/lib/crew-hours";
 import { buildCollectionRisk } from "@/lib/collection-risk";
 import { buildCompanyPerformanceLeaderboard } from "@/lib/company-performance";
+import type { PerformanceCategory } from "@/lib/company-performance";
+import {
+  buildManagerAlerts,
+  type ManagerAlert,
+} from "@/lib/manager-alerts";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type {
@@ -44,6 +50,7 @@ import {
   fetchDashboardStats,
   fetchInvoices,
   fetchPayments,
+  fetchPendingContractChangeRequests,
   fetchProfitabilityReport,
   fetchVisitLaborEntries,
   fetchVisits,
@@ -163,6 +170,20 @@ function NeedsAttentionList({ items }: { items: CustomerAttentionItem[] }) {
   );
 }
 
+function parsePerfCategory(
+  value: string | undefined
+): PerformanceCategory | undefined {
+  if (
+    value === "crew" ||
+    value === "equipment" ||
+    value === "customer" ||
+    value === "contract"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -170,6 +191,7 @@ export default async function DashboardPage({
     renewal?: string;
     quote?: string;
     error?: string;
+    perf?: string;
   }>;
 }) {
   await requireAppAccess();
@@ -177,6 +199,7 @@ export default async function DashboardPage({
   const role = await getViewRole();
   const stats = await fetchDashboardStats();
   const params = await searchParams;
+  const initialPerfCategory = parsePerfCategory(params.perf);
 
   const roleTitles: Record<string, { title: string; description: string }> = {
     manager: {
@@ -224,6 +247,7 @@ export default async function DashboardPage({
     typeof buildCompanyPerformanceLeaderboard
   > = [];
   let serviceHolds: CustomerServiceHold[] = [];
+  let managerAlerts: ManagerAlert[] = [];
 
   if (role === "manager") {
     const [
@@ -235,6 +259,7 @@ export default async function DashboardPage({
       { data: invoices },
       { data: payments },
       profitability,
+      { data: pendingChangeRequests },
     ] = await Promise.all([
       fetchContracts(),
       fetchVisits(),
@@ -244,6 +269,7 @@ export default async function DashboardPage({
       fetchInvoices(),
       fetchPayments(),
       fetchProfitabilityReport(),
+      fetchPendingContractChangeRequests(),
     ]);
 
     const contractCustomerById = new Map(
@@ -343,6 +369,53 @@ export default async function DashboardPage({
       })),
       profitability,
       customerRisk,
+      heldCustomerIds: serviceHolds.map((hold) => hold.customerId),
+    });
+
+    managerAlerts = buildManagerAlerts({
+      today,
+      serviceHolds,
+      invoices: invoices.map((invoice) => ({
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        customer_id: String(invoice.customer_id),
+        total: Number(invoice.total),
+        amount_paid: Number(invoice.amount_paid),
+        status: invoice.status,
+        due_date: invoice.due_date,
+        issue_date: invoice.issue_date ?? null,
+        contract_id: invoice.contract_id ?? null,
+        customers: invoice.customers
+          ? { name: invoice.customers.name }
+          : null,
+      })),
+      contracts: contracts.map((contract) => ({
+        id: contract.id,
+        title: contract.title,
+        status: contract.status,
+        season_end: contract.season_end ?? null,
+        customer_id: String(contract.customer_id),
+      })),
+      profitability: profitability.map((row) => ({
+        contractId: row.contractId,
+        title: row.title,
+        margin: row.margin,
+        marginPct: row.marginPct,
+      })),
+      customerRisk,
+      performanceCategories,
+      equipment: equipment.map((asset) => ({
+        id: asset.id,
+        name: asset.name,
+        status: asset.status,
+        estimated_total_hours: Number(asset.estimated_total_hours),
+        hours_used: Number(asset.hours_used),
+      })),
+      pendingChangeRequests: pendingChangeRequests.map((row) => ({
+        id: row.id,
+        contract_id: row.contract_id,
+        status: row.status,
+      })),
     });
   }
 
@@ -643,8 +716,12 @@ export default async function DashboardPage({
 
       {role === "manager" ? (
         <div className="mt-8 space-y-6">
+          <ManagerAlertsCenter alerts={managerAlerts} />
           <ServiceHoldDashboardCard holds={serviceHolds} />
-          <CompanyPerformanceLeaderboard categories={performanceCategories} />
+          <CompanyPerformanceLeaderboard
+            categories={performanceCategories}
+            initialCategory={initialPerfCategory}
+          />
           <ManagerApprovalsPanel visitLabels={visitLabels} />
           <Card>
             <h2 className="text-lg font-semibold text-green-950">

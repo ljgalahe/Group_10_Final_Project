@@ -125,7 +125,65 @@ export type CompanyPerformanceInput = {
   invoices: InvoiceInput[];
   profitability: ProfitabilityInput[];
   customerRisk: CustomerRiskInput[];
+  /** Customer IDs currently on automatic Service Hold (credit hold). */
+  heldCustomerIds?: string[];
 };
+
+/** Fixed scores so badge bands stay intuitive and sortable. */
+const CUSTOMER_BADGE_SCORE: Record<PerformanceBadge, number> = {
+  Excellent: 92,
+  Strong: 78,
+  Monitor: 55,
+  "Needs Attention": 28,
+};
+
+function rateCustomerPerformance(options: {
+  averageDaysToPay: number | null;
+  overdueInvoiceCount: number;
+  onServiceHold: boolean;
+}): { badge: PerformanceBadge; why: string } {
+  const { averageDaysToPay, overdueInvoiceCount, onServiceHold } = options;
+  const days = averageDaysToPay;
+
+  if (
+    onServiceHold ||
+    overdueInvoiceCount >= 2 ||
+    (days != null && days >= 46)
+  ) {
+    return {
+      badge: "Needs Attention",
+      why: "Repeated late payments or overdue invoices require follow-up.",
+    };
+  }
+
+  if (overdueInvoiceCount === 1 || (days != null && days >= 31 && days <= 45)) {
+    return {
+      badge: "Monitor",
+      why: "Payment time exceeds company goal.",
+    };
+  }
+
+  // No overdue invoices from here down.
+  if (days != null && days <= 15) {
+    return {
+      badge: "Excellent",
+      why: "Pays invoices quickly and has no overdue balance.",
+    };
+  }
+
+  if (days != null && days >= 16 && days <= 30) {
+    return {
+      badge: "Strong",
+      why: "Pays on time with healthy account status.",
+    };
+  }
+
+  // Limited payment-speed history, but account is current.
+  return {
+    badge: "Strong",
+    why: "Pays on time with healthy account status.",
+  };
+}
 
 function clamp(n: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, n));
@@ -494,7 +552,8 @@ function buildEquipmentLeaderboard(
 
 function buildCustomerLeaderboard(
   customerRisk: CustomerRiskInput[],
-  invoices: InvoiceInput[]
+  invoices: InvoiceInput[],
+  heldCustomerIds: Set<string> = new Set()
 ): CategoryLeaderboard {
   const revenueByCustomer = new Map<string, number>();
   for (const invoice of invoices) {
@@ -508,32 +567,26 @@ function buildCustomerLeaderboard(
 
   const entries: PerformanceEntry[] = customerRisk.map((row) => {
     const revenue = revenueByCustomer.get(row.customerId) ?? 0;
-    // Invert collection risk into a performance score.
-    let score = 90 - row.riskScore * 8;
-    if (row.averageDaysToPay != null) {
-      if (row.averageDaysToPay <= 20) score += 8;
-      else if (row.averageDaysToPay <= 35) score += 3;
-      else score -= Math.min(15, (row.averageDaysToPay - 35) / 4);
-    }
-    if (revenue >= 5000) score += 5;
-    if (row.outstandingBalance > 2000) score -= 8;
-    score = clamp(round1(score));
-
-    const why =
-      row.risk === "low" && row.overdueInvoiceCount === 0
-        ? `Healthy collections profile with ${row.averageDaysToPay == null ? "limited payment-speed history" : `avg ${row.averageDaysToPay} days to pay`}.`
-        : `Collection risk is ${row.risk} with $${row.outstandingBalance.toFixed(0)} outstanding and ${row.overdueInvoiceCount} overdue invoice(s).`;
+    const onServiceHold = heldCustomerIds.has(row.customerId);
+    const { badge, why } = rateCustomerPerformance({
+      averageDaysToPay: row.averageDaysToPay,
+      overdueInvoiceCount: row.overdueInvoiceCount,
+      onServiceHold,
+    });
+    const score = CUSTOMER_BADGE_SCORE[badge];
 
     return {
       id: row.customerId,
       name: row.customerName,
       score,
-      badge: badgeFromScore(score),
+      badge,
       headlineMetric:
         row.averageDaysToPay == null
           ? `$${row.outstandingBalance.toFixed(0)} outstanding`
           : `${row.averageDaysToPay}d avg to pay`,
-      why,
+      why: onServiceHold
+        ? "Account is on Service Hold for invoices 30 or more days overdue."
+        : why,
       estimated: row.averageDaysToPay == null,
       metrics: [
         {
@@ -557,13 +610,12 @@ function buildCustomerLeaderboard(
           estimated: row.averageDaysToPay == null,
         },
         {
-          label: "Collection risk",
-          value: row.risk,
+          label: "Service Hold",
+          value: onServiceHold ? "Yes" : "No",
         },
         {
-          label: "Risk score",
-          value: String(row.riskScore),
-          estimated: true,
+          label: "Collection risk",
+          value: row.risk,
         },
       ],
     };
@@ -579,18 +631,27 @@ function buildCustomerLeaderboard(
   );
   for (const [customerId, revenue] of revenueByCustomer) {
     if (riskIds.has(customerId) || revenue <= 0) continue;
+    const onServiceHold = heldCustomerIds.has(customerId);
+    const { badge, why } = rateCustomerPerformance({
+      averageDaysToPay: null,
+      overdueInvoiceCount: 0,
+      onServiceHold,
+    });
     entries.push({
       id: customerId,
       name: names.get(customerId) ?? "Customer",
-      score: 88,
-      badge: "Excellent",
+      score: CUSTOMER_BADGE_SCORE[badge],
+      badge,
       headlineMetric: `$${revenue.toFixed(0)} billed`,
-      why: "No open collection risk signals on current invoices — strong payment standing from available data.",
-      estimated: false,
+      why: onServiceHold
+        ? "Account is on Service Hold for invoices 30 or more days overdue."
+        : why,
+      estimated: true,
       metrics: [
         { label: "Billed revenue", value: `$${revenue.toFixed(0)}` },
         { label: "Outstanding balance", value: "$0" },
         { label: "Overdue invoices", value: "0" },
+        { label: "Service Hold", value: onServiceHold ? "Yes" : "No" },
         { label: "Collection risk", value: "low" },
       ],
     });
@@ -599,7 +660,7 @@ function buildCustomerLeaderboard(
   return wrapCategory(
     "customer",
     "Customer Performance",
-    "Revenue, payment speed, and collection-risk signals from invoices and payments. Lower risk and faster payment rank higher.",
+    "Rated from Average Days to Pay, overdue invoices, and Service Hold status — faster, current accounts rank higher.",
     entries
   );
 }
@@ -742,7 +803,11 @@ export function buildCompanyPerformanceLeaderboard(
       input.equipmentUsage,
       input.visitCosts
     ),
-    buildCustomerLeaderboard(input.customerRisk, input.invoices),
+    buildCustomerLeaderboard(
+      input.customerRisk,
+      input.invoices,
+      new Set(input.heldCustomerIds ?? [])
+    ),
     buildContractLeaderboard(
       input.profitability,
       input.visits,

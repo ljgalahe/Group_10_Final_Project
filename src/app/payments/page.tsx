@@ -25,11 +25,17 @@ import {
 } from "@/lib/queries";
 import { buildCustomerServiceHolds } from "@/lib/service-hold";
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ risk?: string }>;
+}) {
   await requireAppAccess();
   const role = await getViewRole();
   if (role === "crew_member") redirect("/dashboard");
   const isAccountant = role === "accountant";
+  const params = await searchParams;
+  const highRiskOnly = params.risk === "high";
 
   if (isAccountant) {
     const { data: payments } = await fetchPaymentsForAccountant();
@@ -233,6 +239,7 @@ export default async function PaymentsPage() {
         summary={summary}
         collectionRisk={collectionRisk}
         serviceHolds={serviceHolds}
+        highRiskOnly={highRiskOnly}
       />
     </AppShell>
   );

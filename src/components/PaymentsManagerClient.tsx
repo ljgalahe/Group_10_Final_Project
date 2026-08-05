@@ -21,6 +21,7 @@ import { EmptyState, StatusBadge } from "@/components/ui";
 import type {
   CollectionRiskLevel,
   CustomerCollectionRisk,
+  PaymentBehavior,
 } from "@/lib/collection-risk";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/payment-utils";
@@ -63,12 +64,14 @@ export function PaymentsManagerClient({
   summary,
   collectionRisk,
   serviceHolds = [],
+  highRiskOnly = false,
 }: {
   payments: Payment[];
   customers: CustomerOption[];
   summary: PaymentsSummary;
   collectionRisk: CustomerCollectionRisk[];
   serviceHolds?: CustomerServiceHold[];
+  highRiskOnly?: boolean;
 }) {
   const heldIds = useMemo(
     () => heldCustomerIdSet(serviceHolds),
@@ -241,7 +244,11 @@ export function PaymentsManagerClient({
         </div>
       </section>
 
-      <CollectionRiskSection rows={collectionRisk} heldCustomerIds={heldIds} />
+      <CollectionRiskSection
+        rows={collectionRisk}
+        heldCustomerIds={heldIds}
+        highRiskOnly={highRiskOnly}
+      />
 
       {successMessage ? (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
@@ -620,22 +627,50 @@ function DetailRow({
 function CollectionRiskSection({
   rows,
   heldCustomerIds,
+  highRiskOnly = false,
 }: {
   rows: CustomerCollectionRisk[];
   heldCustomerIds: Set<string>;
+  highRiskOnly?: boolean;
 }) {
+  const visibleRows = highRiskOnly
+    ? rows.filter((row) => row.risk === "high")
+    : rows;
+
   return (
-    <section className="space-y-3">
+    <section id="collection-risk" className="scroll-mt-24 space-y-3">
       <div>
         <h2 className="text-lg font-semibold text-green-950">Collection Risk</h2>
         <p className="text-sm text-stone-500">
-          Customers ranked by overdue exposure, outstanding balance, and payment
-          speed. Service Hold appears when any invoice is 30+ days overdue.
+          Customers ranked by overdue exposure, outstanding balance, and each
+          account&apos;s own Average Days to Pay from invoice and payment
+          history. Service Hold appears when any invoice is 30+ days overdue.
         </p>
+        {highRiskOnly ? (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Showing{" "}
+            {visibleRows.length === 1
+              ? "1 high collection risk customer"
+              : `${visibleRows.length} high collection risk customers`}
+            .{" "}
+            <a
+              href="/payments"
+              className="font-medium text-green-800 underline hover:text-green-950"
+            >
+              Clear filter
+            </a>
+          </p>
+        ) : null}
       </div>
 
-      {rows.length === 0 ? (
-        <EmptyState message="No customer collection risk data available yet." />
+      {visibleRows.length === 0 ? (
+        <EmptyState
+          message={
+            highRiskOnly
+              ? "No high collection risk customers right now."
+              : "No customer collection risk data available yet."
+          }
+        />
       ) : (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-sm">
@@ -646,11 +681,12 @@ function CollectionRiskSection({
                 <th className="px-4 py-3 font-medium">Risk</th>
                 <th className="px-4 py-3 font-medium">Outstanding balance</th>
                 <th className="px-4 py-3 font-medium">Overdue invoices</th>
-                <th className="px-4 py-3 font-medium">Avg. payment speed</th>
+                <th className="px-4 py-3 font-medium">Average Days to Pay</th>
+                <th className="px-4 py-3 font-medium">Payment behavior</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr
                   key={row.customerId}
                   className="border-t border-stone-100"
@@ -671,9 +707,12 @@ function CollectionRiskSection({
                   </td>
                   <td className="px-4 py-3">{row.overdueInvoiceCount}</td>
                   <td className="px-4 py-3 text-stone-700">
-                    {row.averageDaysToPay === null
-                      ? "—"
+                    {!row.hasPaymentHistory || row.averageDaysToPay == null
+                      ? "No Payment History"
                       : `${row.averageDaysToPay} days`}
+                  </td>
+                  <td className="px-4 py-3">
+                    <PaymentBehaviorBadge behavior={row.paymentBehavior} />
                   </td>
                 </tr>
               ))}
@@ -682,6 +721,37 @@ function CollectionRiskSection({
         </div>
       )}
     </section>
+  );
+}
+
+function PaymentBehaviorBadge({
+  behavior,
+}: {
+  behavior: PaymentBehavior | null;
+}) {
+  if (!behavior) {
+    return <span className="text-sm text-stone-500">No Payment History</span>;
+  }
+
+  const styles: Record<PaymentBehavior, string> = {
+    excellent: "bg-green-100 text-green-800 border-green-200",
+    on_time: "bg-yellow-100 text-yellow-900 border-yellow-200",
+    slow: "bg-orange-100 text-orange-900 border-orange-200",
+    high_risk: "bg-red-100 text-red-800 border-red-200",
+  };
+  const labels: Record<PaymentBehavior, string> = {
+    excellent: "🟢 Excellent Payer",
+    on_time: "🟡 On-Time Payer",
+    slow: "🟠 Slow Payer",
+    high_risk: "🔴 High Collection Risk",
+  };
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[behavior]}`}
+    >
+      {labels[behavior]}
+    </span>
   );
 }
 

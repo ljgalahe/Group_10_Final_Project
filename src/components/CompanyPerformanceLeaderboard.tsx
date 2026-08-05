@@ -17,22 +17,37 @@ const CATEGORY_ORDER: PerformanceCategory[] = [
 
 export function CompanyPerformanceLeaderboard({
   categories,
+  initialCategory,
 }: {
   categories: CategoryLeaderboard[];
+  initialCategory?: PerformanceCategory;
 }) {
   const byKey = useMemo(() => {
     const map = new Map(categories.map((c) => [c.category, c]));
     return map;
   }, [categories]);
 
-  const available = CATEGORY_ORDER.filter((key) => {
-    const cat = byKey.get(key);
-    return cat && cat.entries.length > 0;
+  const available = useMemo(
+    () =>
+      CATEGORY_ORDER.filter((key) => {
+        const cat = byKey.get(key);
+        return cat && cat.entries.length > 0;
+      }),
+    [byKey]
+  );
+
+  const [active, setActive] = useState<PerformanceCategory>(() => {
+    if (initialCategory && available.includes(initialCategory)) {
+      return initialCategory;
+    }
+    return available[0] ?? "crew";
   });
 
-  const [active, setActive] = useState<PerformanceCategory>(
-    available[0] ?? "crew"
-  );
+  useEffect(() => {
+    if (initialCategory && available.includes(initialCategory)) {
+      setActive(initialCategory);
+    }
+  }, [initialCategory, available]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -64,7 +79,7 @@ export function CompanyPerformanceLeaderboard({
   }
 
   return (
-    <section className="space-y-4">
+    <section id="company-performance" className="scroll-mt-24 space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-green-950">
           Company Performance Leaderboard

@@ -12,9 +12,11 @@ import {
   type CollectionRiskLevel,
 } from "@/lib/collection-risk";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { APPROACHING_HOLD_MIN_DAYS } from "@/lib/manager-alerts";
 import {
   buildCustomerServiceHolds,
   heldCustomerIdSet,
+  SERVICE_HOLD_THRESHOLD_DAYS,
 } from "@/lib/service-hold";
 import type { Payment } from "@/lib/types";
 
@@ -110,13 +112,21 @@ export function ArAgingManagerClient({
   buckets,
   payments,
   highlightCustomerId,
+  alertFilter,
 }: {
   buckets: AgingBuckets;
   payments: Payment[];
   highlightCustomerId?: string;
+  alertFilter?: "hold" | "approaching";
 }) {
   const [selectedBucket, setSelectedBucket] =
-    useState<AgingBucketKey>("current");
+    useState<AgingBucketKey>(() =>
+      alertFilter === "hold"
+        ? "31-60"
+        : alertFilter === "approaching"
+          ? "1-30"
+          : "current"
+    );
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(
     () => new Set(highlightCustomerId ? [highlightCustomerId] : [])
   );
@@ -154,6 +164,33 @@ export function ArAgingManagerClient({
       return next;
     });
   }, [highlightCustomerId]);
+
+  const approachingCustomerIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const invoice of allInvoices) {
+      if (!invoice.customer_id) continue;
+      if (heldIds.has(invoice.customer_id)) continue;
+      if (invoiceBalance(invoice) <= 0) continue;
+      const days = daysPastDue(invoice.due_date);
+      if (
+        days >= APPROACHING_HOLD_MIN_DAYS &&
+        days < SERVICE_HOLD_THRESHOLD_DAYS
+      ) {
+        ids.add(invoice.customer_id);
+      }
+    }
+    return ids;
+  }, [allInvoices, heldIds]);
+
+  useEffect(() => {
+    if (alertFilter === "hold" && heldIds.size > 0) {
+      setExpandedCustomers(new Set(heldIds));
+      return;
+    }
+    if (alertFilter === "approaching" && approachingCustomerIds.size > 0) {
+      setExpandedCustomers(new Set(approachingCustomerIds));
+    }
+  }, [alertFilter, heldIds, approachingCustomerIds]);
 
   const collectionRisk = useMemo(
     () =>
@@ -386,9 +423,23 @@ export function ArAgingManagerClient({
         onToggle={toggleCustomer}
         heldCustomerIds={heldIds}
         highlightCustomerId={highlightCustomerId}
+        alertFilter={alertFilter}
+        approachingCustomerIds={approachingCustomerIds}
       />
 
-      <CollectionActionCenter rows={customerCollectionRows} />
+      <CollectionActionCenter
+        rows={
+          alertFilter === "hold"
+            ? customerCollectionRows.filter((row) =>
+                heldIds.has(row.customerId)
+              )
+            : alertFilter === "approaching"
+              ? customerCollectionRows.filter((row) =>
+                  approachingCustomerIds.has(row.customerId)
+                )
+              : customerCollectionRows
+        }
+      />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -632,19 +683,43 @@ function CustomerCollectionCenter({
   onToggle,
   heldCustomerIds,
   highlightCustomerId,
+  alertFilter,
+  approachingCustomerIds,
 }: {
   rows: CustomerCollectionRow[];
   expandedCustomers: Set<string>;
   onToggle: (customerId: string) => void;
   heldCustomerIds: Set<string>;
   highlightCustomerId?: string;
+  alertFilter?: "hold" | "approaching";
+  approachingCustomerIds?: Set<string>;
 }) {
+  const filteredRows =
+    alertFilter === "hold"
+      ? rows.filter((row) => heldCustomerIds.has(row.customerId))
+      : alertFilter === "approaching"
+        ? rows.filter((row) =>
+            approachingCustomerIds?.has(row.customerId)
+          )
+        : rows;
+
   const orderedRows = highlightCustomerId
     ? [
-        ...rows.filter((row) => row.customerId === highlightCustomerId),
-        ...rows.filter((row) => row.customerId !== highlightCustomerId),
+        ...filteredRows.filter(
+          (row) => row.customerId === highlightCustomerId
+        ),
+        ...filteredRows.filter(
+          (row) => row.customerId !== highlightCustomerId
+        ),
       ]
-    : rows;
+    : filteredRows;
+
+  const filterNote =
+    alertFilter === "hold"
+      ? `Showing ${orderedRows.length} customer${orderedRows.length === 1 ? "" : "s"} currently on Service Hold.`
+      : alertFilter === "approaching"
+        ? `Showing ${orderedRows.length} customer${orderedRows.length === 1 ? "" : "s"} approaching Service Hold (${APPROACHING_HOLD_MIN_DAYS}–${SERVICE_HOLD_THRESHOLD_DAYS - 1} days overdue).`
+        : null;
 
   return (
     <section className="space-y-3">
@@ -656,6 +731,17 @@ function CustomerCollectionCenter({
           Expand a customer to review all outstanding invoices and prioritize
           follow-up. Accounts with invoices 30+ days overdue show Service Hold.
         </p>
+        {filterNote ? (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {filterNote}{" "}
+            <a
+              href="/reports/ar-aging"
+              className="font-medium text-green-800 underline hover:text-green-950"
+            >
+              Clear filter
+            </a>
+          </p>
+        ) : null}
       </div>
 
       {orderedRows.length === 0 ? (

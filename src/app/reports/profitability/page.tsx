@@ -13,11 +13,17 @@ import {
   fetchProfitLeakInputs,
 } from "@/lib/queries";
 
-export default async function ProfitabilityPage() {
+export default async function ProfitabilityPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ low?: string }>;
+}) {
   await requireAppAccess();
 
   const role = await getViewRole();
   if (!roleCanViewReports(role)) redirect("/dashboard");
+  const params = await searchParams;
+  const lowOnly = params.low === "1";
 
   const [report, leakInputs] = await Promise.all([
     fetchProfitabilityReport(),
@@ -36,12 +42,34 @@ export default async function ProfitabilityPage() {
   const totalMargin = totalRevenue - totalCosts;
   const avgMarginPct = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
 
+  const tableRows = (
+    lowOnly
+      ? report.filter((row) => row.margin < 0 || row.marginPct < 15)
+      : report
+  ).slice().sort((a, b) => a.marginPct - b.marginPct);
+
   return (
     <AppShell>
       <PageHeader
         title="Contract Profitability"
         description="Revenue billed minus direct visit costs, by active contract."
       />
+
+      {lowOnly ? (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Showing{" "}
+          {tableRows.length === 1
+            ? "1 contract"
+            : `${tableRows.length} contracts`}{" "}
+          with low profitability (negative margin or under 15% margin).{" "}
+          <a
+            href="/reports/profitability"
+            className="font-medium text-green-800 underline hover:text-green-950"
+          >
+            Clear filter
+          </a>
+        </div>
+      ) : null}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Revenue" value={formatCurrency(totalRevenue)} />
@@ -66,13 +94,18 @@ export default async function ProfitabilityPage() {
           <section className="mt-10 space-y-3">
             <div>
               <h2 className="text-base font-semibold text-stone-700">
-                All contracts
+                {lowOnly ? "Low profitability contracts" : "All contracts"}
               </h2>
               <p className="text-sm text-stone-500">
                 Reference table of billed revenue, direct costs, and margin for
-                every active contract.
+                {lowOnly
+                  ? " contracts flagged by Manager Alerts."
+                  : " every active contract."}
               </p>
             </div>
+            {tableRows.length === 0 ? (
+              <EmptyState message="No low-profitability contracts match this filter." />
+            ) : (
             <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
               <table className="min-w-full text-sm">
                 <thead className="bg-stone-50 text-left text-stone-600">
@@ -87,8 +120,15 @@ export default async function ProfitabilityPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {report.map((row) => (
-                    <tr key={row.contractId} className="border-t border-stone-100">
+                  {tableRows.map((row) => (
+                    <tr
+                      key={row.contractId}
+                      className={`border-t border-stone-100 ${
+                        row.margin < 0 || row.marginPct < 15
+                          ? "bg-amber-50/40"
+                          : ""
+                      }`}
+                    >
                       <td className="px-4 py-3 font-medium">{row.title}</td>
                       <td className="px-4 py-3">{row.customerName}</td>
                       <td className="px-4 py-3">
@@ -123,6 +163,7 @@ export default async function ProfitabilityPage() {
                 </tbody>
               </table>
             </div>
+            )}
           </section>
         </>
       )}
