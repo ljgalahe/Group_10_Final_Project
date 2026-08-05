@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { customerPayInvoice } from "@/app/actions/business";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { CustomerPaymentMethod } from "@/lib/types";
 
 const NEW_METHOD = "__new__";
+
+function parsePayAmount(value: string) {
+  const n = parseFloat(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * 100) / 100;
+}
 
 export function CustomerPayButton({
   invoiceId,
@@ -31,17 +37,36 @@ export function CustomerPayButton({
   );
   const [nickname, setNickname] = useState("");
   const [accountDetails, setAccountDetails] = useState("");
+  const [amountStr, setAmountStr] = useState(amountDue.toFixed(2));
 
   function openModal() {
     setSelection(paymentMethods[0]?.id ?? NEW_METHOD);
     setNickname("");
     setAccountDetails("");
+    setAmountStr(amountDue.toFixed(2));
     setOpen(true);
   }
 
+  const payAmount = parsePayAmount(amountStr);
+  const amountValid =
+    payAmount != null && payAmount > 0 && payAmount <= amountDue + 0.001;
+  const remainingAfter =
+    amountValid && payAmount != null
+      ? Math.round((amountDue - payAmount) * 100) / 100
+      : null;
+  const isFullPayment =
+    amountValid && remainingAfter != null && remainingAfter <= 0.001;
+
+  const halfAmount = useMemo(
+    () => Math.round((amountDue / 2) * 100) / 100,
+    [amountDue]
+  );
+
   async function handleConfirm(formData: FormData) {
+    if (!amountValid || payAmount == null) return;
     setSubmitting(true);
     try {
+      formData.set("amount", payAmount.toFixed(2));
       formData.set("is_new_method", selection === NEW_METHOD ? "1" : "0");
       if (selection === NEW_METHOD) {
         formData.set("new_method_nickname", nickname);
@@ -58,8 +83,9 @@ export function CustomerPayButton({
   }
 
   const canConfirm =
-    selection !== NEW_METHOD ||
-    accountDetails.replace(/\D/g, "").length >= 4;
+    amountValid &&
+    (selection !== NEW_METHOD ||
+      accountDetails.replace(/\D/g, "").length >= 4);
 
   return (
     <>
@@ -89,7 +115,8 @@ export function CustomerPayButton({
               Confirm Payment
             </h2>
             <p className="mt-2 text-sm text-stone-600">
-              Review the details below, choose a payment method, then confirm.
+              Pay the full balance or enter a partial amount, then choose how
+              you&apos;d like to pay.
             </p>
 
             <dl className="mt-5 space-y-3 rounded-lg bg-stone-50 p-4 text-sm">
@@ -102,10 +129,67 @@ export function CustomerPayButton({
                 <dd className="text-stone-900">{formatDate(dueDate)}</dd>
               </div>
               <div className="flex justify-between gap-4 border-t border-stone-200 pt-3 font-semibold text-green-900">
-                <dt>Amount Due</dt>
+                <dt>Balance due</dt>
                 <dd>{formatCurrency(amountDue)}</dd>
               </div>
             </dl>
+
+            <div className="mt-5">
+              <label
+                htmlFor="payment_amount"
+                className="block text-sm font-medium text-stone-800"
+              >
+                Payment amount
+              </label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAmountStr(amountDue.toFixed(2))}
+                  className="rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-50"
+                >
+                  Full balance
+                </button>
+                {halfAmount < amountDue ? (
+                  <button
+                    type="button"
+                    onClick={() => setAmountStr(halfAmount.toFixed(2))}
+                    className="rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-50"
+                  >
+                    Half ({formatCurrency(halfAmount)})
+                  </button>
+                ) : null}
+              </div>
+              <div className="relative mt-2">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-stone-500">
+                  $
+                </span>
+                <input
+                  id="payment_amount"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0.01"
+                  max={amountDue}
+                  value={amountStr}
+                  onChange={(e) => setAmountStr(e.target.value)}
+                  className="w-full rounded-lg border border-stone-300 py-2 pl-7 pr-3 text-sm"
+                />
+              </div>
+              {!amountValid && amountStr.trim() !== "" ? (
+                <p className="mt-1.5 text-xs text-red-700">
+                  Enter an amount between $0.01 and {formatCurrency(amountDue)}.
+                </p>
+              ) : remainingAfter != null && remainingAfter > 0.001 ? (
+                <p className="mt-1.5 text-xs text-stone-500">
+                  After this payment, remaining balance will be{" "}
+                  {formatCurrency(remainingAfter)}.
+                </p>
+              ) : isFullPayment ? (
+                <p className="mt-1.5 text-xs text-stone-500">
+                  This will pay the invoice in full.
+                </p>
+              ) : null}
+            </div>
 
             <fieldset className="mt-5">
               <legend className="text-sm font-medium text-stone-800">
@@ -202,7 +286,11 @@ export function CustomerPayButton({
                   disabled={submitting || !canConfirm}
                   className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
                 >
-                  {submitting ? "Processing…" : "Confirm Payment"}
+                  {submitting
+                    ? "Processing…"
+                    : amountValid && payAmount != null
+                      ? `Pay ${formatCurrency(payAmount)}`
+                      : "Confirm Payment"}
                 </button>
               </form>
             </div>

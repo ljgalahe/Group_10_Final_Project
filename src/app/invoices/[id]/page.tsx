@@ -142,7 +142,8 @@ export default async function InvoiceDetailPage({
                   status={getDisplayInvoiceStatus(
                     invoice.status,
                     invoice.due_date,
-                    balance
+                    balance,
+                    amountPaid
                   )}
                 />
               </dd>

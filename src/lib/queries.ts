@@ -1,6 +1,5 @@
 import { createDataClient } from "@/lib/auth-access";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
-import { buildSeasonalForecast } from "@/lib/seasonal-forecast";
 import type { UserRole } from "@/lib/types";
 
 export async function getScopedCustomerId(role: UserRole) {
@@ -796,23 +795,4 @@ export async function fetchCustomerUpcomingVisits(
   });
 
   return { data: visits, error };
-}
-
-/** Active contracts + services for seasonal forecast on the customer portal. */
-export async function fetchCustomerSeasonalForecast(customerId: string) {
-  const supabase = await createDataClient();
-  const { data, error } = await supabase
-    .from("contracts")
-    .select(
-      "id, title, season_start, season_end, visits_per_week, notes, status, contract_services(service_name, included)"
-    )
-    .eq("customer_id", customerId)
-    .eq("status", "active")
-    .order("season_end", { ascending: true });
-
-  if (error || !data) {
-    return { data: [], error };
-  }
-
-  return { data: buildSeasonalForecast(data), error: null };
 }

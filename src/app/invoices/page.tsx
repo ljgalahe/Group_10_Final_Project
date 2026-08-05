@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import {
+  InvoiceStatusFilter,
+  type InvoiceStatusFilterValue,
+} from "@/components/InvoiceStatusFilter";
 import { CustomerPayButton } from "@/components/customer/CustomerPayButton";
 import { DownloadInvoiceReceiptButton } from "@/components/customer/DownloadInvoiceReceiptButton";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
@@ -68,17 +72,48 @@ async function CustomerReceiptCell({
   );
 }
 
-export default async function InvoicesPage() {
+function parseStatusFilter(raw?: string): InvoiceStatusFilterValue {
+  if (raw === "paid" || raw === "all") return raw;
+  return "due";
+}
+
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   await requireAppAccess();
 
   const role = await getViewRole();
   const isCustomer = role === "customer";
+  const params = await searchParams;
+  const statusFilter = parseStatusFilter(params.status);
   const { data: invoices } = await fetchInvoices();
   const customerId = isCustomer ? await getViewCustomerId() : null;
   const paymentMethods =
     customerId != null
       ? (await fetchCustomerPaymentMethods(customerId)).data
       : [];
+
+  const filteredInvoices = invoices.filter((invoice) => {
+    const balance = Number(invoice.total) - Number(invoice.amount_paid);
+    if (statusFilter === "due") return balance > 0.001;
+    if (statusFilter === "paid") return balance <= 0.001;
+    return true;
+  });
+
+  const emptyMessage =
+    statusFilter === "due"
+      ? isCustomer
+        ? "No open invoices right now. Switch to Paid to see settled bills."
+        : "No open invoices. Switch to Paid or All invoices to see the rest."
+      : statusFilter === "paid"
+        ? isCustomer
+          ? "No paid invoices yet."
+          : "No fully paid invoices found."
+        : isCustomer
+          ? "No invoices for your account yet."
+          : "No invoices yet. Generate one from a contract detail page.";
 
   return (
     <AppShell>
@@ -89,10 +124,11 @@ export default async function InvoicesPage() {
             ? "Your bills from GreenScape. Pay open invoices, review payment history, and download PDF receipts after payment."
             : "Bills generated from contract terms and approved extra work."
         }
+        action={<InvoiceStatusFilter value={statusFilter} />}
       />
 
-      {invoices.length === 0 ? (
-        <EmptyState message="No invoices yet. Generate one from a contract detail page." />
+      {filteredInvoices.length === 0 ? (
+        <EmptyState message={emptyMessage} />
       ) : (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-sm">
@@ -114,7 +150,7 @@ export default async function InvoicesPage() {
               </tr>
             </thead>
             <tbody>
-              {invoices.map((invoice) => {
+              {filteredInvoices.map((invoice) => {
                 const balance =
                   Number(invoice.total) - Number(invoice.amount_paid);
                 const amountPaid = Number(invoice.amount_paid);
@@ -151,7 +187,8 @@ export default async function InvoicesPage() {
                         status={getDisplayInvoiceStatus(
                           invoice.status,
                           invoice.due_date,
-                          balance
+                          balance,
+                          amountPaid
                         )}
                       />
                     </td>
