@@ -1,6 +1,11 @@
-import { redirect } from "next/navigation";
-import { requireAppAccess } from "@/lib/auth-access";
+import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
+import { CrewLeadQuickActions } from "@/components/crew-lead/CrewLeadQuickActions";
+import { CrewLeadTomorrowPreview } from "@/components/crew-lead/CrewLeadTomorrowPreview";
+import {
+  buildCrewSchedule,
+  todayDateOnly,
+} from "@/components/crew-lead/buildCrewSchedule";
 import { Card, PageHeader, StatCard } from "@/components/ui";
 import { getViewRole } from "@/lib/demo-role";
 import { formatCurrency } from "@/lib/format";
@@ -35,6 +40,27 @@ export default async function DashboardPage() {
   };
 
   const copy = roleTitles[role];
+  const today = todayDateOnly();
+  let scheduleJobs: ReturnType<typeof buildCrewSchedule> = [];
+
+  if (role === "crew_lead") {
+    const supabase = await createDataClient();
+    const [{ data: contracts }, { data: visits }] = await Promise.all([
+      supabase
+        .from("contracts")
+        .select(
+          "id, title, status, visits_per_week, season_start, season_end, customer_id, customers(id, name, address), contract_services(service_name, included)"
+        )
+        .eq("status", "active"),
+      supabase
+        .from("service_visits")
+        .select(
+          "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address), contract_services(service_name, included))"
+        )
+        .order("scheduled_date", { ascending: true }),
+    ]);
+    scheduleJobs = buildCrewSchedule(contracts ?? [], visits ?? []);
+  }
 
   return (
     <AppShell>
@@ -55,46 +81,41 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <h2 className="text-lg font-semibold text-green-950">Quick Actions</h2>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <a
-              href="/contracts"
-              className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-            >
-              View Contracts
-            </a>
-            {(role === "manager" || role === "accountant") && (
-              <>
-                <a
-                  href="/reports/ar-aging"
-                  className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-                >
-                  AR Aging Report
-                </a>
-                <a
-                  href="/reports/profitability"
-                  className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-                >
-                  Profitability Report
-                </a>
-              </>
-            )}
-          </div>
-        </Card>
+      {role === "crew_lead" ? (
+        <div className="mt-8 space-y-6">
+          <CrewLeadTomorrowPreview jobs={scheduleJobs} today={today} />
+          <Card>
+            <h2 className="mb-4 text-lg font-semibold text-green-950">
+              Crew Lead Quick Actions
+            </h2>
+            <CrewLeadQuickActions />
+          </Card>
+        </div>
+      ) : null}
 
-        <Card>
-          <h2 className="text-lg font-semibold text-green-950">
-            Demo Tip for Presentation
-          </h2>
-          <p className="mt-3 text-sm text-stone-600">
-            Use the <strong>View as</strong> dropdown in the top navigation to
-            switch between Manager, Accountant, Crew Lead, and Customer without
-            logging out.
-          </p>
-        </Card>
-      </div>
+      {(role === "manager" || role === "accountant") && (
+        <div className="mt-8">
+          <Card>
+            <h2 className="text-lg font-semibold text-green-950">
+              Quick Actions
+            </h2>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <a
+                href="/reports/ar-aging"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                AR Aging Report
+              </a>
+              <a
+                href="/reports/profitability"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Profitability Report
+              </a>
+            </div>
+          </Card>
+        </div>
+      )}
     </AppShell>
   );
 }
