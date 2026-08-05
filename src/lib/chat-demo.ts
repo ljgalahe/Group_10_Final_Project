@@ -387,6 +387,9 @@ export function createAnnouncement(opts: {
   return thread;
 }
 
+/** Default demo crew lead when messaging as that role. */
+export const DEFAULT_CREW_LEAD_PERSON_ID = "alex-rivera";
+
 /** Build a Chat deep-link to message a crew lead about a concern. */
 export function chatHrefForCrewLead(opts: {
   crewLeadName: string;
@@ -410,4 +413,47 @@ export function chatHrefForCrewLead(opts: {
     concern: opts.concernLabel,
   });
   return `/chat?${params.toString()}`;
+}
+
+/** Deep-link for a crew lead opening (or continuing) a DM with the manager. */
+export function chatHrefForManager(opts: {
+  fromPersonId?: string;
+  concern?: string;
+  equipmentName?: string;
+  issueKind?: string;
+}): string {
+  const params = new URLSearchParams({
+    with: "manager",
+    from: opts.fromPersonId ?? DEFAULT_CREW_LEAD_PERSON_ID,
+  });
+  if (opts.concern) params.set("concern", opts.concern);
+  if (opts.equipmentName) params.set("company", opts.equipmentName);
+  if (opts.issueKind) params.set("job", opts.issueKind);
+  return `/chat?${params.toString()}`;
+}
+
+/** Post a repair/maintenance note from crew lead to the manager in Chat. */
+export function messageManagerAboutEquipment(opts: {
+  equipmentName: string;
+  issueKind: "repair" | "maintenance";
+  details: string;
+  location?: string;
+  fromPersonId?: string;
+}): ChatThread {
+  const fromId = opts.fromPersonId ?? DEFAULT_CREW_LEAD_PERSON_ID;
+  const kindLabel =
+    opts.issueKind === "repair" ? "needs repair" : "needs maintenance";
+  const locationLine = opts.location?.trim()
+    ? `\nLocation / job: ${opts.location.trim()}`
+    : "";
+  const body = `Equipment alert — ${opts.equipmentName} ${kindLabel}.${locationLine}\n\n${opts.details.trim()}`;
+
+  return upsertDirectThread({
+    withPersonId: "manager",
+    fromPersonId: fromId,
+    companyName: opts.equipmentName,
+    jobLabel: kindLabel,
+    concernLabel: body,
+    seedMessage: body,
+  });
 }

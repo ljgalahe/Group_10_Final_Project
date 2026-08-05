@@ -226,7 +226,9 @@ export function AccountantJournalEntriesView({
                             Edit
                           </button>
                           <form
-                            action={deleteJournalEntry}
+                            action={async (formData) => {
+                              await deleteJournalEntry(formData);
+                            }}
                             onSubmit={(event) => {
                               if (
                                 !window.confirm(

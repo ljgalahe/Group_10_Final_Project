@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui";
 import {
   CHAT_PEOPLE,
+  DEFAULT_CREW_LEAD_PERSON_ID,
   categoryEmoji,
   categoryLabel,
   createAnnouncement,
@@ -17,6 +18,21 @@ import {
 } from "@/lib/chat-demo";
 
 type TabFilter = "all" | "announcement" | "direct" | "fyi" | "question";
+
+/** Must match VIEW_ROLE_COOKIE in demo-role.ts (avoid importing that server module here). */
+const VIEW_ROLE_COOKIE = "greenscape_view_role";
+
+function clientChatAuthorId(): string {
+  if (typeof document === "undefined") return "manager";
+  const match = document.cookie.match(
+    new RegExp(`(?:^|; )${VIEW_ROLE_COOKIE}=([^;]*)`)
+  );
+  const role = match ? decodeURIComponent(match[1]) : "manager";
+  if (role === "crew_lead") return DEFAULT_CREW_LEAD_PERSON_ID;
+  if (role === "crew_member") return "jordan-lee";
+  if (role === "accountant") return "accountant";
+  return "manager";
+}
 
 function Avatar({
   initials,
@@ -45,12 +61,14 @@ function formatWhen(iso: string) {
 
 export function ChatWorkspace({
   initialWith,
+  initialFrom,
   initialVisit,
   initialJob,
   initialCompany,
   initialConcern,
 }: {
   initialWith?: string;
+  initialFrom?: string;
   initialVisit?: string;
   initialJob?: string;
   initialCompany?: string;
@@ -69,12 +87,18 @@ export function ChatWorkspace({
     useState<Exclude<ChatCategory, "direct">>("announcement");
   const [dmOpen, setDmOpen] = useState(false);
   const [dmPersonId, setDmPersonId] = useState("alex-rivera");
+  const [selfId, setSelfId] = useState("manager");
 
   function refresh() {
     setThreads(loadChatThreads());
   }
 
   useEffect(() => {
+    const authorId = clientChatAuthorId();
+    setSelfId(authorId);
+    if (authorId !== "manager") {
+      setDmPersonId("manager");
+    }
     refresh();
     const onUpdate = () => refresh();
     window.addEventListener("storage", onUpdate);
@@ -85,18 +109,24 @@ export function ChatWorkspace({
     };
   }, []);
 
-  // Deep-link from concern review → open / create DM with crew lead
+  // Deep-link → open / create DM (manager↔crew lead, either direction)
   useEffect(() => {
     if (!initialWith) return;
+    const fromId = initialFrom ?? clientChatAuthorId();
+    const seededByCrewLead =
+      fromId !== "manager" && initialWith === "manager" && Boolean(initialConcern);
     const thread = upsertDirectThread({
       withPersonId: initialWith,
+      fromPersonId: fromId,
       visitId: initialVisit,
       jobLabel: initialJob,
       companyName: initialCompany,
       concernLabel: initialConcern,
-      seedMessage: initialConcern
-        ? `Hi — reviewing a field concern on ${initialCompany ?? "this site"} (${initialJob ?? "visit"}):\n\n${initialConcern}\n\nCan you confirm status and next steps?`
-        : undefined,
+      seedMessage: seededByCrewLead
+        ? initialConcern
+        : initialConcern
+          ? `Hi — reviewing a field concern on ${initialCompany ?? "this site"} (${initialJob ?? "visit"}):\n\n${initialConcern}\n\nCan you confirm status and next steps?`
+          : undefined,
     });
     setThreads(loadChatThreads());
     setFilter("direct");
@@ -105,6 +135,7 @@ export function ChatWorkspace({
     router.replace("/chat");
   }, [
     initialWith,
+    initialFrom,
     initialVisit,
     initialJob,
     initialCompany,
@@ -140,7 +171,7 @@ export function ChatWorkspace({
 
   function sendMessage() {
     if (!selected) return;
-    const next = postChatMessage(selected.id, "manager", draft);
+    const next = postChatMessage(selected.id, selfId, draft);
     if (next) {
       setDraft("");
       refresh();
@@ -154,6 +185,7 @@ export function ChatWorkspace({
       title: composeTitle,
       body: composeBody,
       category: composeCategory,
+      authorId: selfId,
     });
     setComposeOpen(false);
     setComposeTitle("");
@@ -164,7 +196,10 @@ export function ChatWorkspace({
   }
 
   function startDm() {
-    const thread = upsertDirectThread({ withPersonId: dmPersonId });
+    const thread = upsertDirectThread({
+      withPersonId: dmPersonId,
+      fromPersonId: selfId,
+    });
     setDmOpen(false);
     refresh();
     setFilter("direct");
@@ -302,7 +337,7 @@ export function ChatWorkspace({
               onChange={(e) => setDmPersonId(e.target.value)}
               className="w-full rounded-md border border-stone-300 px-3 py-2"
             >
-              {CHAT_PEOPLE.filter((p) => p.id !== "manager").map((p) => (
+              {CHAT_PEOPLE.filter((p) => p.id !== selfId).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} · {p.role}
                 </option>
@@ -363,7 +398,7 @@ export function ChatWorkspace({
                             thread.category === "direct"
                               ? personById(
                                   thread.participantIds.find(
-                                    (id) => id !== "manager"
+                                    (id) => id !== selfId
                                   ) ?? thread.authorId
                                 )?.initials ?? "?"
                               : author?.initials ?? "?"
@@ -414,7 +449,7 @@ export function ChatWorkspace({
                 ) : (
                   directThreads.map((thread) => {
                     const otherId =
-                      thread.participantIds.find((id) => id !== "manager") ??
+                      thread.participantIds.find((id) => id !== selfId) ??
                       thread.authorId;
                     const other = personById(otherId);
                     const active = selected?.id === thread.id;
@@ -474,7 +509,7 @@ export function ChatWorkspace({
               <div className="mt-4 flex-1 space-y-3 overflow-y-auto">
                 {selected.messages.map((msg) => {
                   const author = personById(msg.authorId);
-                  const mine = msg.authorId === "manager";
+                  const mine = msg.authorId === selfId;
                   return (
                     <div
                       key={msg.id}
