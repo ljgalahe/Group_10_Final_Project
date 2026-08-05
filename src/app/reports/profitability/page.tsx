@@ -1,10 +1,19 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { ContractRankings } from "@/components/ContractRankings";
+import { ManagerRecommendations } from "@/components/ManagerRecommendations";
+import { ProfitLeakDetector } from "@/components/ProfitLeakDetector";
 import { Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
-import { formatCurrency } from "@/lib/format";
-import { fetchProfitabilityReport } from "@/lib/queries";
 import { requireAppAccess } from "@/lib/auth-access";
+import { buildContractRankings } from "@/lib/contract-rankings";
 import { getViewRole, roleCanViewReports } from "@/lib/demo-role";
+import { formatCurrency } from "@/lib/format";
+import { buildManagerRecommendations } from "@/lib/manager-recommendations";
+import { detectProfitLeaks } from "@/lib/profit-leaks";
+import {
+  fetchProfitabilityReport,
+  fetchProfitLeakInputs,
+} from "@/lib/queries";
 
 export default async function ProfitabilityPage() {
   await requireAppAccess();
@@ -12,7 +21,17 @@ export default async function ProfitabilityPage() {
   const role = await getViewRole();
   if (!roleCanViewReports(role)) redirect("/dashboard");
 
-  const report = await fetchProfitabilityReport();
+  const [report, leakInputs] = await Promise.all([
+    fetchProfitabilityReport(),
+    fetchProfitLeakInputs(),
+  ]);
+  const profitLeaks = detectProfitLeaks(leakInputs);
+  const rankings = buildContractRankings(report, leakInputs);
+  const recommendations = buildManagerRecommendations(
+    report,
+    profitLeaks,
+    [...rankings.mostProfitable, ...rankings.leastProfitable]
+  );
 
   const totalRevenue = report.reduce((s, r) => s + r.revenue, 0);
   const totalCosts = report.reduce((s, r) => s + r.costs, 0);
@@ -85,6 +104,15 @@ export default async function ProfitabilityPage() {
         </div>
       )}
 
+      <ContractRankings
+        mostProfitable={rankings.mostProfitable}
+        leastProfitable={rankings.leastProfitable}
+      />
+
+      <ProfitLeakDetector rows={profitLeaks} />
+
+      <ManagerRecommendations rows={recommendations} />
+
       <Card className="mt-8">
         <h2 className="text-lg font-semibold text-green-950">How to read this report</h2>
         <p className="mt-2 text-sm text-stone-600">
@@ -92,6 +120,7 @@ export default async function ProfitabilityPage() {
           <strong> Direct costs</strong> are labor, materials, and equipment logged on
           service visits. A contract with high crew hours or mulch costs will show a
           lower margin — that helps managers decide whether to renegotiate pricing.
+          Manager Recommendations translate those signals into prioritized next steps.
         </p>
       </Card>
     </AppShell>

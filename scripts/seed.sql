@@ -79,12 +79,18 @@ insert into extra_work_orders (id, contract_id, title, description, quoted_amoun
 -- ─── INVOICES & LINE ITEMS ───────────────────────────────────────────────────
 -- Story: Riverside has open June invoice w/ extra work | Metro is 90+ days overdue
 
+-- Stories:
+--   INV-0001 fully paid (ACH)
+--   INV-0003 fully paid (check)
+--   INV-0005 partially paid with multiple payments (check + card)
+--   INV-0006 canceled (cannot receive payments)
 insert into invoices (id, contract_id, customer_id, invoice_number, issue_date, due_date, status, subtotal, total, amount_paid) values
   ('55555555-5555-5555-5555-555555555501', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0001', '2026-05-01', '2026-05-31', 'paid', 2400.00, 2400.00, 2400.00),
   ('55555555-5555-5555-5555-555555555502', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0002', '2026-06-01', '2026-07-01', 'sent', 4250.00, 4250.00, 0.00),
   ('55555555-5555-5555-5555-555555555503', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0003', '2026-06-01', '2026-07-01', 'paid', 3200.00, 3200.00, 3200.00),
   ('55555555-5555-5555-5555-555555555504', '22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'INV-0004', '2026-04-01', '2026-05-01', 'overdue', 4500.00, 4500.00, 0.00),
-  ('55555555-5555-5555-5555-555555555505', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0005', '2026-07-01', '2026-07-15', 'sent', 1800.00, 1800.00, 900.00);
+  ('55555555-5555-5555-5555-555555555505', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0005', '2026-07-01', '2026-07-15', 'partially_paid', 1800.00, 1800.00, 900.00),
+  ('55555555-5555-5555-5555-555555555506', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0006', '2026-03-01', '2026-03-31', 'canceled', 500.00, 500.00, 0.00);
 
 insert into invoice_lines (invoice_id, description, amount, line_type) values
   ('55555555-5555-5555-5555-555555555501', 'Monthly maintenance — Riverside (May 2026)', 2400.00, 'recurring'),
@@ -92,11 +98,17 @@ insert into invoice_lines (invoice_id, description, amount, line_type) values
   ('55555555-5555-5555-5555-555555555502', 'Extra work: Mulch Installation — Entrance Beds', 1850.00, 'extra_work'),
   ('55555555-5555-5555-5555-555555555503', 'Monthly maintenance — Summit Retail (June 2026)', 3200.00, 'recurring'),
   ('55555555-5555-5555-5555-555555555504', 'Monthly maintenance — Metro Industrial (April 2026)', 4500.00, 'recurring'),
-  ('55555555-5555-5555-5555-555555555505', 'Monthly maintenance — Harbor View HOA (July 2026)', 1800.00, 'recurring');
+  ('55555555-5555-5555-5555-555555555505', 'Monthly maintenance — Harbor View HOA (July 2026)', 1800.00, 'recurring'),
+  ('55555555-5555-5555-5555-555555555506', 'Canceled seasonal add-on — Harbor View', 500.00, 'extra_work');
 
--- ─── PAYMENTS (simulated) ────────────────────────────────────────────────────
+-- ─── PAYMENTS ────────────────────────────────────────────────────────────────
+-- Demonstrates: full ACH, full check, multi-payment partial (check + card), August collection
 
-insert into payments (invoice_id, amount, payment_date, payment_method, notes) values
-  ('55555555-5555-5555-5555-555555555501', 2400.00, '2026-05-28', 'simulated_ach', 'On-time payment'),
-  ('55555555-5555-5555-5555-555555555503', 3200.00, '2026-06-15', 'simulated_check', 'Received by mail'),
-  ('55555555-5555-5555-5555-555555555505', 900.00, '2026-07-10', 'simulated_check', 'Partial payment — balance remaining');
+insert into payments (
+  invoice_id, customer_id, payment_number, amount, applied_amount, unapplied_amount,
+  payment_date, payment_method, notes, reference_number, recorded_by_name, status
+) values
+  ('55555555-5555-5555-5555-555555555501', '11111111-1111-1111-1111-111111111101', 'CR-0001', 2400.00, 2400.00, 0, '2026-05-28', 'ach', 'On-time ACH payment', 'ACH-982341', 'Manager (Demo)', 'applied'),
+  ('55555555-5555-5555-5555-555555555503', '11111111-1111-1111-1111-111111111102', 'CR-0002', 3200.00, 3200.00, 0, '2026-06-15', 'check', 'Received by mail', 'CHK-10422', 'Manager (Demo)', 'applied'),
+  ('55555555-5555-5555-5555-555555555505', '11111111-1111-1111-1111-111111111103', 'CR-0003', 600.00, 600.00, 0, '2026-07-10', 'check', 'First partial payment', 'CHK-11087', 'Manager (Demo)', 'applied'),
+  ('55555555-5555-5555-5555-555555555505', '11111111-1111-1111-1111-111111111103', 'CR-0004', 300.00, 300.00, 0, '2026-08-01', 'card', 'Second partial payment — balance remaining', 'CARD-77821', 'Manager (Demo)', 'applied');

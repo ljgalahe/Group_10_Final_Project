@@ -42,9 +42,9 @@ const expected = {
   service_visits: 7,
   visit_costs: 8,
   extra_work_orders: 2,
-  invoices: 5,
-  invoice_lines: 6,
-  payments: 3,
+  invoices: 6,
+  invoice_lines: 7,
+  payments: 4,
 };
 
 console.log("Checking seed data in Supabase...\n");

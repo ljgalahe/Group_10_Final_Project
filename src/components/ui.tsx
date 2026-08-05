@@ -45,6 +45,13 @@ export function StatusBadge({ status }: { status: string }) {
     sent: "bg-blue-100 text-blue-800",
     paid: "bg-green-100 text-green-800",
     overdue: "bg-red-100 text-red-800",
+    past_due: "bg-red-100 text-red-800",
+    partially_paid: "bg-amber-100 text-amber-900",
+    canceled: "bg-stone-200 text-stone-700",
+    voided: "bg-stone-200 text-stone-700",
+    applied: "bg-green-100 text-green-800",
+    unapplied: "bg-yellow-100 text-yellow-800",
+    void: "bg-stone-200 text-stone-700",
     scheduled: "bg-yellow-100 text-yellow-800",
     completed: "bg-green-100 text-green-800",
     approved: "bg-green-100 text-green-800",
@@ -55,7 +62,7 @@ export function StatusBadge({ status }: { status: string }) {
     <span
       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${colors[status] ?? "bg-gray-100 text-gray-800"}`}
     >
-      {status.replace("_", " ")}
+      {status.replaceAll("_", " ")}
     </span>
   );
 }

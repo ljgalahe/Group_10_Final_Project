@@ -1,64 +1,44 @@
-import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { EmptyState, PageHeader } from "@/components/ui";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { fetchPayments } from "@/lib/queries";
+import { PageHeader } from "@/components/ui";
+import { PaymentsManagerClient } from "@/components/PaymentsManagerClient";
 import { requireAppAccess } from "@/lib/auth-access";
+import { buildCollectionRisk } from "@/lib/collection-risk";
+import {
+  fetchCustomers,
+  fetchInvoices,
+  fetchPayments,
+  fetchPaymentsSummary,
+} from "@/lib/queries";
 
 export default async function PaymentsPage() {
   await requireAppAccess();
 
-  const { data: payments } = await fetchPayments();
+  const [
+    { data: payments },
+    { data: customers },
+    summary,
+    { data: invoices },
+  ] = await Promise.all([
+    fetchPayments(),
+    fetchCustomers(),
+    fetchPaymentsSummary(),
+    fetchInvoices(),
+  ]);
+
+  const collectionRisk = buildCollectionRisk(invoices, payments);
 
   return (
     <AppShell>
       <PageHeader
         title="Payments"
-        description="Simulated payment records for checks, ACH, and card payments."
+        description="Record full and partial invoice payments, track collections, and review payment history."
       />
-
-      {payments.length === 0 ? (
-        <EmptyState message="No payments recorded yet." />
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead className="bg-stone-50 text-left text-stone-600">
-              <tr>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Invoice</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Method</th>
-                <th className="px-4 py-3 font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((payment) => (
-                <tr key={payment.id} className="border-t border-stone-100">
-                  <td className="px-4 py-3">{formatDate(payment.payment_date)}</td>
-                  <td className="px-4 py-3">
-                    {(payment.invoices as { invoice_number: string } | null)?.invoice_number}
-                  </td>
-                  <td className="px-4 py-3">
-                    {
-                      (
-                        payment.invoices as {
-                          customers: { name: string } | null;
-                        } | null
-                      )?.customers?.name
-                    }
-                  </td>
-                  <td className="px-4 py-3 capitalize">
-                    {payment.payment_method.replace("_", " ")}
-                  </td>
-                  <td className="px-4 py-3 font-medium">
-                    {formatCurrency(Number(payment.amount))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <PaymentsManagerClient
+        payments={payments}
+        customers={customers}
+        summary={summary}
+        collectionRisk={collectionRisk}
+      />
     </AppShell>
   );
 }
