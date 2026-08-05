@@ -12,14 +12,17 @@ export type InvoiceStatus =
   | "draft"
   | "approved"
   | "sent"
-  | "partially_paid"
   | "paid"
-  | "past_due"
-  | "voided"
   | "overdue"
+  | "past_due"
+  | "partially_paid"
+  | "canceled"
+  | "voided"
   | "disputed";
 export type ExtraWorkStatus = "quoted" | "approved" | "completed" | "declined";
 export type CostType = "labor" | "materials" | "equipment";
+export type PaymentMethod = "check" | "ach" | "card" | "bank_transfer";
+export type PaymentStatus = "applied" | "unapplied" | "void";
 export type SupportCategory =
   | "question"
   | "concern"
@@ -29,6 +32,13 @@ export type SupportCategory =
   | "service_quote";
 export type SupportLinkType = "contract" | "visit" | "invoice";
 export type SupportRequestStatus = "Open" | "In Progress" | "Resolved";
+
+export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: "check", label: "Check" },
+  { value: "ach", label: "ACH" },
+  { value: "card", label: "Card" },
+  { value: "bank_transfer", label: "Bank Transfer" },
+];
 
 export interface Profile {
   id: string;
@@ -135,7 +145,38 @@ export interface Payment {
   payment_date: string;
   payment_method: string;
   notes: string | null;
+  payment_number?: string | null;
+  customer_id?: string | null;
+  applied_amount?: number | null;
+  unapplied_amount?: number | null;
+  reference_number?: string | null;
+  recorded_by?: string | null;
+  recorded_by_name?: string | null;
+  status?: PaymentStatus | string;
   created_at: string;
+  invoices?: {
+    invoice_number: string;
+    issue_date?: string;
+    customer_id?: string;
+    total?: number;
+    amount_paid?: number;
+    status?: InvoiceStatus | string;
+    customers?: { name: string; id?: string } | null;
+    contracts?: { title: string } | null;
+  } | null;
+}
+
+export interface PaymentsSummary {
+  collectedThisMonth: number;
+  outstandingBalance: number;
+  overdueCustomerCount: number;
+  overdueCustomerIds: string[];
+  outstandingInvoiceIds: string[];
+  collectionRate: number | null;
+  averageDaysToPay: number | null;
+  /** Kept for compatibility with existing payment tooling */
+  unappliedPayments: number;
+  partialPaymentsCount: number;
 }
 
 export interface CustomerPaymentMethod {
