@@ -68,6 +68,17 @@ export function StatusBadge({ status }: { status: string }) {
     rescheduled: "bg-orange-100 text-orange-800",
     approved: "bg-green-100 text-green-800",
     quoted: "bg-purple-100 text-purple-800",
+    routine: "bg-stone-100 text-stone-700",
+    high: "bg-amber-100 text-amber-900",
+    emergency: "bg-red-100 text-red-800",
+    seasonal: "bg-blue-100 text-blue-800",
+    pending: "bg-amber-100 text-amber-900",
+    current: "bg-green-100 text-green-800",
+    expiring: "bg-amber-100 text-amber-900",
+    expired: "bg-red-100 text-red-800",
+    controls_breached: "bg-red-100 text-red-800",
+    unprofitable: "bg-red-100 text-red-800",
+    cancelled: "bg-gray-100 text-gray-800",
   };
 
   return (

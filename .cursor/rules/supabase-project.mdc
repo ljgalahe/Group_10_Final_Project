@@ -1,0 +1,18 @@
+---
+description: Use only the Group_10_Final_Project Supabase project
+alwaysApply: true
+---
+
+# Supabase project lock
+
+This final project must use **only** the shared **Group_10_Final_Project** Supabase project/database:
+
+- **Project ID / ref:** `ashhludptczpogtwmzvd`
+- **API URL:** `https://ashhludptczpogtwmzvd.supabase.co`
+
+## Rules
+
+- Always target project ID `ashhludptczpogtwmzvd` for Supabase MCP tools, CLI, migrations, SQL, keys, and env setup.
+- Do **not** use any other Supabase project (including ConcertCost / `qhbownzkfsupkwmvlxqu`).
+- Keep `.env.local` pointed at `https://ashhludptczpogtwmzvd.supabase.co`. Never commit `.env.local`.
+- Env vars for this app: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.

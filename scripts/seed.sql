@@ -34,14 +34,14 @@ insert into customer_payment_methods (customer_id, nickname, display_label) valu
 
 -- ─── CONTRACTS (seasonal maintenance agreements) ───────────────────────────
 
-insert into contracts (id, customer_id, title, status, season_start, season_end, monthly_fee, visits_per_week, billing_method, notes) values
+insert into contracts (id, customer_id, title, status, season_start, season_end, monthly_fee, visits_per_week, billing_method, notes, assigned_crew, account_manager, renewal_date) values
   -- Riverside: only Grounds is near end (within 45 days as of ~Aug 2026); others farther out
-  ('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', '2026 Grounds Maintenance — Riverside', 'active', '2026-04-01', '2026-09-15', 2400.00, 2, 'monthly', 'Includes spring cleanup and fall leaf removal.'),
-  ('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111101', '2026 Irrigation Monitoring — Riverside', 'active', '2026-04-01', '2026-10-31', 650.00, 1, 'monthly', 'Weekly system checks and minor head adjustments. Major repairs billed separately.'),
-  ('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111101', '2026 Parking Lot Islands — Riverside', 'active', '2026-05-01', '2026-11-30', 900.00, 1, 'monthly', 'Shrub beds and tree rings in the north and south parking lots.'),
-  ('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', '2026 Landscape Care — Summit Retail', 'active', '2026-04-01', '2026-10-15', 3200.00, 3, 'monthly', 'High-traffic retail center requires extra edging.'),
-  ('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', '2026 HOA Common Areas — Harbor View', 'active', '2026-04-01', '2026-11-01', 1800.00, 1, 'monthly', 'Common areas and entrance beds only.'),
-  ('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', '2026 Industrial Grounds — Metro', 'active', '2026-04-01', '2026-12-15', 4500.00, 2, 'monthly', 'Large lot with detention pond maintenance.');
+  ('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', '2026 Grounds Maintenance — Riverside', 'active', '2026-04-01', '2026-09-15', 2400.00, 2, 'monthly', 'Includes spring cleanup and fall leaf removal.', 'Crew A', 'Alex Rivera', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111101', '2026 Irrigation Monitoring — Riverside', 'active', '2026-04-01', '2026-10-31', 650.00, 1, 'monthly', 'Weekly system checks and minor head adjustments. Major repairs billed separately.', 'Crew A', 'Alex Rivera', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111101', '2026 Parking Lot Islands — Riverside', 'active', '2026-05-01', '2026-11-30', 900.00, 1, 'monthly', 'Shrub beds and tree rings in the north and south parking lots.', 'Crew A', 'Alex Rivera', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', '2026 Landscape Care — Summit Retail', 'active', '2026-04-01', '2026-10-15', 3200.00, 3, 'monthly', 'High-traffic retail center requires extra edging.', 'Crew B', 'Jordan Lee', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', '2026 HOA Common Areas — Harbor View', 'active', '2026-04-01', '2026-11-01', 1800.00, 1, 'monthly', 'Common areas and entrance beds only.', 'Crew A', 'Alex Rivera', '2026-11-30'),
+  ('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', '2026 Industrial Grounds — Metro', 'active', '2026-04-01', '2026-12-15', 4500.00, 2, 'monthly', 'Large lot with detention pond maintenance.', 'Crew C', 'Sam Patel', '2026-11-30');
 
 -- ─── INCLUDED SERVICES ───────────────────────────────────────────────────────
 

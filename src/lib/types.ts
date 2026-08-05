@@ -53,6 +53,9 @@ export interface Contract {
   visits_per_week: number | null;
   billing_method: BillingMethod;
   notes: string | null;
+  assigned_crew: string | null;
+  account_manager: string | null;
+  renewal_date: string | null;
   created_at: string;
   customers?: Customer;
 }
