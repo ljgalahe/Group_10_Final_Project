@@ -1,22 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type {
-  ExtraWorkItem,
-  ScheduleJob,
-  VisitWorkState,
-} from "@/components/crew-lead/schedule-types";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
 import {
   addFieldException,
   loadDailyRoster,
-  loadFieldExceptions,
   loadVisitWorkStateForStatus,
   saveVisitWorkState,
   type CrewMember,
 } from "@/components/crew-lead/crewLeadStorage";
 import type {
-  FieldExceptionReport,
+  ExtraWorkItem,
   FieldExceptionType,
+  ScheduleJob,
+  VisitWorkState,
 } from "@/components/crew-lead/schedule-types";
 import {
   equipmentForServices,
@@ -24,21 +21,41 @@ import {
   materialsForServices,
   tasksForServices,
 } from "@/components/crew-lead/visitWorkDefaults";
-import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
 
 const EXTRA_STATUSES = [
   { value: "needed", label: "Needed" },
-  { value: "pending_approval", label: "Pending Approval" },
+  { value: "pending_approval", label: "Pending approval" },
   { value: "approved", label: "Approved" },
   { value: "declined", label: "Declined" },
 ] as const;
 
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-stone-200 bg-white p-4">
+      <h4 className="text-sm font-semibold text-green-950">{title}</h4>
+      {hint ? <p className="mt-0.5 text-xs text-stone-500">{hint}</p> : null}
+      <div className="mt-3">{children}</div>
+    </section>
+  );
+}
+
 export function VisitWorkPanel({
   job,
   contractExtraWork,
+  variant = "full",
 }: {
   job: ScheduleJob;
   contractExtraWork: ExtraWorkItem[];
+  /** Planning: crew, hours, supplies only. Full: includes tasks / extras / exceptions. */
+  variant?: "full" | "planning";
 }) {
   const materials = useMemo(
     () => materialsForServices(job.services),
@@ -59,7 +76,7 @@ export function VisitWorkPanel({
     )
   );
   const [roster, setRoster] = useState<CrewMember[]>([]);
-  const [employeeName, setEmployeeName] = useState("");
+  const [laborEmployeeId, setLaborEmployeeId] = useState("");
   const [employeeHours, setEmployeeHours] = useState("");
   const [extraDescription, setExtraDescription] = useState("");
   const [extraStatus, setExtraStatus] =
@@ -69,9 +86,7 @@ export function VisitWorkPanel({
     useState<FieldExceptionType>("could_not_access");
   const [exceptionDetails, setExceptionDetails] = useState("");
   const [exceptionMessage, setExceptionMessage] = useState("");
-  const [visitExceptions, setVisitExceptions] = useState<
-    FieldExceptionReport[]
-  >([]);
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     setState(
@@ -83,14 +98,11 @@ export function VisitWorkPanel({
       )
     );
     setRoster(loadDailyRoster());
-    setVisitExceptions(
-      loadFieldExceptions().filter((report) => report.jobId === job.id)
-    );
+    setShowMore(false);
   }, [job.id, job.status, tasks, contractExtraWork.length]);
 
-  const isScheduled = job.status === "scheduled";
   const isCompleted = job.status === "completed";
-  const canEditCrew = isScheduled;
+  const canEditCrew = job.status === "scheduled";
 
   function update(next: VisitWorkState) {
     if (!canEditCrew) return;
@@ -101,17 +113,20 @@ export function VisitWorkPanel({
   function addEmployee(e: FormEvent) {
     e.preventDefault();
     if (!canEditCrew) return;
-    const name = employeeName.trim();
+    const member = state.assignedEmployees.find(
+      (row) => row.id === laborEmployeeId
+    );
     const hours = Number(employeeHours);
-    if (!name || Number.isNaN(hours) || hours < 0) return;
+    if (!member || Number.isNaN(hours) || hours < 0) return;
+    if (state.employees.some((row) => row.name === member.name)) return;
     update({
       ...state,
       employees: [
         ...state.employees,
-        { id: crypto.randomUUID(), name, hours },
+        { id: member.id, name: member.name, hours },
       ],
     });
-    setEmployeeName("");
+    setLaborEmployeeId("");
     setEmployeeHours("");
   }
 
@@ -182,6 +197,7 @@ export function VisitWorkPanel({
     update({
       ...state,
       assignedEmployees: state.assignedEmployees.filter((row) => row.id !== id),
+      employees: state.employees.filter((row) => row.id !== id),
     });
   }
 
@@ -189,7 +205,9 @@ export function VisitWorkPanel({
   const availableToAssign = roster.filter(
     (member) => !state.assignedEmployees.some((row) => row.id === member.id)
   );
-
+  const availableForLabor = state.assignedEmployees.filter(
+    (member) => !state.employees.some((row) => row.name === member.name)
+  );
   const plannedHours = state.plannedHours || 4;
   const clockedHours =
     state.jobStartedAt && state.jobEndedAt
@@ -200,6 +218,7 @@ export function VisitWorkPanel({
             (1000 * 60 * 60)
         )
       : null;
+  const tasksDone = state.completedTaskIds.length;
 
   function formatClock(iso: string | null) {
     if (!iso) return "—";
@@ -228,253 +247,225 @@ export function VisitWorkPanel({
 
   function submitException(e: FormEvent) {
     e.preventDefault();
-    if (!canEditCrew || !exceptionDetails.trim()) return;
-    const report = addFieldException({
+    if (!exceptionDetails.trim()) return;
+    addFieldException({
       jobId: job.id,
       customerName: job.customerName,
       address: job.address,
       type: exceptionType,
       details: exceptionDetails.trim(),
     });
-    setVisitExceptions((prev) => [report, ...prev]);
     setExceptionDetails("");
-    setExceptionMessage("Exception sent to management.");
+    setExceptionMessage("Sent to manager.");
     window.setTimeout(() => setExceptionMessage(""), 3000);
   }
 
-  return (
-    <div className="mt-4 space-y-4 rounded-lg border border-stone-200 bg-stone-50 p-4">
-      <div>
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
-          {isCompleted ? "Employees Who Worked" : "Assigned Employees"}
-        </h4>
-        {state.assignedEmployees.length > 0 ? (
-          <ul className="mt-2 space-y-1">
-            {state.assignedEmployees.map((member) => (
+  const hoursByName = new Map(
+    state.employees.map((row) => [row.name, row] as const)
+  );
+
+  const crewSection = (
+    <Section
+      title="Crew & hours"
+      hint={
+        totalHours > 0
+          ? `${state.assignedEmployees.length} assigned · ${totalHours.toFixed(1)} hrs logged`
+          : `${state.assignedEmployees.length} assigned`
+      }
+    >
+      {state.assignedEmployees.length === 0 ? (
+        <p className="text-sm text-stone-500">No crew assigned yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {state.assignedEmployees.map((member) => {
+            const labor = hoursByName.get(member.name);
+            return (
               <li
                 key={member.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-stone-100 bg-stone-50 px-3 py-2 text-sm"
               >
-                <span>
-                  {member.name}
-                  <span className="text-stone-500"> · {member.role}</span>
-                </span>
-                {canEditCrew ? (
-                  <button
-                    type="button"
-                    onClick={() => unassignEmployee(member.id)}
-                    className="text-xs font-medium text-red-700 hover:underline"
-                  >
-                    Unassign
-                  </button>
-                ) : null}
+                <div>
+                  <p className="font-medium text-stone-900">{member.name}</p>
+                  <p className="text-xs text-stone-500">{member.role}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-stone-700">
+                    {labor ? `${labor.hours} hrs` : "No hours"}
+                  </span>
+                  {canEditCrew && labor ? (
+                    <button
+                      type="button"
+                      onClick={() => removeEmployee(labor.id)}
+                      className="text-xs text-stone-500 hover:text-red-700"
+                    >
+                      Clear hrs
+                    </button>
+                  ) : null}
+                  {canEditCrew ? (
+                    <button
+                      type="button"
+                      onClick={() => unassignEmployee(member.id)}
+                      className="text-xs text-red-700 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
               </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-sm text-stone-500">
-            {isCompleted
-              ? "No employees were recorded for this visit."
-              : "No employees assigned to this visit yet."}
-          </p>
-        )}
-        {canEditCrew && availableToAssign.length > 0 ? (
-          <form
-            onSubmit={assignEmployee}
-            className="mt-3 flex flex-wrap items-center gap-2"
-          >
-            <select
-              value={assignId}
-              onChange={(e) => setAssignId(e.target.value)}
-              className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+            );
+          })}
+        </ul>
+      )}
+
+      {canEditCrew ? (
+        <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
+          {availableToAssign.length > 0 ? (
+            <form
+              onSubmit={assignEmployee}
+              className="flex flex-wrap items-center gap-2"
             >
-              <option value="">Assign from today&apos;s crew...</option>
-              {availableToAssign.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name} ({member.role})
-                </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+              <select
+                value={assignId}
+                onChange={(e) => setAssignId(e.target.value)}
+                className="min-w-[180px] flex-1 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">Add crew member…</option>
+                {availableToAssign.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                className="rounded-md border border-stone-300 px-3 py-2 text-sm hover:bg-stone-50"
+              >
+                Assign
+              </button>
+            </form>
+          ) : null}
+
+          {availableForLabor.length > 0 ? (
+            <form
+              onSubmit={addEmployee}
+              className="grid gap-2 sm:grid-cols-[1fr_90px_auto]"
             >
-              Assign
-            </button>
-          </form>
-        ) : null}
-        {!canEditCrew && !isCompleted ? (
-          <p className="mt-2 text-xs text-stone-500">
-            Employees can only be assigned on scheduled visits.
-          </p>
-        ) : null}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
-            Materials
-          </h4>
-          <ul className="mt-2 list-inside list-disc text-sm text-stone-700">
-            {materials.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+              <select
+                value={laborEmployeeId}
+                onChange={(e) => setLaborEmployeeId(e.target.value)}
+                className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+                required
+              >
+                <option value="">Log hours for…</option>
+                {availableForLabor.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="0"
+                step="0.25"
+                value={employeeHours}
+                onChange={(e) => setEmployeeHours(e.target.value)}
+                placeholder="Hours"
+                className="rounded-md border border-stone-300 px-3 py-2 text-sm"
+                required
+              />
+              <button
+                type="submit"
+                className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+              >
+                Save
+              </button>
+            </form>
+          ) : null}
         </div>
-        <div>
-          <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
-            Equipment
-          </h4>
-          <ul className="mt-2 list-inside list-disc text-sm text-stone-700">
-            {equipment.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
+      ) : null}
+    </Section>
+  );
 
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
-            Labor
-          </h4>
-          <span className="text-xs text-stone-500">
-            Logged: {totalHours.toFixed(1)} hrs
-            {isCompleted ? " (view only)" : ""}
-          </span>
-        </div>
-
-        <div className="mt-3 rounded-md border border-stone-200 bg-white p-3 text-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-            Time Clock vs Planned
-          </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+  if (variant === "planning") {
+    return (
+      <div className="mt-3 space-y-3 border-t border-stone-100 pt-3">
+        <p className="text-xs text-stone-500">
+          Plan crew and hours · {job.address}
+        </p>
+        {crewSection}
+        <Section title="Supplies needed">
+          <div className="grid gap-3 sm:grid-cols-2 text-sm">
             <div>
-              <p className="text-xs text-stone-500">Planned</p>
-              <p className="font-semibold text-green-950">
-                {plannedHours.toFixed(1)} hrs
-              </p>
+              <p className="text-xs font-medium text-stone-500">Materials</p>
+              <p className="mt-1 text-stone-800">{materials.join(" · ")}</p>
             </div>
             <div>
+              <p className="text-xs font-medium text-stone-500">Equipment</p>
+              <p className="mt-1 text-stone-800">{equipment.join(" · ")}</p>
+            </div>
+          </div>
+        </Section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      {isCompleted ? (
+        <p className="text-xs text-stone-500">Completed visit — view only.</p>
+      ) : null}
+
+      <Section title="1. Time clock" hint={`Planned ${plannedHours.toFixed(1)} hrs`}>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div>
               <p className="text-xs text-stone-500">Start</p>
-              <p className="font-semibold text-green-950">
+              <p className="font-medium text-green-950">
                 {formatClock(state.jobStartedAt)}
               </p>
             </div>
             <div>
               <p className="text-xs text-stone-500">End</p>
-              <p className="font-semibold text-green-950">
+              <p className="font-medium text-green-950">
                 {formatClock(state.jobEndedAt)}
               </p>
             </div>
+            <div>
+              <p className="text-xs text-stone-500">Actual</p>
+              <p className="font-medium text-green-950">
+                {clockedHours != null ? `${clockedHours.toFixed(1)} hrs` : "—"}
+              </p>
+            </div>
           </div>
-          {clockedHours != null ? (
-            <p className="mt-2 text-xs text-stone-600">
-              Actual clocked:{" "}
-              <span className="font-semibold">{clockedHours.toFixed(2)} hrs</span>
-              {" · "}
-              Variance:{" "}
-              <span
-                className={`font-semibold ${
-                  clockedHours - plannedHours > 0.25
-                    ? "text-amber-800"
-                    : "text-green-800"
-                }`}
-              >
-                {clockedHours - plannedHours >= 0 ? "+" : ""}
-                {(clockedHours - plannedHours).toFixed(2)} hrs
-              </span>
-            </p>
-          ) : (
-            <p className="mt-2 text-xs text-stone-500">
-              Start the job clock when the crew begins work.
-            </p>
-          )}
           {canEditCrew ? (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={startJob}
                 className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
               >
-                {state.jobStartedAt ? "Restart Clock" : "Start Job"}
+                {state.jobStartedAt ? "Restart" : "Start"}
               </button>
               <button
                 type="button"
                 onClick={endJob}
-                disabled={!state.jobStartedAt}
-                className="rounded-md border border-green-800 px-3 py-1.5 text-xs font-medium text-green-900 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!state.jobStartedAt || !!state.jobEndedAt}
+                className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-800 hover:bg-stone-50 disabled:opacity-40"
               >
-                End Job
+                End
               </button>
             </div>
           ) : null}
         </div>
+      </Section>
 
-        {state.employees.length > 0 ? (
-          <ul className="mt-3 space-y-1">
-            {state.employees.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
-              >
-                <span>
-                  {row.name} — {row.hours} hr{row.hours === 1 ? "" : "s"}
-                </span>
-                {canEditCrew ? (
-                  <button
-                    type="button"
-                    onClick={() => removeEmployee(row.id)}
-                    className="text-xs font-medium text-red-700 hover:underline"
-                  >
-                    Remove
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-3 text-sm text-stone-500">
-            {isCompleted
-              ? "No labor hours were recorded for this visit."
-              : "No labor hours recorded yet for this job."}
-          </p>
-        )}
-        {canEditCrew ? (
-          <form
-            onSubmit={addEmployee}
-            className="mt-3 grid gap-2 sm:grid-cols-[1fr_100px_auto]"
-          >
-            <input
-              value={employeeName}
-              onChange={(e) => setEmployeeName(e.target.value)}
-              placeholder="Employee Name"
-              className="rounded-md border border-stone-300 px-3 py-2 text-sm"
-            />
-            <input
-              type="number"
-              min="0"
-              step="0.25"
-              value={employeeHours}
-              onChange={(e) => setEmployeeHours(e.target.value)}
-              placeholder="Hours"
-              className="rounded-md border border-stone-300 px-3 py-2 text-sm"
-            />
-            <button
-              type="submit"
-              className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
-            >
-              Add
-            </button>
-          </form>
-        ) : null}
-      </div>
+      {crewSection}
 
-      <div>
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
-          Tasks
-        </h4>
-        <ul className="mt-2 space-y-2">
+      <Section
+        title="3. Tasks"
+        hint={`${tasksDone} of ${tasks.length} done`}
+      >
+        <ul className="space-y-2">
           {tasks.map((task) => {
             const checked = state.completedTaskIds.includes(task.id);
             return (
@@ -495,63 +486,73 @@ export function VisitWorkPanel({
             );
           })}
         </ul>
-      </div>
+      </Section>
 
-      <div>
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
-          Extra Work
-        </h4>
+      <Section title="4. Supplies">
+        <div className="grid gap-3 sm:grid-cols-2 text-sm">
+          <div>
+            <p className="text-xs font-medium text-stone-500">Materials</p>
+            <p className="mt-1 text-stone-800">{materials.join(" · ")}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-stone-500">Equipment</p>
+            <p className="mt-1 text-stone-800">{equipment.join(" · ")}</p>
+          </div>
+        </div>
+      </Section>
 
-        {contractExtraWork.length > 0 ? (
-          <ul className="mt-3 space-y-2">
-            {contractExtraWork.map((item) => (
-              <li
-                key={item.id}
-                className="rounded-md border border-stone-200 bg-white p-3 text-sm"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-green-950">{item.title}</p>
-                    {item.description ? (
-                      <p className="mt-1 text-stone-600">{item.description}</p>
-                    ) : null}
-                    <p className="mt-1 text-xs text-stone-500">
-                      Quote ${Number(item.quotedAmount).toFixed(2)}
-                    </p>
-                  </div>
-                  <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                    {isCompleted ? "Approved" : formatStatusLabel(item.status)}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-sm text-stone-500">
-            No management extra-work orders on this contract yet.
-          </p>
-        )}
+      <div className="rounded-lg border border-stone-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setShowMore((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-green-950"
+        >
+          More (extra work, issues, notes)
+          <span className="text-xs font-medium text-green-800">
+            {showMore ? "Hide" : "Show"}
+          </span>
+        </button>
 
-        {state.extraWorkNotes.length > 0 ? (
-          <ul className="mt-3 space-y-2">
-            {state.extraWorkNotes.map((note) => (
-              <li
-                key={note.id}
-                className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm"
-              >
-                <p className="text-stone-800">{note.description}</p>
-                {canEditCrew ? (
-                  <label className="mt-2 flex items-center gap-2 text-xs text-stone-600">
-                    Status
+        {showMore ? (
+          <div className="space-y-4 border-t border-stone-100 px-4 py-4">
+            <div>
+              <p className="text-sm font-medium text-stone-800">Extra work</p>
+              {contractExtraWork.length > 0 ? (
+                <ul className="mt-2 space-y-2">
+                  {contractExtraWork.map((item) => (
+                    <li
+                      key={item.id}
+                      className="rounded-md bg-stone-50 px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium">{item.title}</span>
+                      <span className="text-stone-500">
+                        {" "}
+                        · {isCompleted ? "Approved" : formatStatusLabel(item.status)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-sm text-stone-500">None from management.</p>
+              )}
+
+              {state.extraWorkNotes.map((note) => (
+                <div
+                  key={note.id}
+                  className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
+                >
+                  <p>{note.description}</p>
+                  {canEditCrew ? (
                     <select
                       value={note.status}
                       onChange={(e) =>
                         updateExtraStatus(
                           note.id,
-                          e.target.value as (typeof EXTRA_STATUSES)[number]["value"]
+                          e.target
+                            .value as (typeof EXTRA_STATUSES)[number]["value"]
                         )
                       }
-                      className="rounded border border-stone-300 bg-white px-2 py-1"
+                      className="mt-2 rounded border border-stone-300 bg-white px-2 py-1 text-xs"
                     >
                       {EXTRA_STATUSES.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -559,126 +560,98 @@ export function VisitWorkPanel({
                         </option>
                       ))}
                     </select>
-                  </label>
-                ) : (
-                  <p className="mt-2 text-xs text-stone-500">
-                    Status: {formatStatusLabel(note.status)}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        {canEditCrew ? (
-          <form onSubmit={addExtraWork} className="mt-3 space-y-2">
-            <textarea
-              value={extraDescription}
-              onChange={(e) => setExtraDescription(e.target.value)}
-              placeholder="Describe extra work needed or completed..."
-              rows={2}
-              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={extraStatus}
-                onChange={(e) =>
-                  setExtraStatus(
-                    e.target.value as (typeof EXTRA_STATUSES)[number]["value"]
-                  )
-                }
-                className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
-              >
-                {EXTRA_STATUSES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
-              >
-                Log Extra Work
-              </button>
-            </div>
-          </form>
-        ) : null}
-      </div>
-
-      <div>
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
-          Exception Report
-        </h4>
-
-        {visitExceptions.length > 0 ? (
-          <ul className="mt-3 space-y-2">
-            {visitExceptions.map((report) => (
-              <li
-                key={report.id}
-                className="rounded-md border border-amber-200 bg-amber-50/80 p-3 text-sm"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <p className="font-medium text-amber-950">
-                    {formatStatusLabel(report.type)}
-                  </p>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
-                    {isCompleted ? "Completed" : "Sent to Manager"}
-                  </span>
+                  ) : (
+                    <p className="mt-1 text-xs text-stone-500">
+                      {formatStatusLabel(note.status)}
+                    </p>
+                  )}
                 </div>
-                <p className="mt-1 text-stone-700">{report.details}</p>
-                <p className="mt-1 text-[11px] text-stone-500">
-                  {new Date(report.submittedAt).toLocaleString()}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : isCompleted ? (
-          <p className="mt-2 text-sm text-stone-500">
-            No exception reports were submitted for this visit.
-          </p>
-        ) : null}
+              ))}
 
-        {canEditCrew ? (
-          <form onSubmit={submitException} className="mt-3 space-y-2">
-            <select
-              value={exceptionType}
-              onChange={(e) =>
-                setExceptionType(e.target.value as FieldExceptionType)
-              }
-              className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="could_not_access">Could Not Access Site</option>
-              <option value="dog_loose">Dog Loose / Unsafe Animal</option>
-              <option value="equipment_failure">Equipment Failure</option>
-              <option value="other">Other</option>
-            </select>
-            <textarea
-              value={exceptionDetails}
-              onChange={(e) => setExceptionDetails(e.target.value)}
-              placeholder="Describe what happened and what you need from management..."
-              rows={2}
-              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-              required
-            />
-            <button
-              type="submit"
-              className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
-            >
-              Send to Manager
-            </button>
-            {exceptionMessage ? (
-              <p className="text-sm text-green-800">{exceptionMessage}</p>
-            ) : null}
-          </form>
+              {canEditCrew ? (
+                <form onSubmit={addExtraWork} className="mt-3 space-y-2">
+                  <textarea
+                    value={extraDescription}
+                    onChange={(e) => setExtraDescription(e.target.value)}
+                    placeholder="Describe extra work…"
+                    rows={2}
+                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      value={extraStatus}
+                      onChange={(e) =>
+                        setExtraStatus(
+                          e.target
+                            .value as (typeof EXTRA_STATUSES)[number]["value"]
+                        )
+                      }
+                      className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+                    >
+                      {EXTRA_STATUSES.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-stone-800">
+                Report a problem
+              </p>
+              {canEditCrew ? (
+                <form onSubmit={submitException} className="mt-2 space-y-2">
+                  <select
+                    value={exceptionType}
+                    onChange={(e) =>
+                      setExceptionType(e.target.value as FieldExceptionType)
+                    }
+                    className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="could_not_access">Could not access site</option>
+                    <option value="dog_loose">Dog loose / unsafe animal</option>
+                    <option value="equipment_failure">Equipment failure</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <textarea
+                    value={exceptionDetails}
+                    onChange={(e) => setExceptionDetails(e.target.value)}
+                    placeholder="What happened?"
+                    rows={2}
+                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
+                  >
+                    Send to manager
+                  </button>
+                  {exceptionMessage ? (
+                    <p className="text-sm text-green-800">{exceptionMessage}</p>
+                  ) : null}
+                </form>
+              ) : (
+                <p className="mt-1 text-sm text-stone-500">
+                  Available on scheduled visits.
+                </p>
+              )}
+            </div>
+
+            <CrewSiteNotes customerId={job.customerId} />
+          </div>
         ) : null}
       </div>
-
-      <CrewSiteNotes
-        customerId={job.customerId}
-        jobId={job.id}
-        status={job.status}
-      />
     </div>
   );
 }
