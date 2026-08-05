@@ -37,6 +37,11 @@ export function bookValue(
   return Math.max(salvage, cost - accum);
 }
 
+/** Book value with no depreciation taken (cost carried as-is). */
+export function nonDepreciableBookValue(cost: number): number {
+  return Math.max(0, cost);
+}
+
 export function formatUsefulLife(years: number, months: number): string {
   const y = Math.max(0, years);
   const m = Math.max(0, months);

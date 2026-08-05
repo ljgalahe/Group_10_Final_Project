@@ -1,7 +1,9 @@
 export const EQUIPMENT_CATEGORIES = [
   "Mowers",
-  "Trucks/Trailers",
+  "Trucks",
   "Trailers",
+  "Tractors",
+  "Skid steers",
   "Irrigation tools",
   "Hand/power tools",
   "Other",
@@ -9,7 +11,30 @@ export const EQUIPMENT_CATEGORIES = [
 
 export type EquipmentCategory = (typeof EQUIPMENT_CATEGORIES)[number];
 
+/** Categories that do not take unit-of-production depreciation. */
+export const NON_DEPRECIABLE_CATEGORIES: readonly EquipmentCategory[] = [
+  "Hand/power tools",
+  "Other",
+];
+
+export function categoryIsDepreciable(category: EquipmentCategory): boolean {
+  return !NON_DEPRECIABLE_CATEGORIES.includes(category);
+}
+
+/** Hand/power tools have no useful life, salvage, or estimated life hours. */
+export function categoryTracksUsefulLife(category: EquipmentCategory): boolean {
+  return category !== "Hand/power tools";
+}
+
 export type EquipmentStatus = "active" | "retired";
+
+export type EquipmentContractRevenue = {
+  contract_id: string;
+  contract_title: string;
+  customer_name: string;
+  hours: number;
+  revenue: number;
+};
 
 export type EquipmentRow = {
   id: string;
@@ -25,6 +50,8 @@ export type EquipmentRow = {
   retired_at: string | null;
   notes: string | null;
   hours_used: number;
+  revenue_produced: number;
+  contracts_worked: EquipmentContractRevenue[];
 };
 
 export type EquipmentUsageRow = {
