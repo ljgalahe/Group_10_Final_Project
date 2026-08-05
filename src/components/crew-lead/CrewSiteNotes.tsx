@@ -5,37 +5,42 @@ import {
   loadVisitWorkState,
   saveVisitWorkState,
 } from "@/components/crew-lead/crewLeadStorage";
-import { customerNotesForCustomer } from "@/components/crew-lead/visitWorkDefaults";
+import { CREW_CUSTOMER_NOTES_HELPER } from "@/lib/customer-notes";
 
 /**
- * Compact: Customer Notes (shown once at the top of a visit).
- * Full: Additional Notes only (crew-lead notes at the bottom of visit details).
+ * Compact: Customer Notes only.
+ * Full: optional Customer Notes + optional Additional Notes (crew-typed for this visit).
  */
 export function CrewSiteNotes({
-  customerId,
+  notes = [],
   jobId,
   status = "scheduled",
   compact = false,
+  showCustomerNotes = true,
+  showAdditionalNotes = true,
 }: {
-  customerId: string;
-  /** Required for additional (crew) notes in the full visit panel. */
+  /** Customer notes from profile/database for this property. */
+  notes?: string[];
+  /** Required for additional (crew) notes. */
   jobId?: string;
   status?: string;
   compact?: boolean;
+  showCustomerNotes?: boolean;
+  showAdditionalNotes?: boolean;
 }) {
-  const customerNotes = customerNotesForCustomer(customerId);
+  const customerNotes = notes.filter(Boolean);
   const [additionalNotes, setAdditionalNotes] = useState("");
   const isScheduled = status === "scheduled";
   const canEditAdditional = Boolean(jobId) && isScheduled;
 
   useEffect(() => {
-    if (!jobId) {
+    if (!jobId || !showAdditionalNotes) {
       setAdditionalNotes("");
       return;
     }
     // Crew-entered notes only — never prefilled from customer notes.
     setAdditionalNotes(loadVisitWorkState(jobId).crewAdditionalNotes ?? "");
-  }, [jobId]);
+  }, [jobId, showAdditionalNotes]);
 
   function persistAdditionalNotes(value: string) {
     if (!jobId) return;
@@ -47,6 +52,7 @@ export function CrewSiteNotes({
   }
 
   if (compact) {
+    if (!showCustomerNotes || customerNotes.length === 0) return null;
     return (
       <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-900">
@@ -61,7 +67,24 @@ export function CrewSiteNotes({
     );
   }
 
-  return (
+  const customerBlock =
+    showCustomerNotes && customerNotes.length > 0 ? (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <h4 className="text-sm font-semibold uppercase tracking-wide text-amber-950">
+          Customer Notes
+        </h4>
+        <p className="mt-1 text-xs text-amber-900/80">
+          {CREW_CUSTOMER_NOTES_HELPER}
+        </p>
+        <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-amber-950">
+          {customerNotes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      </div>
+    ) : null;
+
+  const additionalBlock = showAdditionalNotes ? (
     <div className="rounded-lg border border-stone-200 bg-stone-50 p-4">
       <h4 className="text-sm font-semibold uppercase tracking-wide text-stone-800">
         Additional Notes
@@ -87,6 +110,15 @@ export function CrewSiteNotes({
           No additional notes taken for this visit.
         </p>
       )}
+    </div>
+  ) : null;
+
+  if (!customerBlock && !additionalBlock) return null;
+
+  return (
+    <div className="space-y-4">
+      {customerBlock}
+      {additionalBlock}
     </div>
   );
 }

@@ -6,6 +6,8 @@
 --   11111111-1111-1111-1111-111111111101
 
 -- Clear demo data (child tables first)
+delete from equipment_usage;
+delete from equipment;
 delete from payments;
 delete from invoice_lines;
 delete from invoices;
@@ -20,17 +22,22 @@ delete from customers;
 
 -- ─── CUSTOMERS (4 commercial properties) ───────────────────────────────────
 
-insert into customers (id, name, property_type, address, contact_name, contact_email, created_at) values
-  ('11111111-1111-1111-1111-111111111101', 'Riverside Office Park', 'Office Park', '1200 University Ave, Oxford, MS', 'Maria Chen', 'mchen@riverside-op.com', '2023-03-15 10:00:00+00'),
-  ('11111111-1111-1111-1111-111111111102', 'Summit Retail Center', 'Retail Center', '450 Jackson Ave W, Oxford, MS', 'James Ortiz', 'jortiz@summitretail.com', '2024-01-10 10:00:00+00'),
-  ('11111111-1111-1111-1111-111111111103', 'Harbor View HOA', 'HOA', '88 South Lamar Blvd, Oxford, MS', 'Pat Simmons', 'psimmons@harborviewhoa.org', '2024-06-01 10:00:00+00'),
-  ('11111111-1111-1111-1111-111111111104', 'Metro Industrial Complex', 'Industrial', '900 Molly Barr Rd, Oxford, MS', 'Dana Brooks', 'dbrooks@metroindustrial.com', '2025-02-20 10:00:00+00');
+insert into customers (id, name, property_type, address, contact_name, contact_email, contact_phone, created_at, notification_prefs, customer_notes) values
+  ('11111111-1111-1111-1111-111111111101', 'Riverside Office Park', 'Office Park', '1200 University Ave, Oxford, MS', 'Maria Chen', 'mchen@riverside-op.com', '(662) 555-0142', '2023-03-15 10:00:00+00',
+    '{"invoice_reminders":{"enabled":true,"channel":"email","email":"mchen@riverside-op.com","phone":"(662) 555-0142"},"visit_reminders":{"enabled":true,"channel":"email","email":"mchen@riverside-op.com","phone":"(662) 555-0142"},"support_updates":{"enabled":true,"channel":"email","email":"mchen@riverside-op.com","phone":"(662) 555-0142"},"renewal_notices":{"enabled":false,"channel":"email","email":"mchen@riverside-op.com","phone":"(662) 555-0142"}}'::jsonb,
+    E'Office park has a security dog that barks at crews near the rear lot — do not approach the fenced kennel area.\nPark trailers only in the designated service bay; front entrance must stay clear for tenants.'),
+  ('11111111-1111-1111-1111-111111111102', 'Summit Retail Center', 'Retail Center', '450 Jackson Ave W, Oxford, MS', 'James Ortiz', 'jortiz@summitretail.com', null, '2024-01-10 10:00:00+00', '{}'::jsonb,
+    E'Retail center: avoid leaf blowing near storefronts before 9:00 AM.\nIrrigation controller is inside the locked utility closet — key is in the crew lockbox.'),
+  ('11111111-1111-1111-1111-111111111103', 'Harbor View HOA', 'HOA', '88 South Lamar Blvd, Oxford, MS', 'Pat Simmons', 'psimmons@harborviewhoa.org', null, '2024-06-01 10:00:00+00', '{}'::jsonb,
+    E'HOA common areas: resident owns a dog that may bite if the side gate is left open — keep gate latched.\nDo not mow within 3 feet of playground equipment during school pickup hours.'),
+  ('11111111-1111-1111-1111-111111111104', 'Metro Industrial Complex', 'Industrial', '900 Molly Barr Rd, Oxford, MS', 'Dana Brooks', 'dbrooks@metroindustrial.com', null, '2025-02-20 10:00:00+00', '{}'::jsonb,
+    E'Industrial site: PPE required (vest + boots). Check in at the guard booth before entering.\nDetention pond bank can be slick after rain — use caution and avoid lone work near the edge.');
 
 -- ─── CUSTOMER PAYMENT METHODS (Riverside portal defaults) ────────────────────
 
-insert into customer_payment_methods (customer_id, nickname, display_label) values
-  ('11111111-1111-1111-1111-111111111101', null, 'Card ending in 4242'),
-  ('11111111-1111-1111-1111-111111111101', null, 'Bank account ending in 8821');
+insert into customer_payment_methods (customer_id, nickname, display_label, method_type, is_default, last_four, expires_month, expires_year, billing_name) values
+  ('11111111-1111-1111-1111-111111111101', null, 'Card ending in 4242', 'card', true, '4242', 8, 2027, 'Maria Chen'),
+  ('11111111-1111-1111-1111-111111111101', null, 'Bank account ending in 8821', 'bank', false, '8821', null, null, 'Riverside Office Park');
 
 -- ─── CONTRACTS (seasonal maintenance agreements) ───────────────────────────
 
@@ -104,6 +111,11 @@ insert into extra_work_orders (id, contract_id, title, description, quoted_amoun
 -- ─── INVOICES & LINE ITEMS ───────────────────────────────────────────────────
 -- Story: Riverside has open June invoice w/ extra work | Metro is 90+ days overdue
 
+-- Stories:
+--   INV-0001 fully paid (ACH)
+--   INV-0003 fully paid (check)
+--   INV-0005 partially paid with multiple payments (check + card)
+--   INV-0006 canceled (cannot receive payments)
 insert into invoices (id, contract_id, customer_id, invoice_number, issue_date, due_date, status, subtotal, total, amount_paid) values
   ('55555555-5555-5555-5555-555555555501', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0001', '2026-05-01', '2026-05-31', 'paid', 2400.00, 2400.00, 2400.00),
   ('55555555-5555-5555-5555-555555555502', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0002', '2026-06-01', '2026-07-01', 'sent', 4250.00, 4250.00, 0.00),
@@ -111,7 +123,7 @@ insert into invoices (id, contract_id, customer_id, invoice_number, issue_date, 
   ('55555555-5555-5555-5555-555555555507', '22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111101', 'INV-0007', '2026-06-01', '2026-07-01', 'sent', 900.00, 900.00, 0.00),
   ('55555555-5555-5555-5555-555555555503', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0003', '2026-06-01', '2026-07-01', 'paid', 3200.00, 3200.00, 3200.00),
   ('55555555-5555-5555-5555-555555555504', '22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'INV-0004', '2026-04-01', '2026-05-01', 'past_due', 4500.00, 4500.00, 0.00),
-  ('55555555-5555-5555-5555-555555555505', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0005', '2026-07-01', '2026-08-15', 'partially_paid', 1800.00, 1800.00, 900.00),
+  ('55555555-5555-5555-5555-555555555505', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0005', '2026-07-01', '2026-07-15', 'partially_paid', 1800.00, 1800.00, 900.00),
   ('55555555-5555-5555-5555-555555555508', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0008', '2026-08-01', '2026-08-31', 'draft', 1200.00, 1200.00, 0.00),
   ('55555555-5555-5555-5555-555555555509', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0009', '2026-08-01', '2026-08-31', 'approved', 3200.00, 3200.00, 0.00);
 
@@ -128,7 +140,7 @@ insert into invoice_lines (invoice_id, description, amount, line_type) values
   ('55555555-5555-5555-5555-555555555509', 'Monthly maintenance — Summit Retail (August 2026)', 3200.00, 'recurring');
 
 -- ─── PAYMENTS (simulated) ────────────────────────────────────────────────────
-
+-- Demonstrates: full ACH, full check, multi-payment partial (check + card)
 insert into payments (payment_number, invoice_id, customer_id, amount, applied_amount, unapplied_amount, payment_date, payment_method, notes) values
   ('CR-0001', '55555555-5555-5555-5555-555555555501', '11111111-1111-1111-1111-111111111101', 2400.00, 2400.00, 0, '2026-05-28', 'simulated_ach', 'On-time payment'),
   ('CR-0002', '55555555-5555-5555-5555-555555555503', '11111111-1111-1111-1111-111111111102', 3200.00, 3200.00, 0, '2026-06-15', 'simulated_check', 'Received by mail'),
@@ -143,3 +155,31 @@ insert into support_requests (customer_id, category, message, linked_type, linke
   -- Field requests visible to Crew Lead (questions / concerns / complaints)
   ('11111111-1111-1111-1111-111111111102', 'concern', 'Gate code at the north entrance was changed — crews need the updated code before the next mow.', 'contract', '22222222-2222-2222-2222-222222222202', 'Open', null, '2026-08-01 15:20:00+00'),
   ('11111111-1111-1111-1111-111111111103', 'complaint', 'Edging along the front walk was missed on the last visit. Please correct on the next stop.', 'contract', '22222222-2222-2222-2222-222222222203', 'In Progress', null, '2026-08-03 11:05:00+00');
+
+-- ─── EQUIPMENT (fixed assets — unit of production) ───────────────────────────
+
+insert into equipment (id, name, category, purchase_date, cost, salvage_value, useful_life_years, useful_life_months, estimated_total_hours, status, notes) values
+  ('66666666-6666-6666-6666-666666666601', 'Exmark Lazer Z X-Series', 'Mowers', '2023-03-15', 14500.00, 2500.00, 5, 0, 4000, 'active', 'Primary commercial zero-turn'),
+  ('66666666-6666-6666-6666-666666666602', 'Toro Groundsmaster 4000', 'Mowers', '2022-04-01', 22000.00, 4000.00, 6, 0, 5000, 'active', 'Wide-area mower for large lots'),
+  ('66666666-6666-6666-6666-666666666603', 'Ford F-250 Crew Cab', 'Trucks/Trailers', '2021-09-10', 48500.00, 12000.00, 8, 0, 8000, 'active', 'Main crew transport'),
+  ('66666666-6666-6666-6666-666666666604', '16ft Landscape Trailer', 'Trailers', '2022-11-20', 6200.00, 800.00, 10, 0, 6000, 'active', 'Hauls mowers and materials'),
+  ('66666666-6666-6666-6666-666666666605', 'Hunter ICC2 Irrigation Controller Kit', 'Irrigation tools', '2024-02-01', 1850.00, 200.00, 4, 6, 1500, 'active', 'Controller + diagnostic kit'),
+  ('66666666-6666-6666-6666-666666666606', 'Stihl BR 800 X Backpack Blower', 'Hand/power tools', '2023-06-01', 780.00, 100.00, 3, 0, 1200, 'active', null),
+  ('66666666-6666-6666-6666-666666666607', 'Echo SRM-2620T Trimmer Pair', 'Hand/power tools', '2024-03-12', 520.00, 50.00, 2, 6, 900, 'active', 'Two-pack for crews'),
+  ('66666666-6666-6666-6666-666666666608', 'Older Walk-Behind Mower', 'Mowers', '2018-05-01', 3200.00, 200.00, 5, 0, 2500, 'retired', 'Retired — parts donor');
+
+update equipment set retired_at = '2025-11-01' where id = '66666666-6666-6666-6666-666666666608';
+
+insert into equipment_usage (equipment_id, visit_id, hours, used_on, notes) values
+  ('66666666-6666-6666-6666-666666666601', '33333333-3333-3333-3333-333333333301', 3.0, '2026-06-02', 'Riverside grounds mow'),
+  ('66666666-6666-6666-6666-666666666606', '33333333-3333-3333-3333-333333333301', 1.5, '2026-06-02', 'Blow-off after mow'),
+  ('66666666-6666-6666-6666-666666666601', '33333333-3333-3333-3333-333333333302', 2.0, '2026-06-09', 'Entrance hedge support'),
+  ('66666666-6666-6666-6666-666666666607', '33333333-3333-3333-3333-333333333302', 2.5, '2026-06-09', 'Trimming'),
+  ('66666666-6666-6666-6666-666666666602', '33333333-3333-3333-3333-333333333304', 4.0, '2026-06-03', 'Summit retail frontage'),
+  ('66666666-6666-6666-6666-666666666603', '33333333-3333-3333-3333-333333333304', 4.0, '2026-06-03', 'Crew transport'),
+  ('66666666-6666-6666-6666-666666666604', '33333333-3333-3333-3333-333333333304', 4.0, '2026-06-03', 'Equipment haul'),
+  ('66666666-6666-6666-6666-666666666602', '33333333-3333-3333-3333-333333333305', 5.0, '2026-06-04', 'Metro industrial lot'),
+  ('66666666-6666-6666-6666-666666666603', '33333333-3333-3333-3333-333333333305', 5.5, '2026-06-04', 'Extended day'),
+  ('66666666-6666-6666-6666-666666666605', '33333333-3333-3333-3333-333333333308', 2.0, '2026-06-10', 'Zone 3 diagnostics'),
+  ('66666666-6666-6666-6666-666666666601', '33333333-3333-3333-3333-333333333310', 2.0, '2026-06-11', 'North island mow'),
+  ('66666666-6666-6666-6666-666666666606', '33333333-3333-3333-3333-333333333310', 1.0, '2026-06-11', 'Cleanup blow');

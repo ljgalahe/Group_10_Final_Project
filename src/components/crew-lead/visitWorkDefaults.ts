@@ -98,6 +98,88 @@ export function equipmentForServices(services: string[]): string[] {
   return uniqueTitleCased(items);
 }
 
+function hashSeed(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function allocateAmounts(
+  items: string[],
+  budget: number,
+  seed: string
+): { name: string; amount: number }[] {
+  if (items.length === 0) return [];
+  if (budget <= 0) {
+    return items.map((name) => ({ name, amount: 0 }));
+  }
+
+  const weights = items.map(
+    (name) => 1 + (hashSeed(`${seed}:${name}`) % 5)
+  );
+  const weightSum = weights.reduce((sum, w) => sum + w, 0);
+  let remainingCents = Math.round(budget * 100);
+
+  return items.map((name, index) => {
+    if (index === items.length - 1) {
+      return { name, amount: remainingCents / 100 };
+    }
+    const share = Math.round((remainingCents * weights[index]) / weightSum);
+    remainingCents -= share;
+    return { name, amount: share / 100 };
+  });
+}
+
+export type SupplyCostLine = { name: string; amount: number };
+
+/** Split a visit's job-cost total across materials and equipment line items. */
+export function supplyCostBreakdown(
+  services: string[],
+  costTotal: number,
+  seed = ""
+): {
+  materials: SupplyCostLine[];
+  equipment: SupplyCostLine[];
+  materialsTotal: number;
+  equipmentTotal: number;
+} {
+  const materialNames = materialsForServices(services);
+  const equipmentNames = equipmentForServices(services);
+  const hasMaterials = materialNames.length > 0;
+  const hasEquipment = equipmentNames.length > 0;
+
+  let materialsBudget = 0;
+  let equipmentBudget = 0;
+  if (hasMaterials && hasEquipment) {
+    materialsBudget = Math.round(costTotal * 0.58 * 100) / 100;
+    equipmentBudget = Math.round((costTotal - materialsBudget) * 100) / 100;
+  } else if (hasMaterials) {
+    materialsBudget = costTotal;
+  } else {
+    equipmentBudget = costTotal;
+  }
+
+  const materials = allocateAmounts(
+    materialNames,
+    materialsBudget,
+    `${seed}:mat`
+  );
+  const equipment = allocateAmounts(
+    equipmentNames,
+    equipmentBudget,
+    `${seed}:eq`
+  );
+
+  return {
+    materials,
+    equipment,
+    materialsTotal: materials.reduce((s, row) => s + row.amount, 0),
+    equipmentTotal: equipment.reduce((s, row) => s + row.amount, 0),
+  };
+}
+
 export function tasksForServices(services: string[]): { id: string; label: string }[] {
   const labels: string[] = [...DEFAULT_TASKS];
   for (const service of services) {
@@ -112,33 +194,4 @@ export function tasksForServices(services: string[]): { id: string; label: strin
 
 export function formatStatusLabel(status: string): string {
   return toTitleCase(status.replace(/_/g, " "));
-}
-
-const CUSTOMER_SITE_NOTES: Record<string, string[]> = {
-  "11111111-1111-1111-1111-111111111101": [
-    "Office park has a security dog that barks at crews near the rear lot — do not approach the fenced kennel area.",
-    "Park trailers only in the designated service bay; front entrance must stay clear for tenants.",
-  ],
-  "11111111-1111-1111-1111-111111111102": [
-    "Retail center: avoid leaf blowing near storefronts before 9:00 AM.",
-    "Irrigation controller is inside the locked utility closet — key is in the crew lockbox.",
-  ],
-  "11111111-1111-1111-1111-111111111103": [
-    "HOA common areas: resident owns a dog that may bite if the side gate is left open — keep gate latched.",
-    "Do not mow within 3 feet of playground equipment during school pickup hours.",
-  ],
-  "11111111-1111-1111-1111-111111111104": [
-    "Industrial site: PPE required (vest + boots). Check in at the guard booth before entering.",
-    "Detention pond bank can be slick after rain — use caution and avoid lone work near the edge.",
-  ],
-};
-
-const DEFAULT_SITE_NOTES = [
-  "Confirm site access and any posted hazards before starting work.",
-  "Report unsafe animals, broken fencing, or access issues to the crew lead immediately.",
-];
-
-/** Customer notes the crew should know before arriving (dogs, access, hazards). */
-export function customerNotesForCustomer(customerId: string): string[] {
-  return CUSTOMER_SITE_NOTES[customerId] ?? DEFAULT_SITE_NOTES;
 }
