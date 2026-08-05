@@ -78,7 +78,6 @@ export function StatusBadge({ status }: { status: string }) {
     expired: "bg-red-100 text-red-800",
     controls_breached: "bg-red-100 text-red-800",
     unprofitable: "bg-red-100 text-red-800",
-    cancelled: "bg-gray-100 text-gray-800",
   };
 
   return (
