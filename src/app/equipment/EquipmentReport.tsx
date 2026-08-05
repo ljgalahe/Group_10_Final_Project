@@ -239,10 +239,20 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
       cost: source.reduce((s, a) => s + a.cost, 0),
       accum: source.reduce((s, a) => s + a.accum, 0),
       book: source.reduce((s, a) => s + a.book, 0),
-      hoursUsed: source.reduce((s, a) => s + a.hours_used, 0),
-      hoursRemaining: source.reduce((s, a) => s + a.remaining, 0),
     };
   }, [filtered]);
+
+  /** Active assets at or near end of useful life hours (≤10% remaining). */
+  const replaceSoon = useMemo(() => {
+    return enriched
+      .filter((a) => {
+        if (a.status !== "active") return false;
+        if (a.estimated_total_hours <= 0) return false;
+        const lifeLeft = a.remaining / a.estimated_total_hours;
+        return lifeLeft <= 0.1;
+      })
+      .sort((a, b) => a.remaining - b.remaining);
+  }, [enriched]);
 
   function openCreate() {
     setEditing(null);
@@ -256,17 +266,62 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
 
   return (
     <>
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total acquisition cost" value={formatCurrency(totals.cost)} />
-        <StatCard
-          label="Accumulated depreciation"
-          value={formatCurrency(totals.accum)}
-        />
-        <StatCard label="Net book value" value={formatCurrency(totals.book)} />
-        <StatCard
-          label="Hours used / remaining"
-          value={`${totals.hoursUsed.toFixed(1)} / ${totals.hoursRemaining.toFixed(1)}`}
-        />
+      <div className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)] lg:items-stretch">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatCard
+            label="Total acquisition cost"
+            value={formatCurrency(totals.cost)}
+          />
+          <StatCard
+            label="Accumulated depreciation"
+            value={formatCurrency(totals.accum)}
+          />
+          <StatCard
+            label="Net book value"
+            value={formatCurrency(totals.book)}
+          />
+        </div>
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            replaceSoon.length > 0
+              ? "border-amber-300 bg-amber-50 text-amber-950"
+              : "border-stone-200 bg-stone-50 text-stone-700"
+          }`}
+          role="status"
+        >
+          <p className="font-semibold tracking-tight">
+            {replaceSoon.length > 0
+              ? "Replacement alert"
+              : "No replacements due"}
+          </p>
+          {replaceSoon.length > 0 ? (
+            <>
+              <p className="mt-1 text-amber-900/90">
+                Plan to replace equipment at ≤10% of estimated life hours
+                remaining:
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {replaceSoon.map((a) => (
+                  <li key={a.id} className="leading-snug">
+                    <span className="font-medium">{a.name}</span>
+                    <span className="text-amber-800/80">
+                      {" "}
+                      — {a.remaining.toFixed(1)} hrs left (
+                      {((a.remaining / a.estimated_total_hours) * 100).toFixed(
+                        0
+                      )}
+                      %)
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="mt-1 text-stone-600">
+              No active assets are within 10% of their estimated life hours.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
