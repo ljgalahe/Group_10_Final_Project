@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AccountantContractsView } from "@/components/AccountantContractsView";
 import { AppShell } from "@/components/AppShell";
 import { ContractsTable } from "@/components/ContractsTable";
@@ -16,8 +17,9 @@ import {
 
 export default async function ContractsPage() {
   await requireAppAccess();
-
   const role = await getViewRole();
+  if (role === "crew_member") redirect("/dashboard");
+
   const isAccountant = roleCanEditContractDetails(role);
 
   if (isAccountant) {

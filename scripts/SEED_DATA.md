@@ -48,15 +48,25 @@ npm run seed
 
 ---
 
-## Invoices (5)
+## Invoices (6)
 
 | Invoice | Customer | Amount | Status | Demo Purpose |
 |---------|----------|--------|--------|--------------|
-| INV-0001 | Riverside | $2,400 | Paid | Show payment history |
-| INV-0002 | Riverside | $4,250 | Sent (overdue) | Recurring + extra work line items; customer can Pay Now |
-| INV-0003 | Summit | $3,200 | Paid | Clean paid example |
+| INV-0001 | Riverside | $2,400 | Paid | Fully paid via ACH |
+| INV-0002 | Riverside | $4,250 | Sent | Recurring + extra work; customer can Pay Now |
+| INV-0003 | Summit | $3,200 | Paid | Fully paid via check |
 | INV-0004 | Metro | $4,500 | Overdue | **90+ day AR aging bucket** |
-| INV-0005 | Harbor View | $1,800 | Sent ($900 paid) | Partial payment — $900 balance remaining |
+| INV-0005 | Harbor View | $1,800 | Partially Paid ($900) | Two payments (check + card); $900 remaining |
+| INV-0006 | Harbor View | $500 | Canceled | Cannot receive payments |
+
+## Payments (4)
+
+| Invoice | Amount | Method | Demo Purpose |
+|---------|--------|--------|--------------|
+| INV-0001 | $2,400 | ACH | Full payment |
+| INV-0003 | $3,200 | Check | Full payment with check # |
+| INV-0005 | $600 | Check | First of multiple partials |
+| INV-0005 | $300 | Card | Second partial (August collection) |
 
 ---
 

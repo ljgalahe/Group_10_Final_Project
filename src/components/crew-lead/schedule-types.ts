@@ -9,6 +9,8 @@ export type ScheduleJob = {
   address: string;
   contractTitle: string;
   services: string[];
+  /** Customer notes (dogs, parking, access) for this property */
+  customerNotes: string[];
   lat: number;
   lng: number;
   source: "visit" | "projected";
@@ -33,6 +35,8 @@ export type CrewExtraWorkNote = {
   id: string;
   description: string;
   status: "needed" | "pending_approval" | "approved" | "declined";
+  /** Estimated or logged hours for this extra work (schedule focus). */
+  hours?: number;
 };
 
 export type VisitWorkState = {

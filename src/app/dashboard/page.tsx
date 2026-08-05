@@ -9,8 +9,11 @@ import {
   buildCrewSchedule,
   todayDateOnly,
 } from "@/components/crew-lead/buildCrewSchedule";
+import { CrewMemberAvailabilityPanel } from "@/components/crew-member/CrewMemberAvailabilityPanel";
+import { CrewMemberTodayJobs } from "@/components/crew-member/CrewMemberTodayJobs";
 import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPanel";
 import { Card, PageHeader, StatCard } from "@/components/ui";
+import { filterJobsForCrewMember } from "@/lib/crew-member";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type {
@@ -24,6 +27,7 @@ import {
   fetchCustomerUpcomingVisits,
   fetchDashboardStats,
 } from "@/lib/queries";
+import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
@@ -168,6 +172,11 @@ export default async function DashboardPage({
       title: "Crew Lead Dashboard",
       description: "See upcoming visits and mark work as completed.",
     },
+    crew_member: {
+      title: "Crew Member Dashboard",
+      description:
+        "Today's assigned jobs and your availability / time-off requests.",
+    },
     customer: {
       title: "Customer Portal",
       description:
@@ -175,29 +184,53 @@ export default async function DashboardPage({
     },
   };
 
-  const copy = roleTitles[role];
+  const copy = roleTitles[role] ?? {
+    title: "Dashboard",
+    description: "GreenScape Commercial portal.",
+  };
   const today = todayDateOnly();
   let scheduleJobs: ReturnType<typeof buildCrewSchedule> = [];
+  let memberJobs: ReturnType<typeof buildCrewSchedule> = [];
+  let memberExtraWork: ExtraWorkItem[] = [];
   const visitLabels: Record<string, string> = {};
   let crewSupportRequests: SupportRequestQueueItem[] = [];
 
-  if (role === "crew_lead" || role === "manager") {
+  if (role === "crew_lead" || role === "manager" || role === "crew_member") {
     const supabase = await createDataClient();
-    const [{ data: contracts }, { data: visits }] = await Promise.all([
-      supabase
-        .from("contracts")
-        .select(
-          "id, title, status, visits_per_week, season_start, season_end, customer_id, customers(id, name, address), contract_services(service_name, included)"
-        )
-        .eq("status", "active"),
-      supabase
-        .from("service_visits")
-        .select(
-          "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address), contract_services(service_name, included))"
-        )
-        .order("scheduled_date", { ascending: true }),
-    ]);
+    const [{ data: contracts }, { data: visits }, { data: extraWorkRows }] =
+      await Promise.all([
+        supabase
+          .from("contracts")
+          .select(
+            "id, title, status, visits_per_week, season_start, season_end, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included)"
+          )
+          .eq("status", "active"),
+        supabase
+          .from("service_visits")
+          .select(
+            "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
+          )
+          .order("scheduled_date", { ascending: true }),
+        role === "crew_member"
+          ? supabase
+              .from("extra_work_orders")
+              .select(
+                "id, contract_id, title, description, quoted_amount, status"
+              )
+          : Promise.resolve({ data: null }),
+      ]);
     scheduleJobs = buildCrewSchedule(contracts ?? [], visits ?? []);
+    if (role === "crew_member") {
+      memberJobs = filterJobsForCrewMember(scheduleJobs);
+      memberExtraWork = (extraWorkRows ?? []).map((row) => ({
+        id: row.id,
+        contractId: row.contract_id,
+        title: row.title,
+        description: row.description,
+        quotedAmount: Number(row.quoted_amount),
+        status: row.status,
+      }));
+    }
     for (const job of scheduleJobs) {
       visitLabels[job.id] = `${job.customerName} · ${job.contractTitle}`;
     }
@@ -410,6 +443,12 @@ export default async function DashboardPage({
                 Request a quote
               </Link>
               <Link
+                href="/profile"
+                className="rounded-lg border border-green-800/40 bg-white px-4 py-2 text-sm font-medium text-green-900 shadow-sm hover:border-green-800 hover:bg-green-50"
+              >
+                Profile
+              </Link>
+              <Link
                 href="/contact"
                 className="rounded-lg border border-green-800/40 bg-white px-4 py-2 text-sm font-medium text-green-900 shadow-sm hover:border-green-800 hover:bg-green-50"
               >
@@ -420,7 +459,7 @@ export default async function DashboardPage({
         </>
       ) : null}
 
-      {role !== "customer" ? staffStatsRow : null}
+      {role !== "customer" && role !== "crew_member" ? staffStatsRow : null}
 
       {role === "manager" ? (
         <div className="mt-8 space-y-6">
@@ -466,6 +505,39 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
+      {role === "crew_member" ? (
+        <div className="mt-8 space-y-6">
+          <CrewMemberTodayJobs
+            jobs={memberJobs}
+            today={today}
+            extraWork={memberExtraWork}
+          />
+          <Card>
+            <h2 className="mb-4 text-lg font-semibold text-green-950">
+              Availability &amp; Time Off
+            </h2>
+            <p className="mb-4 text-sm text-stone-500">
+              Request time off or update your availability for manager review.
+            </p>
+            <CrewMemberAvailabilityPanel today={today} />
+          </Card>
+          <div className="flex flex-wrap gap-3">
+            <a
+              href="/schedule"
+              className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+            >
+              Open Schedule
+            </a>
+            <a
+              href="/visits"
+              className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+            >
+              Open Visits
+            </a>
+          </div>
+        </div>
+      ) : null}
+
       {role === "accountant" ? (
         <div className="mt-8">
           <Card>
@@ -484,6 +556,12 @@ export default async function DashboardPage({
                 className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
               >
                 Profitability Report
+              </Link>
+              <Link
+                href="/reports/journal-entries"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Journal Entries
               </Link>
             </div>
           </Card>

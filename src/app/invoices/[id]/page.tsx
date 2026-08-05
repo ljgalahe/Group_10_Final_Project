@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { CustomerPayButton } from "@/components/customer/CustomerPayButton";
 import { DownloadInvoiceReceiptButton } from "@/components/customer/DownloadInvoiceReceiptButton";
 import { AppShell } from "@/components/AppShell";
@@ -8,7 +8,13 @@ import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate, getDisplayInvoiceStatus } from "@/lib/format";
-import { fetchCustomerPaymentMethods, fetchInvoice } from "@/lib/queries";
+import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
+import { invoiceJournalReadyReason } from "@/lib/journal";
+import {
+  fetchCustomerPaymentMethods,
+  fetchInvoice,
+  fetchJournalSourceStates,
+} from "@/lib/queries";
 import {
   getDisplayInvoiceStatus as getAccountantInvoiceStatus,
   getOutstandingBalance,
@@ -57,6 +63,7 @@ export default async function InvoiceDetailPage({
   await requireAppAccess();
 
   const role = await getViewRole();
+  if (role === "crew_member") redirect("/dashboard");
   const isAccountant = role === "accountant";
   const { data: invoice } = await fetchInvoice(id);
   if (!invoice) notFound();
@@ -70,6 +77,9 @@ export default async function InvoiceDetailPage({
   const unappliedCash = isAccountant
     ? await fetchUnappliedCashForCustomer(invoice.customer_id as string)
     : [];
+  const invoiceJournalStatus = isAccountant
+    ? ((await fetchJournalSourceStates()).invoice.get(id) ?? null)
+    : null;
 
   const lines = (invoice.invoice_lines ?? []) as {
     id: string;
@@ -136,6 +146,12 @@ export default async function InvoiceDetailPage({
           <div className="flex flex-wrap items-center gap-2">
             {isAccountant ? (
               <>
+                <PostJournalEntryButton
+                  source="invoice"
+                  sourceId={id}
+                  journalStatus={invoiceJournalStatus}
+                  disabledReason={invoiceJournalReadyReason(invoice.status) ?? undefined}
+                />
                 <InvoiceActivityButton activities={activities} />
                 <InvoiceWorkflowActions
                   invoice={invoice}
