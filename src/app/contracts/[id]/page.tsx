@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { approveExtraWork, generateInvoice } from "@/app/actions/business";
 import { AppShell } from "@/components/AppShell";
 import { ContractDetailsForm } from "@/components/ContractDetailsForm";
@@ -39,6 +39,7 @@ export default async function ContractDetailPage({
   await requireAppAccess();
 
   const role = await getViewRole();
+  if (role === "crew_member") redirect("/dashboard");
   const { data: contractRow } = await fetchContract(id);
   if (!contractRow) notFound();
 

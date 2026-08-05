@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -16,6 +17,7 @@ import {
 export default async function PaymentsPage() {
   await requireAppAccess();
   const role = await getViewRole();
+  if (role === "crew_member") redirect("/dashboard");
   const isAccountant = role === "accountant";
 
   if (!isAccountant) {

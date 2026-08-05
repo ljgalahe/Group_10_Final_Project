@@ -23,6 +23,7 @@ import {
   roleCanManageVisits,
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { jobIncludesCrewMember } from "@/lib/crew-member";
 import {
   fetchAccountantVisits,
   fetchVisitCosts,
@@ -83,7 +84,7 @@ export default async function VisitsPage({
   let extraWork: ExtraWorkItem[] = [];
   const crewJobsByVisitId = new Map<string, ScheduleJob>();
 
-  if (role === "crew_lead") {
+  if (role === "crew_lead" || role === "crew_member") {
     const supabase = await createDataClient();
     const [{ data: enrichedVisits }, { data: extraWorkRows }] =
       await Promise.all([
@@ -172,9 +173,14 @@ export default async function VisitsPage({
     }
   }
 
-  if (role === "crew_lead") {
+  if (role === "crew_lead" || role === "crew_member") {
+    const scopedVisits =
+      role === "crew_member"
+        ? visits.filter((visit) => jobIncludesCrewMember(visit.id))
+        : visits;
+
     const cardData: CrewLeadVisitCardData[] = await Promise.all(
-      visits.map(async (visit) => {
+      scopedVisits.map(async (visit) => {
         const contract = visit.contracts as {
           title: string;
           customers: { name: string } | null;
@@ -210,12 +216,26 @@ export default async function VisitsPage({
       <AppShell>
         <PageHeader
           title="Service Visits"
-          description="Scheduled and completed crew visits with Labor, Materials, and Equipment costs."
+          description={
+            role === "crew_member"
+              ? "Upcoming and completed visits assigned to you (read-only)."
+              : "Scheduled and completed crew visits with Labor, Materials, and Equipment costs."
+          }
         />
         {cardData.length === 0 ? (
-          <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />
+          <EmptyState
+            message={
+              role === "crew_member"
+                ? "No visits assigned to you yet."
+                : "No visits scheduled. Run the seed script to load demo visits."
+            }
+          />
         ) : (
-          <CrewLeadVisitsBoard visits={cardData} extraWork={extraWork} />
+          <CrewLeadVisitsBoard
+            visits={cardData}
+            extraWork={extraWork}
+            readOnly={role === "crew_member"}
+          />
         )}
       </AppShell>
     );

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { CustomerPayButton } from "@/components/customer/CustomerPayButton";
 import { DownloadInvoiceReceiptButton } from "@/components/customer/DownloadInvoiceReceiptButton";
 import { AppShell } from "@/components/AppShell";
@@ -57,6 +57,7 @@ export default async function InvoiceDetailPage({
   await requireAppAccess();
 
   const role = await getViewRole();
+  if (role === "crew_member") redirect("/dashboard");
   const isAccountant = role === "accountant";
   const { data: invoice } = await fetchInvoice(id);
   if (!invoice) notFound();
