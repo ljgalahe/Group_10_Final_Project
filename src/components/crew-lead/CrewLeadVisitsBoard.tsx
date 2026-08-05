@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { completeVisit } from "@/app/actions/business";
 import { AssignedEmployeesList } from "@/components/crew-lead/AssignedEmployeesList";
 import { CrewLeadVisitDetails } from "@/components/crew-lead/CrewLeadVisitDetails";
+import { CrewVisitPhotos } from "@/components/crew-lead/CrewVisitPhotos";
 import {
   getAssignedEmployeesForJob,
   loadVisitWorkStateForStatus,
@@ -209,7 +210,7 @@ export function CrewLeadVisitsBoard({
                       {visit.contractTitle}
                     </p>
                     <p className="text-sm text-stone-500">
-                      {visit.customerName} · {formatDate(visit.scheduledDate)}
+                      {visit.customerName} ┬╖ {formatDate(visit.scheduledDate)}
                     </p>
                     {visit.crewNotes ? (
                       <p className="mt-2 text-sm text-stone-600">
@@ -260,7 +261,7 @@ export function CrewLeadVisitsBoard({
                           <span className="font-medium text-stone-800">
                             {titleCaseCostType(cost.cost_type)}
                           </span>
-                          : {cost.description ?? "—"} —{" "}
+                          : {cost.description ?? "ΓÇö"} ΓÇö{" "}
                           {formatCurrency(Number(cost.amount))}
                         </li>
                       ))}
