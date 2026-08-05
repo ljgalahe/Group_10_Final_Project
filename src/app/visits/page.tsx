@@ -6,7 +6,7 @@ import {
   type CrewLeadVisitCardData,
 } from "@/components/crew-lead/CrewLeadVisitsBoard";
 import { formatStatusLabel } from "@/components/crew-lead/visitWorkDefaults";
-import { normalizeServiceName } from "@/components/crew-lead/buildCrewSchedule";
+import { normalizeServiceName, oxfordAddressForCustomer } from "@/components/crew-lead/buildCrewSchedule";
 import type {
   ExtraWorkItem,
   ScheduleJob,
@@ -114,7 +114,7 @@ export default async function VisitsPage() {
         customerId: customer.id,
         customerName: customer.name,
         customerIdShort: customer.id.slice(-4),
-        address: customer.address ?? "Address unavailable",
+        address: oxfordAddressForCustomer(customer.id, customer.address),
         contractTitle: contract.title,
         services,
         lat: 34.3665,

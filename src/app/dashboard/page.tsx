@@ -6,6 +6,7 @@ import {
   buildCrewSchedule,
   todayDateOnly,
 } from "@/components/crew-lead/buildCrewSchedule";
+import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPanel";
 import { Card, PageHeader, StatCard } from "@/components/ui";
 import { getViewRole } from "@/lib/demo-role";
 import { formatCurrency } from "@/lib/format";
@@ -42,8 +43,9 @@ export default async function DashboardPage() {
   const copy = roleTitles[role];
   const today = todayDateOnly();
   let scheduleJobs: ReturnType<typeof buildCrewSchedule> = [];
+  const visitLabels: Record<string, string> = {};
 
-  if (role === "crew_lead") {
+  if (role === "crew_lead" || role === "manager") {
     const supabase = await createDataClient();
     const [{ data: contracts }, { data: visits }] = await Promise.all([
       supabase
@@ -60,6 +62,32 @@ export default async function DashboardPage() {
         .order("scheduled_date", { ascending: true }),
     ]);
     scheduleJobs = buildCrewSchedule(contracts ?? [], visits ?? []);
+    for (const job of scheduleJobs) {
+      visitLabels[job.id] = `${job.customerName} · ${job.contractTitle}`;
+    }
+    for (const visit of visits ?? []) {
+      const contractRaw = visit.contracts as
+        | {
+            title: string;
+            customers: { name: string } | { name: string }[] | null;
+          }
+        | {
+            title: string;
+            customers: { name: string } | { name: string }[] | null;
+          }[]
+        | null;
+      const contract = Array.isArray(contractRaw)
+        ? contractRaw[0]
+        : contractRaw;
+      const customerRaw = contract?.customers;
+      const customer = Array.isArray(customerRaw)
+        ? customerRaw[0]
+        : customerRaw;
+      if (customer?.name) {
+        visitLabels[visit.id] =
+          `${customer.name} · ${contract?.title ?? "Visit"}`;
+      }
+    }
   }
 
   return (
@@ -81,6 +109,31 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {role === "manager" ? (
+        <div className="mt-8 space-y-6">
+          <ManagerApprovalsPanel visitLabels={visitLabels} />
+          <Card>
+            <h2 className="text-lg font-semibold text-green-950">
+              Quick Actions
+            </h2>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <a
+                href="/reports/ar-aging"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                AR Aging Report
+              </a>
+              <a
+                href="/reports/profitability"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Profitability Report
+              </a>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
       {role === "crew_lead" ? (
         <div className="mt-8 space-y-6">
           <CrewLeadTomorrowPreview jobs={scheduleJobs} today={today} />
@@ -93,7 +146,7 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      {(role === "manager" || role === "accountant") && (
+      {role === "accountant" ? (
         <div className="mt-8">
           <Card>
             <h2 className="text-lg font-semibold text-green-950">
@@ -115,7 +168,7 @@ export default async function DashboardPage() {
             </div>
           </Card>
         </div>
-      )}
+      ) : null}
     </AppShell>
   );
 }

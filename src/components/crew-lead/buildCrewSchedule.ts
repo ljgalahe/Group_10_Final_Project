@@ -8,6 +8,25 @@ const CUSTOMER_COORDS: Record<string, { lat: number; lng: number }> = {
   "11111111-1111-1111-1111-111111111104": { lat: 34.3558, lng: -89.5302 },
 };
 
+const CUSTOMER_OXFORD_ADDRESSES: Record<string, string> = {
+  "11111111-1111-1111-1111-111111111101": "1200 University Ave, Oxford, MS",
+  "11111111-1111-1111-1111-111111111102": "450 Jackson Ave W, Oxford, MS",
+  "11111111-1111-1111-1111-111111111103": "88 South Lamar Blvd, Oxford, MS",
+  "11111111-1111-1111-1111-111111111104": "900 Molly Barr Rd, Oxford, MS",
+};
+
+/** Ensure displayed visit addresses are in Oxford, MS (not Austin). */
+export function oxfordAddressForCustomer(
+  customerId: string,
+  fallback: string | null | undefined
+): string {
+  if (CUSTOMER_OXFORD_ADDRESSES[customerId]) {
+    return CUSTOMER_OXFORD_ADDRESSES[customerId];
+  }
+  if (!fallback) return "Oxford, MS";
+  return fallback.replace(/Austin,\s*TX/gi, "Oxford, MS");
+}
+
 type ContractRow = {
   id: string;
   title: string;
@@ -134,7 +153,7 @@ export function buildCrewSchedule(
       customerId: customer.id,
       customerName: customer.name,
       customerIdShort: customer.id.slice(-4),
-      address: customer.address ?? "Address unavailable",
+      address: oxfordAddressForCustomer(customer.id, customer.address),
       contractTitle: contract.title,
       services: servicesFrom(contract.contract_services),
       lat: coords.lat,
@@ -178,7 +197,7 @@ export function buildCrewSchedule(
               customerId: customer.id,
               customerName: customer.name,
               customerIdShort: customer.id.slice(-4),
-              address: customer.address ?? "Address unavailable",
+              address: oxfordAddressForCustomer(customer.id, customer.address),
               contractTitle: contract.title,
               services,
               lat: coords.lat,

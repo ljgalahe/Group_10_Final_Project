@@ -19,10 +19,10 @@ delete from customers;
 -- ─── CUSTOMERS (4 commercial properties) ───────────────────────────────────
 
 insert into customers (id, name, property_type, address, contact_name, contact_email) values
-  ('11111111-1111-1111-1111-111111111101', 'Riverside Office Park', 'Office Park', '1200 River Rd, Austin, TX', 'Maria Chen', 'mchen@riverside-op.com'),
-  ('11111111-1111-1111-1111-111111111102', 'Summit Retail Center', 'Retail Center', '450 Summit Blvd, Austin, TX', 'James Ortiz', 'jortiz@summitretail.com'),
-  ('11111111-1111-1111-1111-111111111103', 'Harbor View HOA', 'HOA', '88 Harbor Ln, Austin, TX', 'Pat Simmons', 'psimmons@harborviewhoa.org'),
-  ('11111111-1111-1111-1111-111111111104', 'Metro Industrial Complex', 'Industrial', '900 Industrial Dr, Austin, TX', 'Dana Brooks', 'dbrooks@metroindustrial.com');
+  ('11111111-1111-1111-1111-111111111101', 'Riverside Office Park', 'Office Park', '1200 University Ave, Oxford, MS', 'Maria Chen', 'mchen@riverside-op.com'),
+  ('11111111-1111-1111-1111-111111111102', 'Summit Retail Center', 'Retail Center', '450 Jackson Ave W, Oxford, MS', 'James Ortiz', 'jortiz@summitretail.com'),
+  ('11111111-1111-1111-1111-111111111103', 'Harbor View HOA', 'HOA', '88 South Lamar Blvd, Oxford, MS', 'Pat Simmons', 'psimmons@harborviewhoa.org'),
+  ('11111111-1111-1111-1111-111111111104', 'Metro Industrial Complex', 'Industrial', '900 Molly Barr Rd, Oxford, MS', 'Dana Brooks', 'dbrooks@metroindustrial.com');
 
 -- ─── CONTRACTS (seasonal maintenance agreements) ───────────────────────────
 
