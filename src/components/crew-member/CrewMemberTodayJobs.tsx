@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, StatusBadge } from "@/components/ui";
 import { VisitWorkPanel } from "@/components/crew-lead/VisitWorkPanel";
 import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
+import { loadVisitWorkState } from "@/components/crew-lead/crewLeadStorage";
 import type {
   ExtraWorkItem,
   ScheduleJob,
@@ -14,6 +15,11 @@ import {
   mapsDirectionsUrl,
   scheduledArrivalForJob,
 } from "@/lib/crew-member";
+import {
+  resolveMemberHours,
+  type VisitLaborEntry,
+} from "@/lib/crew-hours";
+import { DEMO_CREW_MEMBER } from "@/lib/types";
 
 function formatShort(isoDate: string) {
   const [y, m, d] = isoDate.split("-").map(Number);
@@ -30,12 +36,20 @@ export function CrewMemberTodayJobs({
   jobs,
   today,
   extraWork = [],
+  laborEntries = [],
+  laborByVisit = {},
 }: {
   jobs: ScheduleJob[];
   today: string;
   extraWork?: ExtraWorkItem[];
+  laborEntries?: VisitLaborEntry[];
+  laborByVisit?: Record<
+    string,
+    { quantity: number | null; description: string | null }
+  >;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [hoursByVisit, setHoursByVisit] = useState<Record<string, number>>({});
 
   const todaysJobs = useMemo(
     () =>
@@ -44,6 +58,33 @@ export function CrewMemberTodayJobs({
       ),
     [jobs, today]
   );
+
+  const entriesByVisit = useMemo(() => {
+    const map = new Map<string, VisitLaborEntry[]>();
+    for (const entry of laborEntries) {
+      const list = map.get(entry.visit_id) ?? [];
+      list.push(entry);
+      map.set(entry.visit_id, list);
+    }
+    return map;
+  }, [laborEntries]);
+
+  useEffect(() => {
+    const next: Record<string, number> = {};
+    for (const job of todaysJobs) {
+      const costMeta = laborByVisit[job.id];
+      next[job.id] = resolveMemberHours({
+        visitId: job.id,
+        status: job.status,
+        memberId: DEMO_CREW_MEMBER.id,
+        localState: loadVisitWorkState(job.id),
+        dbEntries: entriesByVisit.get(job.id) ?? [],
+        laborQuantity: costMeta?.quantity,
+        laborDescription: costMeta?.description,
+      });
+    }
+    setHoursByVisit(next);
+  }, [todaysJobs, entriesByVisit, laborByVisit]);
 
   return (
     <div className="space-y-6">
@@ -89,6 +130,12 @@ export function CrewMemberTodayJobs({
                         {coworkers.length > 0
                           ? coworkers.join(", ")
                           : "You (solo on this stop)"}
+                      </p>
+                      <p className="mt-1 text-sm text-stone-700">
+                        <span className="font-medium">Your hours:</span>{" "}
+                        {(hoursByVisit[job.id] ?? 0) > 0
+                          ? `${(hoursByVisit[job.id] ?? 0).toFixed(1)} hrs`
+                          : "Not logged yet"}
                       </p>
                       <p className="mt-1 text-xs text-stone-500">
                         Services:{" "}

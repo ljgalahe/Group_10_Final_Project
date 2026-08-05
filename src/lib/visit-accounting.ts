@@ -1,4 +1,10 @@
 import type { CostType } from "@/lib/types";
+import {
+  entriesToAccountantEmployees,
+  laborTotals,
+  parseLaborDescription,
+  type VisitLaborEntry,
+} from "@/lib/crew-hours";
 
 export type VisitPriority = "Routine" | "High" | "Emergency" | "Seasonal";
 
@@ -50,23 +56,53 @@ export function crewDetailsForVisit(
   visitId: string,
   assignedCrew: string | null | undefined,
   laborQuantity: number | null | undefined,
-  laborAmount: number | null | undefined
+  laborAmount: number | null | undefined,
+  laborEntries?: VisitLaborEntry[] | null,
+  laborDescription?: string | null
 ) {
   const roster = CREW_ROSTERS[hashString(visitId) % CREW_ROSTERS.length];
   const leader = assignedCrew?.startsWith("Crew")
     ? roster.leader
     : assignedCrew || roster.leader;
 
+  const parsed =
+    laborEntries && laborEntries.length > 0
+      ? laborEntries
+      : parseLaborDescription(visitId, laborDescription);
+  const seed = hashString(visitId);
+
+  if (parsed && parsed.length > 0) {
+    const employees = entriesToAccountantEmployees(parsed);
+    const totals = laborTotals(parsed);
+    const actualHours = totals.hours;
+    const estimatedHours = Number(
+      Math.max(actualHours * (0.85 + (seed % 10) / 100), 1).toFixed(1)
+    );
+    const hourVariance = Number((actualHours - estimatedHours).toFixed(1));
+    const totalPay =
+      laborAmount && Number(laborAmount) > 0
+        ? Number(laborAmount)
+        : totals.amount;
+    return {
+      leader: employees[0]?.name ?? leader,
+      employees,
+      actualHours,
+      estimatedHours,
+      hourVariance,
+      totalPay,
+      fromSyncedLabor: true as const,
+    };
+  }
+
   const actualHoursTotal =
     laborQuantity && laborQuantity > 0
       ? Number(laborQuantity)
       : roster.employees.length * 3;
 
-  const seed = hashString(visitId);
   const employees = roster.employees.map((name, index) => {
     const isLeader = name === roster.leader || index === 0;
     const hourShare = isLeader ? 1.1 : 0.9 + ((seed + index) % 4) / 20;
-    const rawHours = actualHoursTotal / roster.employees.length * hourShare;
+    const rawHours = (actualHoursTotal / roster.employees.length) * hourShare;
     const hours = Number(rawHours.toFixed(1));
     const payRate = isLeader ? 38 + (seed % 5) : 28 + ((seed + index) % 6);
     return {
@@ -88,7 +124,9 @@ export function crewDetailsForVisit(
   const totalPay =
     laborAmount && Number(laborAmount) > 0
       ? Number(laborAmount)
-      : Number(employees.reduce((sum, employee) => sum + employee.pay, 0).toFixed(2));
+      : Number(
+          employees.reduce((sum, employee) => sum + employee.pay, 0).toFixed(2)
+        );
 
   return {
     leader,
@@ -97,6 +135,7 @@ export function crewDetailsForVisit(
     estimatedHours,
     hourVariance,
     totalPay,
+    fromSyncedLabor: false as const,
   };
 }
 

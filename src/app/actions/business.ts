@@ -104,6 +104,65 @@ export async function approveExtraWork(formData: FormData): Promise<void> {
   revalidatePath(`/contracts/${order.contract_id}`);
 }
 
+export type ScopeCreepAction = "change_order" | "renewal" | "goodwill";
+
+export async function markScopeCreepAction(
+  contractId: string,
+  action: ScopeCreepAction
+): Promise<{ ok: boolean; message: string }> {
+  const supabase = await createDataClient();
+  const { data: contract } = await supabase
+    .from("contracts")
+    .select("id, notes, title")
+    .eq("id", contractId)
+    .single();
+
+  if (!contract) {
+    return { ok: false, message: "Contract not found." };
+  }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  const noteLine =
+    action === "change_order"
+      ? `[${stamp}] Scope creep: change-order request created.`
+      : action === "renewal"
+        ? `[${stamp}] Scope creep: flagged for renewal proposal.`
+        : `[${stamp}] Scope creep: marked as goodwill service.`;
+
+  const nextNotes = contract.notes
+    ? `${contract.notes}\n${noteLine}`
+    : noteLine;
+
+  await supabase
+    .from("contracts")
+    .update({ notes: nextNotes })
+    .eq("id", contractId);
+
+  if (action === "change_order") {
+    await supabase.from("extra_work_orders").insert({
+      contract_id: contractId,
+      title: "Change-order request (scope creep)",
+      description:
+        "Auto-created from Scope Creep Radar for uncontracted repeated work.",
+      quoted_amount: 0,
+      status: "quoted",
+    });
+  }
+
+  revalidatePath("/contracts");
+  revalidatePath(`/contracts/${contractId}`);
+
+  return {
+    ok: true,
+    message:
+      action === "change_order"
+        ? "Change-order request created on this contract."
+        : action === "renewal"
+          ? "Added to renewal proposal notes."
+          : "Marked as goodwill service in contract notes.",
+  };
+}
+
 export async function generateInvoice(formData: FormData): Promise<void> {
   const role = await getViewRole();
   const contractId = formData.get("contract_id") as string;

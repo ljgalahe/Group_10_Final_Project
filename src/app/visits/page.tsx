@@ -1,5 +1,10 @@
 import { completeVisit } from "@/app/actions/business";
+import { ensureCompletedVisitLaborSynced } from "@/app/actions/labor";
 import { AccountantVisitsView } from "@/components/AccountantVisitsView";
+import {
+  fetchEquipment,
+  fetchEquipmentUsage,
+} from "@/app/equipment/queries";
 import { AppShell } from "@/components/AppShell";
 import {
   VisitStatusFilter,
@@ -93,16 +98,22 @@ export default async function VisitsPage({
   const isAccountant = roleCanEditContractDetails(role);
 
   if (isAccountant) {
+    const { data: initialVisits } = await fetchAccountantVisits();
+    await ensureCompletedVisitLaborSynced(initialVisits.map((visit) => visit.id));
     const { data: visits } = await fetchAccountantVisits();
     const visitJournalStates = Object.fromEntries(
       (await fetchJournalSourceStates()).visit
     );
+    const [equipmentRows, usageRows] = await Promise.all([
+      fetchEquipment(),
+      fetchEquipmentUsage(),
+    ]);
 
     return (
       <AppShell>
         <PageHeader
           title="Service Visits"
-          description="Accountant visit workspace with profitability, crew detail, variance, and audit controls."
+          description="Accountant visit workspace with crew hours × hourly rate labor costs, profitability, variance, and audit controls."
         />
         {visits.length === 0 ? (
           <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />
@@ -111,6 +122,23 @@ export default async function VisitsPage({
             visits={visits}
             todayIso={new Date().toISOString().slice(0, 10)}
             visitJournalStates={visitJournalStates}
+            equipment={equipmentRows.map((item) => ({
+              id: item.id,
+              name: item.name,
+              category: item.category,
+              status: item.status,
+            }))}
+            equipmentUsage={usageRows.map((row) => ({
+              id: row.id,
+              visitId: row.visit_id,
+              equipmentId: row.equipment_id,
+              equipmentName: row.equipment_name,
+              category:
+                equipmentRows.find((item) => item.id === row.equipment_id)
+                  ?.category ?? "Other",
+              hours: row.hours,
+              notes: row.notes,
+            }))}
           />
         )}
       </AppShell>

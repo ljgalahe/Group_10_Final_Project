@@ -24,6 +24,11 @@ const navItems = [
     label: "Visits",
     roles: ["manager", "accountant", "crew_lead", "crew_member", "customer"],
   },
+  {
+    href: "/chat",
+    label: "Chat",
+    roles: ["manager", "accountant", "crew_lead", "crew_member", "customer"],
+  },
   { href: "/invoices", label: "Invoices", roles: ["manager", "accountant", "customer"] },
   { href: "/profile", label: "Profile", roles: ["customer"] },
   { href: "/contact", label: "Contact Us", roles: ["customer"] },
