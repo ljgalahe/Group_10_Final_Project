@@ -374,9 +374,7 @@ export async function fetchPaymentsSummary(): Promise<PaymentsSummary> {
 
   let paymentsQuery = await supabase
     .from("payments")
-    .select(
-      "amount, payment_date, status, unapplied_amount, applied_amount, invoices(issue_date)"
-    );
+    .select("amount, payment_date, status, applied_amount, invoices(issue_date)");
 
   if (paymentsQuery.error && isMissingColumnError(paymentsQuery.error)) {
     paymentsQuery = await supabase
@@ -395,35 +393,21 @@ export async function fetchPaymentsSummary(): Promise<PaymentsSummary> {
   const today = now.toISOString().slice(0, 10);
 
   let collectedThisMonth = 0;
-  let unappliedPayments = 0;
   const daysToPay: number[] = [];
 
   for (const payment of payments) {
     const amount = Number(payment.amount);
-    const unapplied =
-      "unapplied_amount" in payment && payment.unapplied_amount != null
-        ? Number(payment.unapplied_amount)
-        : 0;
     const status =
-      "status" in payment && payment.status
-        ? String(payment.status)
-        : unapplied > 0 && unapplied >= amount
-          ? "unapplied"
-          : "applied";
+      "status" in payment && payment.status ? String(payment.status) : "applied";
 
-    unappliedPayments += unapplied;
-    if (status === "unapplied" && unapplied === 0) {
-      unappliedPayments += amount;
-    }
+    if (status === "void") continue;
 
     const payDate = new Date(payment.payment_date + "T00:00:00Z");
     if (payDate.getUTCFullYear() === year && payDate.getUTCMonth() === month) {
       const collectedPortion =
         "applied_amount" in payment && payment.applied_amount != null
           ? Number(payment.applied_amount)
-          : status === "applied"
-            ? amount
-            : 0;
+          : amount;
       collectedThisMonth += collectedPortion;
     }
 
@@ -434,7 +418,7 @@ export async function fetchPaymentsSummary(): Promise<PaymentsSummary> {
     const issueDate = Array.isArray(invoice)
       ? invoice[0]?.issue_date
       : invoice?.issue_date;
-    if (issueDate && (status === "applied" || unapplied < amount)) {
+    if (issueDate) {
       daysToPay.push(daysBetween(issueDate, payment.payment_date));
     }
   }
@@ -499,7 +483,6 @@ export async function fetchPaymentsSummary(): Promise<PaymentsSummary> {
     outstandingInvoiceIds,
     collectionRate,
     averageDaysToPay,
-    unappliedPayments,
     partialPaymentsCount,
   };
 }

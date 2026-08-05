@@ -12,16 +12,20 @@ import {
   fetchProfitabilityReport,
   fetchProfitLeakInputs,
 } from "@/lib/queries";
+import { CreateFinancialStatementButton } from "@/app/reports/profitability/components/CreateFinancialStatementButton";
+import { fetchFinancialStatementInputs } from "@/app/reports/profitability/queries";
 
 export default async function ProfitabilityPage() {
   await requireAppAccess();
 
   const role = await getViewRole();
   if (!roleCanViewReports(role)) redirect("/dashboard");
+  const isAccountant = role === "accountant";
 
-  const [report, leakInputs] = await Promise.all([
+  const [report, leakInputs, financialStatementInputs] = await Promise.all([
     fetchProfitabilityReport(),
     fetchProfitLeakInputs(),
+    isAccountant ? fetchFinancialStatementInputs() : Promise.resolve(null),
   ]);
   const profitLeaks = detectProfitLeaks(leakInputs);
   const rankings = buildContractRankings(report, leakInputs);
@@ -41,6 +45,11 @@ export default async function ProfitabilityPage() {
       <PageHeader
         title="Contract Profitability"
         description="Revenue billed minus direct visit costs, by active contract."
+        action={
+          isAccountant && financialStatementInputs ? (
+            <CreateFinancialStatementButton inputs={financialStatementInputs} />
+          ) : undefined
+        }
       />
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
