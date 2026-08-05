@@ -218,10 +218,7 @@ export function CrewLeadSchedule({
                             status={job.status}
                             services={job.services}
                           />
-                          <CrewSiteNotes
-                            customerId={job.customerId}
-                            compact
-                          />
+                          <CrewSiteNotes notes={job.customerNotes} compact />
                           <button
                             type="button"
                             onClick={() =>
@@ -334,7 +331,7 @@ export function CrewLeadSchedule({
                       <p className="mt-0.5 text-sm text-stone-500">
                         {job.address}
                       </p>
-                      <CrewSiteNotes customerId={job.customerId} compact />
+                      <CrewSiteNotes notes={job.customerNotes} compact />
                       <button
                         type="button"
                         onClick={() =>

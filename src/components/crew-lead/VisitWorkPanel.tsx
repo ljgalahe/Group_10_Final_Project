@@ -648,7 +648,11 @@ export function VisitWorkPanel({
               )}
             </div>
 
-            <CrewSiteNotes customerId={job.customerId} />
+            <CrewSiteNotes
+              notes={job.customerNotes}
+              jobId={job.id}
+              status={job.status}
+            />
           </div>
         ) : null}
       </div>

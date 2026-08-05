@@ -39,6 +39,9 @@ export interface Customer {
   address: string | null;
   contact_name: string | null;
   contact_email: string | null;
+  contact_phone?: string | null;
+  customer_notes?: string | null;
+  notification_prefs?: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -138,6 +141,12 @@ export interface CustomerPaymentMethod {
   customer_id: string;
   nickname: string | null;
   display_label: string;
+  method_type?: "card" | "bank";
+  is_default?: boolean;
+  last_four?: string | null;
+  expires_month?: number | null;
+  expires_year?: number | null;
+  billing_name?: string | null;
   created_at: string;
 }
 

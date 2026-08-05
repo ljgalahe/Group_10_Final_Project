@@ -20,17 +20,22 @@ delete from customers;
 
 -- ─── CUSTOMERS (4 commercial properties) ───────────────────────────────────
 
-insert into customers (id, name, property_type, address, contact_name, contact_email, created_at) values
-  ('11111111-1111-1111-1111-111111111101', 'Riverside Office Park', 'Office Park', '1200 University Ave, Oxford, MS', 'Maria Chen', 'mchen@riverside-op.com', '2023-03-15 10:00:00+00'),
-  ('11111111-1111-1111-1111-111111111102', 'Summit Retail Center', 'Retail Center', '450 Jackson Ave W, Oxford, MS', 'James Ortiz', 'jortiz@summitretail.com', '2024-01-10 10:00:00+00'),
-  ('11111111-1111-1111-1111-111111111103', 'Harbor View HOA', 'HOA', '88 South Lamar Blvd, Oxford, MS', 'Pat Simmons', 'psimmons@harborviewhoa.org', '2024-06-01 10:00:00+00'),
-  ('11111111-1111-1111-1111-111111111104', 'Metro Industrial Complex', 'Industrial', '900 Molly Barr Rd, Oxford, MS', 'Dana Brooks', 'dbrooks@metroindustrial.com', '2025-02-20 10:00:00+00');
+insert into customers (id, name, property_type, address, contact_name, contact_email, contact_phone, created_at, notification_prefs, customer_notes) values
+  ('11111111-1111-1111-1111-111111111101', 'Riverside Office Park', 'Office Park', '1200 University Ave, Oxford, MS', 'Maria Chen', 'mchen@riverside-op.com', '(662) 555-0142', '2023-03-15 10:00:00+00',
+    '{"invoice_reminders":{"enabled":true,"channel":"email","email":"mchen@riverside-op.com","phone":"(662) 555-0142"},"visit_reminders":{"enabled":true,"channel":"email","email":"mchen@riverside-op.com","phone":"(662) 555-0142"},"support_updates":{"enabled":true,"channel":"email","email":"mchen@riverside-op.com","phone":"(662) 555-0142"},"renewal_notices":{"enabled":false,"channel":"email","email":"mchen@riverside-op.com","phone":"(662) 555-0142"}}'::jsonb,
+    E'Office park has a security dog that barks at crews near the rear lot — do not approach the fenced kennel area.\nPark trailers only in the designated service bay; front entrance must stay clear for tenants.'),
+  ('11111111-1111-1111-1111-111111111102', 'Summit Retail Center', 'Retail Center', '450 Jackson Ave W, Oxford, MS', 'James Ortiz', 'jortiz@summitretail.com', null, '2024-01-10 10:00:00+00', '{}'::jsonb,
+    E'Retail center: avoid leaf blowing near storefronts before 9:00 AM.\nIrrigation controller is inside the locked utility closet — key is in the crew lockbox.'),
+  ('11111111-1111-1111-1111-111111111103', 'Harbor View HOA', 'HOA', '88 South Lamar Blvd, Oxford, MS', 'Pat Simmons', 'psimmons@harborviewhoa.org', null, '2024-06-01 10:00:00+00', '{}'::jsonb,
+    E'HOA common areas: resident owns a dog that may bite if the side gate is left open — keep gate latched.\nDo not mow within 3 feet of playground equipment during school pickup hours.'),
+  ('11111111-1111-1111-1111-111111111104', 'Metro Industrial Complex', 'Industrial', '900 Molly Barr Rd, Oxford, MS', 'Dana Brooks', 'dbrooks@metroindustrial.com', null, '2025-02-20 10:00:00+00', '{}'::jsonb,
+    E'Industrial site: PPE required (vest + boots). Check in at the guard booth before entering.\nDetention pond bank can be slick after rain — use caution and avoid lone work near the edge.');
 
 -- ─── CUSTOMER PAYMENT METHODS (Riverside portal defaults) ────────────────────
 
-insert into customer_payment_methods (customer_id, nickname, display_label) values
-  ('11111111-1111-1111-1111-111111111101', null, 'Card ending in 4242'),
-  ('11111111-1111-1111-1111-111111111101', null, 'Bank account ending in 8821');
+insert into customer_payment_methods (customer_id, nickname, display_label, method_type, is_default, last_four, expires_month, expires_year, billing_name) values
+  ('11111111-1111-1111-1111-111111111101', null, 'Card ending in 4242', 'card', true, '4242', 8, 2027, 'Maria Chen'),
+  ('11111111-1111-1111-1111-111111111101', null, 'Bank account ending in 8821', 'bank', false, '8821', null, null, 'Riverside Office Park');
 
 -- ─── CONTRACTS (seasonal maintenance agreements) ───────────────────────────
 

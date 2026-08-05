@@ -23,8 +23,10 @@ import {
   roleCanManageVisits,
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
 import {
   fetchAccountantVisits,
+  fetchExtraWorkByContractIds,
   fetchVisitCosts,
   fetchVisits,
 } from "@/lib/queries";
@@ -36,6 +38,10 @@ function formatVisitDescription(notes: string | null) {
   const trimmed = notes.trim();
   const withPeriod = /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
   return withPeriod.charAt(0).toUpperCase() + withPeriod.slice(1);
+}
+
+function formatExtraWorkStatus(status: string) {
+  return status.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function parseStatusFilter(raw?: string): VisitStatusFilterValue {
@@ -90,7 +96,7 @@ export default async function VisitsPage({
         supabase
           .from("service_visits")
           .select(
-            "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address), contract_services(service_name, included))"
+            "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
           )
           .order("scheduled_date", { ascending: true }),
         supabase
@@ -114,8 +120,18 @@ export default async function VisitsPage({
             title: string;
             customer_id: string;
             customers:
-              | { id: string; name: string; address: string | null }
-              | { id: string; name: string; address: string | null }[]
+              | {
+                  id: string;
+                  name: string;
+                  address: string | null;
+                  customer_notes?: string | null;
+                }
+              | {
+                  id: string;
+                  name: string;
+                  address: string | null;
+                  customer_notes?: string | null;
+                }[]
               | null;
             contract_services:
               | { service_name: string; included: boolean }[]
@@ -126,8 +142,18 @@ export default async function VisitsPage({
             title: string;
             customer_id: string;
             customers:
-              | { id: string; name: string; address: string | null }
-              | { id: string; name: string; address: string | null }[]
+              | {
+                  id: string;
+                  name: string;
+                  address: string | null;
+                  customer_notes?: string | null;
+                }
+              | {
+                  id: string;
+                  name: string;
+                  address: string | null;
+                  customer_notes?: string | null;
+                }[]
               | null;
             contract_services:
               | { service_name: string; included: boolean }[]
@@ -165,6 +191,7 @@ export default async function VisitsPage({
         address: oxfordAddressForCustomer(customer.id, customer.address),
         contractTitle: contract.title,
         services,
+        customerNotes: customerNotesForCrew(customer.customer_notes),
         lat: 34.3665,
         lng: -89.5192,
         source: "visit",
@@ -242,6 +269,29 @@ export default async function VisitsPage({
       : "No visits found. Run the seed script to load demo visits.";
   })();
 
+  const extraWorkByContract = new Map<
+    string,
+    {
+      id: string;
+      title: string;
+      description: string | null;
+      quoted_amount: number;
+      status: string;
+    }[]
+  >();
+
+  if (isCustomer) {
+    const contractIds = [
+      ...new Set(filteredVisits.map((v) => v.contract_id).filter(Boolean)),
+    ];
+    const { data: extraRows } = await fetchExtraWorkByContractIds(contractIds);
+    for (const row of extraRows) {
+      const list = extraWorkByContract.get(row.contract_id) ?? [];
+      list.push(row);
+      extraWorkByContract.set(row.contract_id, list);
+    }
+  }
+
   return (
     <AppShell>
       <PageHeader
@@ -265,10 +315,17 @@ export default async function VisitsPage({
                 customers: {
                   name: string;
                   address: string | null;
+                  customer_notes?: string | null;
                 } | null;
               } | null;
               const propertyName = contract?.customers?.name ?? "Property";
               const siteAddress = contract?.customers?.address;
+              const customerNotes = isCustomer
+                ? parseCustomerNotes(contract?.customers?.customer_notes)
+                : [];
+              const contractExtra = isCustomer
+                ? (extraWorkByContract.get(visit.contract_id) ?? [])
+                : [];
               const costs = isCustomer
                 ? null
                 : (await fetchVisitCosts(visit.id)).data;
@@ -294,14 +351,62 @@ export default async function VisitsPage({
                             {siteAddress ? ` · ${siteAddress}` : ""}
                           </p>
                           <p className="mt-1 text-sm text-stone-500">
-                            Visit Date: {formatDate(visit.scheduled_date)}
+                            Visit date: {formatDate(visit.scheduled_date)}
                           </p>
                           <p className="mt-3 text-sm text-stone-700">
                             <span className="font-medium text-stone-800">
-                              Service Summary:{" "}
+                              Service summary:{" "}
                             </span>
                             {formatVisitDescription(visit.crew_notes)}
                           </p>
+                          {customerNotes.length > 0 ? (
+                            <div className="mt-4">
+                              <p className="text-sm font-medium text-stone-800">
+                                Customer Notes
+                              </p>
+                              <p className="mt-0.5 text-xs text-stone-500">
+                                Details you shared for crews about this
+                                property.
+                              </p>
+                              <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm text-stone-600">
+                                {customerNotes.map((note) => (
+                                  <li key={note}>{note}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                          {contractExtra.length > 0 ? (
+                            <div className="mt-4">
+                              <p className="text-sm font-medium text-stone-800">
+                                Extra work for this agreement
+                              </p>
+                              <ul className="mt-1.5 space-y-2">
+                                {contractExtra.map((work) => (
+                                  <li
+                                    key={work.id}
+                                    className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm"
+                                  >
+                                    <p className="font-medium text-green-950">
+                                      {work.title}
+                                      <span className="ml-2 text-xs font-normal text-stone-500">
+                                        {formatExtraWorkStatus(work.status)}
+                                      </span>
+                                    </p>
+                                    {work.description ? (
+                                      <p className="mt-0.5 text-stone-600">
+                                        {work.description}
+                                      </p>
+                                    ) : null}
+                                    <p className="mt-1 text-xs text-stone-500">
+                                      {formatCurrency(
+                                        Number(work.quoted_amount)
+                                      )}
+                                    </p>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
                         </>
                       ) : (
                         <>

@@ -151,7 +151,9 @@ export async function fetchVisits() {
 
   let query = supabase
     .from("service_visits")
-    .select("*, contracts(title, customer_id, customers(name, address))")
+    .select(
+      "*, contracts(title, customer_id, customers(name, address, customer_notes))"
+    )
     .order("scheduled_date", { ascending: true });
 
   if (customerId) {
@@ -207,6 +209,29 @@ export async function fetchAccountantVisits() {
     })),
     error: null,
   };
+}
+
+export async function fetchExtraWorkByContractIds(contractIds: string[]) {
+  if (contractIds.length === 0) {
+    return {
+      data: [] as {
+        id: string;
+        contract_id: string;
+        title: string;
+        description: string | null;
+        quoted_amount: number;
+        status: string;
+      }[],
+      error: null,
+    };
+  }
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("extra_work_orders")
+    .select("id, contract_id, title, description, quoted_amount, status")
+    .in("contract_id", contractIds)
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
 }
 
 export async function fetchVisitCosts(visitId: string) {
@@ -713,10 +738,25 @@ export async function fetchCustomerPaymentMethods(customerId: string) {
   const supabase = await createDataClient();
   const { data, error } = await supabase
     .from("customer_payment_methods")
-    .select("id, customer_id, nickname, display_label, created_at")
+    .select(
+      "id, customer_id, nickname, display_label, method_type, is_default, last_four, expires_month, expires_year, billing_name, created_at"
+    )
     .eq("customer_id", customerId)
+    .order("is_default", { ascending: false })
     .order("created_at", { ascending: true });
   return { data: data ?? [], error };
+}
+
+export async function fetchCustomerProfile(customerId: string) {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select(
+      "id, name, property_type, address, contact_name, contact_email, contact_phone, customer_notes, notification_prefs, created_at"
+    )
+    .eq("id", customerId)
+    .single();
+  return { data, error };
 }
 
 export async function fetchCustomerAccountHealth(customerId: string) {
