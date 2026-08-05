@@ -10,9 +10,11 @@ import type {
 export function CrewLeadVisitDetails({
   job,
   extraWork,
+  readOnly = false,
 }: {
   job: ScheduleJob;
   extraWork: ExtraWorkItem[];
+  readOnly?: boolean;
 }) {
   return (
     <VisitWorkPanel
@@ -20,6 +22,7 @@ export function CrewLeadVisitDetails({
       contractExtraWork={extraWork.filter(
         (item) => item.contractId === job.contractId
       )}
+      readOnly={readOnly}
     />
   );
 }

@@ -1,6 +1,13 @@
 import { createDataClient } from "@/lib/auth-access";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
-import type { UserRole } from "@/lib/types";
+import {
+  JOURNAL_SOURCE_LABELS,
+  type JournalSource,
+  type JournalStatus,
+} from "@/lib/journal";
+import { enrichPaymentRow, isMissingColumnError } from "@/lib/payment-schema";
+import { daysBetween, isOpenInvoiceStatus } from "@/lib/payment-utils";
+import type { Payment, PaymentsSummary, UserRole } from "@/lib/types";
 
 export async function getScopedCustomerId(role: UserRole) {
   if (role === "customer") {
@@ -29,6 +36,113 @@ export async function fetchContracts() {
   return { data: data ?? [], error };
 }
 
+export async function fetchContractsDetailed() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("contracts")
+    .select(
+      "*, customers(name, property_type, address, contact_name), contract_services(*), extra_work_orders(*)"
+    )
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+
+export async function fetchAccountantContractBilling() {
+  const supabase = await createDataClient();
+  const { data: visits } = await supabase
+    .from("service_visits")
+    .select("id, contract_id, status");
+
+  const visitIds = (visits ?? []).map((visit) => visit.id);
+  const { data: costs } = visitIds.length
+    ? await supabase
+        .from("visit_costs")
+        .select("visit_id, cost_type, amount")
+        .in("visit_id", visitIds)
+    : { data: [] as never[] };
+
+  return {
+    visits: visits ?? [],
+    costs: costs ?? [],
+  };
+}
+
+export async function fetchPendingContractChangeRequests() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("contract_change_requests")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+
+export async function fetchContractAuditLogs(contractId?: string) {
+  const supabase = await createDataClient();
+  let query = supabase
+    .from("contract_audit_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (contractId) {
+    query = query.eq("contract_id", contractId);
+  }
+
+  const { data, error } = await query;
+  return { data: data ?? [], error };
+}
+
+export async function fetchOpenVisitCount(contractId: string) {
+  const supabase = await createDataClient();
+  const { count } = await supabase
+    .from("service_visits")
+    .select("*", { count: "exact", head: true })
+    .eq("contract_id", contractId)
+    .eq("status", "scheduled");
+  return count ?? 0;
+}
+
+export async function fetchCustomers() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .order("name", { ascending: true });
+  return { data: data ?? [], error };
+}
+
+export async function fetchContractProfitabilityMap() {
+  const report = await fetchProfitabilityReport();
+  const map = new Map<string, { margin: number; unprofitable: boolean }>();
+  for (const row of report) {
+    map.set(row.contractId, {
+      margin: row.margin,
+      unprofitable: row.margin < 0,
+    });
+  }
+  return map;
+}
+
+export async function fetchContractOutstandingArMap() {
+  const supabase = await createDataClient();
+  const { data: invoices } = await supabase
+    .from("invoices")
+    .select("contract_id, total, amount_paid, status")
+    .in("status", ["sent", "overdue", "draft"]);
+
+  const map = new Map<string, number>();
+  for (const invoice of invoices ?? []) {
+    const balance = Number(invoice.total) - Number(invoice.amount_paid);
+    if (balance <= 0) continue;
+    map.set(
+      invoice.contract_id,
+      (map.get(invoice.contract_id) ?? 0) + balance
+    );
+  }
+  return map;
+}
+
 export async function fetchContract(id: string) {
   const supabase = await createDataClient();
   const { data, error } = await supabase
@@ -47,7 +161,7 @@ export async function fetchVisits() {
   let query = supabase
     .from("service_visits")
     .select(
-      "*, contracts(title, customer_id, customers(name, property_type, address))"
+      "*, contracts(title, customer_id, customers(name, property_type, address, customer_notes))"
     )
     .order("scheduled_date", { ascending: true });
 
@@ -62,6 +176,115 @@ export async function fetchVisits() {
   }
 
   const { data, error } = await query;
+  return { data: data ?? [], error };
+}
+
+export async function fetchVisitLaborEntries(visitIds: string[]) {
+  if (visitIds.length === 0) {
+    return { data: [] as Array<{
+      id: string;
+      visit_id: string;
+      member_demo_id: string;
+      member_name: string;
+      member_role: string;
+      hours: number | string;
+      hourly_rate: number | string;
+      started_at: string | null;
+      ended_at: string | null;
+    }>, error: null };
+  }
+
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("visit_labor_entries")
+    .select(
+      "id, visit_id, member_demo_id, member_name, member_role, hours, hourly_rate, started_at, ended_at"
+    )
+    .in("visit_id", visitIds);
+
+  if (error) {
+    const msg = (error.message || "").toLowerCase();
+    if (
+      error.code === "PGRST205" ||
+      error.code === "42P01" ||
+      msg.includes("visit_labor_entries") ||
+      msg.includes("does not exist") ||
+      msg.includes("schema cache")
+    ) {
+      return { data: [], error: null };
+    }
+    return { data: [], error };
+  }
+
+  return { data: data ?? [], error: null };
+}
+
+export async function fetchAccountantVisits() {
+  const supabase = await createDataClient();
+
+  const { data: visits, error } = await supabase
+    .from("service_visits")
+    .select(
+      "*, contracts(id, title, monthly_fee, visits_per_week, assigned_crew, billing_method, customer_id, customers(name))"
+    )
+    .order("scheduled_date", { ascending: false });
+
+  if (error || !visits) return { data: [], error };
+
+  const visitIds = visits.map((visit) => visit.id);
+  const contractIds = [
+    ...new Set(visits.map((visit) => visit.contract_id).filter(Boolean)),
+  ];
+
+  const [{ data: costs }, { data: invoices }, { data: laborEntries }] =
+    await Promise.all([
+      visitIds.length
+        ? supabase.from("visit_costs").select("*").in("visit_id", visitIds)
+        : Promise.resolve({ data: [] as never[] }),
+      contractIds.length
+        ? supabase
+            .from("invoices")
+            .select("id, contract_id, status, issue_date, created_at")
+            .in("contract_id", contractIds)
+        : Promise.resolve({ data: [] as never[] }),
+      fetchVisitLaborEntries(visitIds),
+    ]);
+
+  return {
+    data: visits.map((visit) => ({
+      ...visit,
+      visit_costs: (costs ?? []).filter((cost) => cost.visit_id === visit.id),
+      invoices: (invoices ?? []).filter(
+        (invoice) => invoice.contract_id === visit.contract_id
+      ),
+      visit_labor_entries: (laborEntries ?? []).filter(
+        (entry) => entry.visit_id === visit.id
+      ),
+    })),
+    error: null,
+  };
+}
+
+export async function fetchExtraWorkByContractIds(contractIds: string[]) {
+  if (contractIds.length === 0) {
+    return {
+      data: [] as {
+        id: string;
+        contract_id: string;
+        title: string;
+        description: string | null;
+        quoted_amount: number;
+        status: string;
+      }[],
+      error: null,
+    };
+  }
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("extra_work_orders")
+    .select("id, contract_id, title, description, quoted_amount, status")
+    .in("contract_id", contractIds)
+    .order("created_at", { ascending: false });
   return { data: data ?? [], error };
 }
 
@@ -117,9 +340,168 @@ export async function fetchPayments() {
   const supabase = await createDataClient();
   const { data, error } = await supabase
     .from("payments")
-    .select("*, invoices(invoice_number, customers(name))")
-    .order("payment_date", { ascending: false });
-  return { data: data ?? [], error };
+    .select(
+      "*, invoices(invoice_number, issue_date, customer_id, total, amount_paid, status, customers(id, name), contracts(title))"
+    )
+    .order("payment_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  const enriched = ((data ?? []) as Payment[]).map((payment) =>
+    enrichPaymentRow(payment)
+  );
+  return { data: enriched, error };
+}
+
+export async function fetchOpenInvoicesForCustomer(customerId: string) {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("invoices")
+    .select("id, invoice_number, total, amount_paid, status, customer_id")
+    .eq("customer_id", customerId)
+    .in("status", ["sent", "overdue", "past_due", "partially_paid"])
+    .order("issue_date", { ascending: false });
+
+  const open = (data ?? []).filter((invoice) => {
+    const balance = Number(invoice.total) - Number(invoice.amount_paid);
+    return balance > 0 && isOpenInvoiceStatus(invoice.status);
+  });
+
+  return { data: open, error };
+}
+
+export async function fetchPaymentsSummary(): Promise<PaymentsSummary> {
+  const supabase = await createDataClient();
+
+  let paymentsQuery = await supabase
+    .from("payments")
+    .select(
+      "amount, payment_date, status, unapplied_amount, applied_amount, invoices(issue_date)"
+    );
+
+  if (paymentsQuery.error && isMissingColumnError(paymentsQuery.error)) {
+    paymentsQuery = await supabase
+      .from("payments")
+      .select("amount, payment_date, invoices(issue_date)");
+  }
+
+  const { data: invoices } = await supabase
+    .from("invoices")
+    .select("id, total, amount_paid, status, customer_id, due_date");
+
+  const payments = paymentsQuery.data ?? [];
+  const now = new Date();
+  const month = now.getUTCMonth();
+  const year = now.getUTCFullYear();
+  const today = now.toISOString().slice(0, 10);
+
+  let collectedThisMonth = 0;
+  let unappliedPayments = 0;
+  const daysToPay: number[] = [];
+
+  for (const payment of payments) {
+    const amount = Number(payment.amount);
+    const unapplied =
+      "unapplied_amount" in payment && payment.unapplied_amount != null
+        ? Number(payment.unapplied_amount)
+        : 0;
+    const status =
+      "status" in payment && payment.status
+        ? String(payment.status)
+        : unapplied > 0 && unapplied >= amount
+          ? "unapplied"
+          : "applied";
+
+    unappliedPayments += unapplied;
+    if (status === "unapplied" && unapplied === 0) {
+      unappliedPayments += amount;
+    }
+
+    const payDate = new Date(payment.payment_date + "T00:00:00Z");
+    if (payDate.getUTCFullYear() === year && payDate.getUTCMonth() === month) {
+      const collectedPortion =
+        "applied_amount" in payment && payment.applied_amount != null
+          ? Number(payment.applied_amount)
+          : status === "applied"
+            ? amount
+            : 0;
+      collectedThisMonth += collectedPortion;
+    }
+
+    const invoice = payment.invoices as
+      | { issue_date?: string }
+      | { issue_date?: string }[]
+      | null;
+    const issueDate = Array.isArray(invoice)
+      ? invoice[0]?.issue_date
+      : invoice?.issue_date;
+    if (issueDate && (status === "applied" || unapplied < amount)) {
+      daysToPay.push(daysBetween(issueDate, payment.payment_date));
+    }
+  }
+
+  let outstandingBalance = 0;
+  let totalBilled = 0;
+  let totalCollected = 0;
+  const outstandingInvoiceIds: string[] = [];
+  const overdueCustomerIdSet = new Set<string>();
+
+  const partialPaymentsCount = (invoices ?? []).filter((invoice) => {
+    if (invoice.status === "canceled" || invoice.status === "voided") {
+      return false;
+    }
+
+    const paid = Number(invoice.amount_paid);
+    const total = Number(invoice.total);
+    const balance = Math.round((total - paid) * 100) / 100;
+
+    totalBilled += total;
+    totalCollected += Math.min(paid, total);
+
+    if (balance > 0 && isOpenInvoiceStatus(invoice.status)) {
+      outstandingBalance += balance;
+      outstandingInvoiceIds.push(invoice.id);
+    }
+
+    const isOverdueStatus =
+      invoice.status === "overdue" || invoice.status === "past_due";
+    const isPastDueDate =
+      Boolean(invoice.due_date) &&
+      invoice.due_date < today &&
+      balance > 0 &&
+      invoice.status !== "paid";
+
+    if (isOverdueStatus || isPastDueDate) {
+      overdueCustomerIdSet.add(String(invoice.customer_id));
+    }
+
+    return (
+      invoice.status === "partially_paid" || (paid > 0 && paid < total)
+    );
+  }).length;
+
+  const averageDaysToPay =
+    daysToPay.length > 0
+      ? Math.round(
+          daysToPay.reduce((sum, days) => sum + days, 0) / daysToPay.length
+        )
+      : null;
+
+  const collectionRate =
+    totalBilled > 0
+      ? Math.round((totalCollected / totalBilled) * 1000) / 10
+      : null;
+
+  return {
+    collectedThisMonth,
+    outstandingBalance,
+    overdueCustomerCount: overdueCustomerIdSet.size,
+    overdueCustomerIds: Array.from(overdueCustomerIdSet),
+    outstandingInvoiceIds,
+    collectionRate,
+    averageDaysToPay,
+    unappliedPayments,
+    partialPaymentsCount,
+  };
 }
 
 export async function fetchDashboardStats() {
@@ -162,9 +544,15 @@ export async function fetchDashboardStats() {
   const totalBilled = invoiceList.reduce((s, i) => s + Number(i.total), 0);
   const totalCollected = invoiceList.reduce((s, i) => s + Number(i.amount_paid), 0);
   const outstanding = totalBilled - totalCollected;
-  const overdueCount = invoiceList.filter(
-    (i) => i.status === "overdue" || (i.status === "sent" && Number(i.amount_paid) < Number(i.total))
-  ).length;
+  const overdueCount = invoiceList.filter((i) => {
+    const balance = Number(i.amount_paid) < Number(i.total);
+    return (
+      i.status === "overdue" ||
+      i.status === "past_due" ||
+      (i.status === "sent" && balance) ||
+      (i.status === "partially_paid" && balance)
+    );
+  }).length;
 
   return {
     activeContracts: contracts.count ?? 0,
@@ -229,12 +617,190 @@ export async function fetchProfitabilityReport() {
   return results;
 }
 
+export type { JournalSource, JournalStatus };
+
+export type JournalLine = {
+  accountCode: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+};
+
+export type JournalEntry = {
+  id: string;
+  entryNumber: string;
+  date: string;
+  source: JournalSource;
+  sourceLabel: string;
+  sourceId: string | null;
+  status: JournalStatus;
+  memo: string;
+  reference: string;
+  customerName: string;
+  contractTitle: string | null;
+  lines: JournalLine[];
+  totalDebit: number;
+  totalCredit: number;
+};
+
+export async function fetchJournalEntries(): Promise<JournalEntry[]> {
+  const supabase = await createDataClient();
+  const { data: entries } = await supabase
+    .from("journal_entries")
+    .select(
+      "id, entry_number, entry_date, source, source_id, status, memo, reference, customer_name, contract_title, journal_entry_lines(line_no, account_code, account_name, debit, credit)"
+    )
+    .order("entry_date", { ascending: true })
+    .order("entry_number", { ascending: true });
+
+  return (entries ?? []).map((entry) => {
+    const lines = [...(entry.journal_entry_lines ?? [])]
+      .sort((a, b) => a.line_no - b.line_no)
+      .map((line) => ({
+        accountCode: line.account_code,
+        accountName: line.account_name,
+        debit: Number(line.debit),
+        credit: Number(line.credit),
+      }));
+    const source = entry.source as JournalSource;
+    const status = (entry.status as JournalStatus | null) ?? "posted";
+    return {
+      id: entry.id,
+      entryNumber: entry.entry_number,
+      date: String(entry.entry_date).slice(0, 10),
+      source,
+      sourceLabel: JOURNAL_SOURCE_LABELS[source] ?? source,
+      sourceId: entry.source_id,
+      status,
+      memo: entry.memo,
+      reference: entry.reference,
+      customerName: entry.customer_name,
+      contractTitle: entry.contract_title,
+      lines,
+      totalDebit: roundMoney(lines.reduce((sum, line) => sum + line.debit, 0)),
+      totalCredit: roundMoney(lines.reduce((sum, line) => sum + line.credit, 0)),
+    };
+  });
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+export async function fetchJournalSourceStates() {
+  const supabase = await createDataClient();
+  const { data } = await supabase
+    .from("journal_entries")
+    .select("source, source_id, status")
+    .not("source_id", "is", null);
+
+  const states = {
+    invoice: new Map<string, JournalStatus>(),
+    payment: new Map<string, JournalStatus>(),
+    visit: new Map<string, JournalStatus>(),
+  };
+
+  for (const row of data ?? []) {
+    if (!row.source_id) continue;
+    const status = (row.status as JournalStatus | null) ?? "posted";
+    if (row.source === "invoice") states.invoice.set(row.source_id, status);
+    if (row.source === "payment") states.payment.set(row.source_id, status);
+    if (row.source === "visit") states.visit.set(row.source_id, status);
+  }
+
+  return states;
+}
+
+export async function fetchJournalPostedSourceIds() {
+  const states = await fetchJournalSourceStates();
+  return {
+    invoice: new Set(states.invoice.keys()),
+    payment: new Set(states.payment.keys()),
+    visit: new Set(states.visit.keys()),
+  };
+}
+
+/** Richer inputs for Profit Leak Detector — does not change profitability math. */
+export async function fetchProfitLeakInputs() {
+  const supabase = await createDataClient();
+  const { data: contracts } = await supabase
+    .from("contracts")
+    .select(
+      "id, title, monthly_fee, visits_per_week, season_start, season_end, customers(name)"
+    )
+    .eq("status", "active");
+
+  if (!contracts?.length) return [];
+
+  const results = [];
+
+  for (const contract of contracts) {
+    const customer = contract.customers as
+      | { name: string }
+      | { name: string }[]
+      | null;
+    const customerName = Array.isArray(customer)
+      ? customer[0]?.name
+      : customer?.name;
+
+    const [{ data: invoices }, { data: visits }, { data: extraWork }] =
+      await Promise.all([
+        supabase
+          .from("invoices")
+          .select(
+            "id, total, status, issue_date, invoice_lines(description, amount, line_type)"
+          )
+          .eq("contract_id", contract.id),
+        supabase
+          .from("service_visits")
+          .select("id, scheduled_date, status, crew_notes")
+          .eq("contract_id", contract.id),
+        supabase
+          .from("extra_work_orders")
+          .select("id, title, quoted_amount, status")
+          .eq("contract_id", contract.id),
+      ]);
+
+    const visitIds = (visits ?? []).map((visit) => visit.id);
+    let visitCosts: Array<{
+      visit_id: string;
+      cost_type: string;
+      description: string | null;
+      amount: number;
+    }> = [];
+
+    if (visitIds.length > 0) {
+      const { data } = await supabase
+        .from("visit_costs")
+        .select("visit_id, cost_type, description, amount")
+        .in("visit_id", visitIds);
+      visitCosts = data ?? [];
+    }
+
+    results.push({
+      contractId: contract.id,
+      title: contract.title,
+      customerName: customerName ?? "",
+      monthlyFee: Number(contract.monthly_fee ?? 0),
+      visitsPerWeek: Number(contract.visits_per_week ?? 0),
+      seasonStart: contract.season_start as string | null,
+      seasonEnd: contract.season_end as string | null,
+      invoices: invoices ?? [],
+      visits: visits ?? [],
+      visitCosts,
+      extraWork: extraWork ?? [],
+    });
+  }
+
+  return results;
+}
+
 export async function fetchArAgingReport() {
   const supabase = await createDataClient();
   const { data: invoices } = await supabase
     .from("invoices")
     .select("*, customers(name)")
-    .in("status", ["sent", "overdue"])
+    .in("status", ["sent", "overdue", "past_due", "partially_paid"])
     .order("due_date", { ascending: true });
 
   type AgingInvoice = NonNullable<typeof invoices>[number];
@@ -265,4 +831,606 @@ export async function fetchArAgingReport() {
   }
 
   return buckets;
+}
+
+export async function fetchCustomerSupportLinkOptions(customerId: string) {
+  const supabase = await createDataClient();
+
+  const { data: contracts, error: contractsError } = await supabase
+    .from("contracts")
+    .select("id, title")
+    .eq("customer_id", customerId)
+    .order("title");
+
+  const contractIds = (contracts ?? []).map((c) => c.id);
+
+  const visitsRes =
+    contractIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from("service_visits")
+          .select("id, scheduled_date, status, contract_id, contracts(title)")
+          .in("contract_id", contractIds)
+          .order("scheduled_date", { ascending: false });
+
+  const { data: invoices, error: invoicesError } = await supabase
+    .from("invoices")
+    .select("id, invoice_number")
+    .eq("customer_id", customerId)
+    .order("issue_date", { ascending: false });
+
+  const contractOptions = (contracts ?? []).map((c) => ({
+    value: `contract:${c.id}`,
+    label: `Contract · ${c.title}`,
+  }));
+
+  const visitOptions = (visitsRes.data ?? []).map((v) => {
+    const contract = v.contracts as
+      | { title: string }
+      | { title: string }[]
+      | null;
+    const title = Array.isArray(contract)
+      ? contract[0]?.title
+      : contract?.title;
+    return {
+      value: `visit:${v.id}`,
+      label: `Visit · ${title ?? "Service"} · ${v.scheduled_date}`,
+    };
+  });
+
+  const invoiceOptions = (invoices ?? []).map((inv) => ({
+    value: `invoice:${inv.id}`,
+    label: `Invoice · ${inv.invoice_number}`,
+  }));
+
+  return {
+    options: [...contractOptions, ...visitOptions, ...invoiceOptions],
+    error: contractsError || visitsRes.error || invoicesError,
+  };
+}
+
+export async function fetchSupportRequestsForCustomer(customerId: string) {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("support_requests")
+    .select("*")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+
+export type SupportRequestQueueItem = {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  category: string;
+  message: string;
+  linked_type: string | null;
+  linked_id: string | null;
+  linked_label: string | null;
+  status: string;
+  resolution_notes: string | null;
+  created_at: string;
+};
+
+export async function fetchAllSupportRequests(): Promise<{
+  data: SupportRequestQueueItem[];
+  error: unknown;
+}> {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("support_requests")
+    .select("*, customers(name)")
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return { data: [], error };
+  }
+
+  const contractIds = data
+    .filter((r) => r.linked_type === "contract" && r.linked_id)
+    .map((r) => r.linked_id as string);
+  const visitIds = data
+    .filter((r) => r.linked_type === "visit" && r.linked_id)
+    .map((r) => r.linked_id as string);
+  const invoiceIds = data
+    .filter((r) => r.linked_type === "invoice" && r.linked_id)
+    .map((r) => r.linked_id as string);
+
+  const [contractsRes, visitsRes, invoicesRes] = await Promise.all([
+    contractIds.length
+      ? supabase.from("contracts").select("id, title").in("id", contractIds)
+      : Promise.resolve({ data: [] as { id: string; title: string }[] }),
+    visitIds.length
+      ? supabase
+          .from("service_visits")
+          .select("id, scheduled_date, contracts(title)")
+          .in("id", visitIds)
+      : Promise.resolve({
+          data: [] as {
+            id: string;
+            scheduled_date: string;
+            contracts: { title: string } | { title: string }[] | null;
+          }[],
+        }),
+    invoiceIds.length
+      ? supabase
+          .from("invoices")
+          .select("id, invoice_number")
+          .in("id", invoiceIds)
+      : Promise.resolve({
+          data: [] as { id: string; invoice_number: string }[],
+        }),
+  ]);
+
+  const contractMap = new Map(
+    (contractsRes.data ?? []).map((c) => [c.id, c.title])
+  );
+  const invoiceMap = new Map(
+    (invoicesRes.data ?? []).map((i) => [i.id, i.invoice_number])
+  );
+  const visitMap = new Map(
+    (visitsRes.data ?? []).map((v) => {
+      const contract = v.contracts as
+        | { title: string }
+        | { title: string }[]
+        | null;
+      const title = Array.isArray(contract)
+        ? contract[0]?.title
+        : contract?.title;
+      return [v.id, `Visit · ${title ?? "Service"} · ${v.scheduled_date}`];
+    })
+  );
+
+  const items: SupportRequestQueueItem[] = data.map((row) => {
+    const customer = row.customers as
+      | { name: string }
+      | { name: string }[]
+      | null;
+    const customer_name = Array.isArray(customer)
+      ? (customer[0]?.name ?? "Customer")
+      : (customer?.name ?? "Customer");
+
+    let linked_label: string | null = null;
+    if (row.linked_type === "contract" && row.linked_id) {
+      const title = contractMap.get(row.linked_id);
+      linked_label = title ? `Contract · ${title}` : "Contract";
+    } else if (row.linked_type === "visit" && row.linked_id) {
+      linked_label = visitMap.get(row.linked_id) ?? "Visit";
+    } else if (row.linked_type === "invoice" && row.linked_id) {
+      const num = invoiceMap.get(row.linked_id);
+      linked_label = num ? `Invoice · ${num}` : "Invoice";
+    }
+
+    return {
+      id: row.id,
+      customer_id: row.customer_id,
+      customer_name,
+      category: row.category,
+      message: row.message,
+      linked_type: row.linked_type,
+      linked_id: row.linked_id,
+      linked_label,
+      status: row.status,
+      resolution_notes: row.resolution_notes ?? null,
+      created_at: row.created_at,
+    };
+  });
+
+  return { data: items, error: null };
+}
+
+/** Contact Us requests relevant to crew (questions, concerns, complaints). */
+export async function fetchCrewApplicableSupportRequests() {
+  const { data, error } = await fetchAllSupportRequests();
+  const applicable = new Set(["question", "concern", "complaint"]);
+  return {
+    data: data.filter((item) => applicable.has(item.category)),
+    error,
+  };
+}
+
+export async function fetchSupportRequestForCustomer(
+  requestId: string,
+  customerId: string
+) {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("support_requests")
+    .select("*")
+    .eq("id", requestId)
+    .eq("customer_id", customerId)
+    .single();
+
+  if (error || !data) {
+    return { data: null, linked_label: null, error };
+  }
+
+  let linked_label: string | null = null;
+  if (data.linked_type === "contract" && data.linked_id) {
+    const { data: contract } = await supabase
+      .from("contracts")
+      .select("title")
+      .eq("id", data.linked_id)
+      .single();
+    linked_label = contract?.title
+      ? `Contract · ${contract.title}`
+      : "Contract";
+  } else if (data.linked_type === "visit" && data.linked_id) {
+    const { data: visit } = await supabase
+      .from("service_visits")
+      .select("scheduled_date, contracts(title)")
+      .eq("id", data.linked_id)
+      .single();
+    if (visit) {
+      const contract = visit.contracts as
+        | { title: string }
+        | { title: string }[]
+        | null;
+      const title = Array.isArray(contract)
+        ? contract[0]?.title
+        : contract?.title;
+      linked_label = `Visit · ${title ?? "Service"} · ${visit.scheduled_date}`;
+    } else {
+      linked_label = "Visit";
+    }
+  } else if (data.linked_type === "invoice" && data.linked_id) {
+    const { data: invoice } = await supabase
+      .from("invoices")
+      .select("invoice_number")
+      .eq("id", data.linked_id)
+      .single();
+    linked_label = invoice?.invoice_number
+      ? `Invoice · ${invoice.invoice_number}`
+      : "Invoice";
+  }
+
+  return { data, linked_label, error: null };
+}
+
+/** Active contracts ending within the next `windowDays` for renewal prompts. */
+export async function fetchContractsApproachingRenewal(
+  customerId: string,
+  windowDays = 45
+) {
+  const supabase = await createDataClient();
+  const { data: contracts, error } = await supabase
+    .from("contracts")
+    .select("id, title, season_end, status")
+    .eq("customer_id", customerId)
+    .eq("status", "active")
+    .order("season_end", { ascending: true });
+
+  if (error || !contracts) {
+    return { data: [], error };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const { data: openRenewals } = await supabase
+    .from("support_requests")
+    .select("id, linked_id, status")
+    .eq("customer_id", customerId)
+    .eq("category", "renewal")
+    .eq("linked_type", "contract")
+    .in("status", ["Open", "In Progress"]);
+
+  const requestedContractIds = new Set(
+    (openRenewals ?? [])
+      .map((r) => r.linked_id)
+      .filter((id): id is string => !!id)
+  );
+
+  const notices = contracts
+    .map((contract) => {
+      const end = new Date(contract.season_end + "T00:00:00");
+      const daysLeft = Math.ceil(
+        (end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      return {
+        id: contract.id,
+        title: contract.title,
+        season_end: contract.season_end,
+        daysLeft,
+        renewalRequested: requestedContractIds.has(contract.id),
+      };
+    })
+    .filter((c) => c.daysLeft >= 0 && c.daysLeft <= windowDays);
+
+  return { data: notices, error: null };
+}
+
+export async function fetchCustomerPaymentMethods(customerId: string) {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("customer_payment_methods")
+    .select(
+      "id, customer_id, nickname, display_label, method_type, is_default, last_four, expires_month, expires_year, billing_name, created_at"
+    )
+    .eq("customer_id", customerId)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true });
+  return { data: data ?? [], error };
+}
+
+export async function fetchCustomerProfile(customerId: string) {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select(
+      "id, name, property_type, address, contact_name, contact_email, contact_phone, customer_notes, notification_prefs, created_at"
+    )
+    .eq("id", customerId)
+    .single();
+  return { data, error };
+}
+
+export async function fetchCustomerAccountHealth(customerId: string) {
+  const supabase = await createDataClient();
+
+  const [customerRes, contractsRes, openRequestsRes, invoicesRes] =
+    await Promise.all([
+      supabase
+        .from("customers")
+        .select("created_at, name, address")
+        .eq("id", customerId)
+        .single(),
+      supabase
+        .from("contracts")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", customerId)
+        .eq("status", "active"),
+      supabase
+        .from("support_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", customerId)
+        .neq("status", "Resolved"),
+      supabase
+        .from("invoices")
+        .select("total, amount_paid, status, due_date")
+        .eq("customer_id", customerId),
+    ]);
+
+  const sinceYear = customerRes.data?.created_at
+    ? new Date(customerRes.data.created_at).getFullYear()
+    : null;
+
+  const invoices = invoicesRes.data ?? [];
+  const openBalance = invoices.reduce((sum, inv) => {
+    const bal = Number(inv.total) - Number(inv.amount_paid);
+    return sum + (bal > 0 ? bal : 0);
+  }, 0);
+  const overdueCount = invoices.filter((inv) => {
+    const bal = Number(inv.total) - Number(inv.amount_paid);
+    if (bal <= 0.001) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(inv.due_date + "T00:00:00") < today;
+  }).length;
+
+  return {
+    customerName: customerRes.data?.name ?? "Customer",
+    address: customerRes.data?.address ?? null,
+    sinceYear,
+    activeContracts: contractsRes.count ?? 0,
+    openRequests: openRequestsRes.count ?? 0,
+    openBalance,
+    overdueCount,
+    error:
+      customerRes.error ||
+      contractsRes.error ||
+      openRequestsRes.error ||
+      invoicesRes.error,
+  };
+}
+
+export async function fetchCustomerContractsForSelect(customerId: string) {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("contracts")
+    .select("id, title")
+    .eq("customer_id", customerId)
+    .eq("status", "active")
+    .order("title");
+  return { data: data ?? [], error };
+}
+
+export type CustomerAttentionItem = {
+  id: string;
+  kind: "overdue_invoice" | "open_invoice" | "support" | "renewal";
+  title: string;
+  detail: string;
+  href: string;
+  amount?: number;
+  dueDate?: string;
+  /** Present for renewals so the dashboard can post requestContractRenewal. */
+  contractId?: string;
+};
+
+/** Open invoices, support replies, and unrequested renewals for the dashboard strip. */
+export async function fetchCustomerNeedsAttention(customerId: string) {
+  const supabase = await createDataClient();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const [invoicesRes, supportRes, renewalsRes] = await Promise.all([
+    supabase
+      .from("invoices")
+      .select("id, invoice_number, due_date, total, amount_paid, status")
+      .eq("customer_id", customerId)
+      .order("due_date", { ascending: true }),
+    supabase
+      .from("support_requests")
+      .select("id, category, status, resolution_notes, created_at")
+      .eq("customer_id", customerId)
+      .eq("status", "Resolved")
+      .not("resolution_notes", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    fetchContractsApproachingRenewal(customerId),
+  ]);
+
+  const items: CustomerAttentionItem[] = [];
+
+  const openInvoices = (invoicesRes.data ?? []).filter(
+    (inv) =>
+      inv.status !== "draft" &&
+      Number(inv.total) - Number(inv.amount_paid) > 0.001
+  );
+
+  for (const inv of openInvoices) {
+    const balance = Number(inv.total) - Number(inv.amount_paid);
+    const due = new Date(inv.due_date + "T00:00:00");
+    const isOverdue = inv.status === "overdue" || due < today;
+
+    items.push({
+      id: `invoice-${inv.id}`,
+      kind: isOverdue ? "overdue_invoice" : "open_invoice",
+      title: isOverdue
+        ? `${inv.invoice_number} is overdue`
+        : `${inv.invoice_number} balance due`,
+      detail: "",
+      href: `/invoices/${inv.id}`,
+      amount: balance,
+      dueDate: inv.due_date,
+    });
+  }
+
+  const categoryLabels: Record<string, string> = {
+    question: "Question",
+    concern: "Concern",
+    complaint: "Complaint",
+    billing_dispute: "Billing dispute",
+    renewal: "Renewal request",
+    service_quote: "Quote request",
+  };
+
+  for (const req of supportRes.data ?? []) {
+    if (!req.resolution_notes?.trim()) continue;
+    items.push({
+      id: `support-${req.id}`,
+      kind: "support",
+      title: `${categoryLabels[req.category] ?? "Support"} — response ready`,
+      detail: "GreenScape left a resolution for you to review.",
+      href: `/contact/${req.id}`,
+    });
+  }
+
+  for (const notice of renewalsRes.data) {
+    if (notice.renewalRequested) continue;
+    const daysLabel =
+      notice.daysLeft === 0
+        ? "Ends today"
+        : notice.daysLeft === 1
+          ? "Ends in 1 day"
+          : `Ends in ${notice.daysLeft} days`;
+    const shortTitle =
+      notice.title.replace(/^20\d{2}\s+/, "").trim() || notice.title;
+    items.push({
+      id: `renewal-${notice.id}`,
+      kind: "renewal",
+      title: `${shortTitle} is coming up for renewal`,
+      detail: `${daysLabel} · ends ${notice.season_end}`,
+      href: "#",
+      contractId: notice.id,
+    });
+  }
+
+  // Priority: overdue (highest balance first) → open balance → support → renewals
+  const rank: Record<CustomerAttentionItem["kind"], number> = {
+    overdue_invoice: 0,
+    open_invoice: 1,
+    support: 2,
+    renewal: 3,
+  };
+  items.sort((a, b) => {
+    const rankDiff = rank[a.kind] - rank[b.kind];
+    if (rankDiff !== 0) return rankDiff;
+    if (a.kind === "overdue_invoice" || a.kind === "open_invoice") {
+      const amtDiff = (b.amount ?? 0) - (a.amount ?? 0);
+      if (amtDiff !== 0) return amtDiff;
+      return (a.dueDate ?? "").localeCompare(b.dueDate ?? "");
+    }
+    return 0;
+  });
+
+  return {
+    data: items.slice(0, 6),
+    error: invoicesRes.error ?? supportRes.error,
+  };
+}
+
+export type CustomerUpcomingVisit = {
+  id: string;
+  scheduled_date: string;
+  status: string;
+  contract_title: string;
+  property_name: string;
+  address: string | null;
+};
+
+/** Next scheduled visits for the customer portal dashboard. */
+export async function fetchCustomerUpcomingVisits(
+  customerId: string,
+  limit = 3
+) {
+  const supabase = await createDataClient();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().slice(0, 10);
+
+  const { data: contracts } = await supabase
+    .from("contracts")
+    .select("id")
+    .eq("customer_id", customerId);
+  const contractIds = contracts?.map((c) => c.id) ?? [];
+  if (contractIds.length === 0) {
+    return { data: [] as CustomerUpcomingVisit[], error: null };
+  }
+
+  const { data, error } = await supabase
+    .from("service_visits")
+    .select(
+      "id, scheduled_date, status, contracts(title, customers(name, address))"
+    )
+    .in("contract_id", contractIds)
+    .eq("status", "scheduled")
+    .gte("scheduled_date", todayStr)
+    .order("scheduled_date", { ascending: true })
+    .limit(limit);
+
+  const visits: CustomerUpcomingVisit[] = (data ?? []).map((v) => {
+    const contract = v.contracts as
+      | {
+          title: string;
+          customers:
+            | { name: string; address: string | null }
+            | { name: string; address: string | null }[]
+            | null;
+        }
+      | {
+          title: string;
+          customers:
+            | { name: string; address: string | null }
+            | { name: string; address: string | null }[]
+            | null;
+        }[]
+      | null;
+
+    const c = Array.isArray(contract) ? contract[0] : contract;
+    const customers = c?.customers;
+    const customer = Array.isArray(customers) ? customers[0] : customers;
+
+    return {
+      id: v.id,
+      scheduled_date: v.scheduled_date,
+      status: v.status,
+      contract_title: c?.title ?? "Contract",
+      property_name: customer?.name ?? "Property",
+      address: customer?.address ?? null,
+    };
+  });
+
+  return { data: visits, error };
 }

@@ -9,6 +9,8 @@ export type ScheduleJob = {
   address: string;
   contractTitle: string;
   services: string[];
+  /** Customer notes (dogs, parking, access) for this property */
+  customerNotes: string[];
   lat: number;
   lng: number;
   source: "visit" | "projected";
@@ -42,6 +44,8 @@ export type VisitWorkState = {
   assignedEmployees: { id: string; name: string; role: string }[];
   completedTaskIds: string[];
   extraWorkNotes: CrewExtraWorkNote[];
+  /** Notes taken by the crew lead during / after the visit (not customer notes). */
+  crewAdditionalNotes: string;
   /** ISO timestamp when crew started the job */
   jobStartedAt: string | null;
   /** ISO timestamp when crew ended the job */

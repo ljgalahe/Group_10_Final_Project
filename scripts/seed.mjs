@@ -38,12 +38,12 @@ const supabase = createClient(url, key);
 
 const expected = {
   customers: 4,
-  contracts: 4,
-  service_visits: 7,
-  visit_costs: 8,
-  extra_work_orders: 2,
-  invoices: 5,
-  invoice_lines: 6,
+  contracts: 6,
+  service_visits: 11,
+  visit_costs: 11,
+  extra_work_orders: 3,
+  invoices: 7,
+  invoice_lines: 8,
   payments: 3,
 };
 
