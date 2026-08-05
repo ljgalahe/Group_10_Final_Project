@@ -1,5 +1,10 @@
 import { createDataClient } from "@/lib/auth-access";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
+import {
+  JOURNAL_SOURCE_LABELS,
+  type JournalSource,
+  type JournalStatus,
+} from "@/lib/journal";
 import type { UserRole } from "@/lib/types";
 
 export async function getScopedCustomerId(role: UserRole) {
@@ -361,6 +366,109 @@ export async function fetchProfitabilityReport() {
   }
 
   return results;
+}
+
+export type { JournalSource, JournalStatus };
+
+export type JournalLine = {
+  accountCode: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+};
+
+export type JournalEntry = {
+  id: string;
+  entryNumber: string;
+  date: string;
+  source: JournalSource;
+  sourceLabel: string;
+  sourceId: string | null;
+  status: JournalStatus;
+  memo: string;
+  reference: string;
+  customerName: string;
+  contractTitle: string | null;
+  lines: JournalLine[];
+  totalDebit: number;
+  totalCredit: number;
+};
+
+export async function fetchJournalEntries(): Promise<JournalEntry[]> {
+  const supabase = await createDataClient();
+  const { data: entries } = await supabase
+    .from("journal_entries")
+    .select(
+      "id, entry_number, entry_date, source, source_id, status, memo, reference, customer_name, contract_title, journal_entry_lines(line_no, account_code, account_name, debit, credit)"
+    )
+    .order("entry_date", { ascending: true })
+    .order("entry_number", { ascending: true });
+
+  return (entries ?? []).map((entry) => {
+    const lines = [...(entry.journal_entry_lines ?? [])]
+      .sort((a, b) => a.line_no - b.line_no)
+      .map((line) => ({
+        accountCode: line.account_code,
+        accountName: line.account_name,
+        debit: Number(line.debit),
+        credit: Number(line.credit),
+      }));
+    const source = entry.source as JournalSource;
+    const status = (entry.status as JournalStatus | null) ?? "posted";
+    return {
+      id: entry.id,
+      entryNumber: entry.entry_number,
+      date: String(entry.entry_date).slice(0, 10),
+      source,
+      sourceLabel: JOURNAL_SOURCE_LABELS[source] ?? source,
+      sourceId: entry.source_id,
+      status,
+      memo: entry.memo,
+      reference: entry.reference,
+      customerName: entry.customer_name,
+      contractTitle: entry.contract_title,
+      lines,
+      totalDebit: roundMoney(lines.reduce((sum, line) => sum + line.debit, 0)),
+      totalCredit: roundMoney(lines.reduce((sum, line) => sum + line.credit, 0)),
+    };
+  });
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+export async function fetchJournalSourceStates() {
+  const supabase = await createDataClient();
+  const { data } = await supabase
+    .from("journal_entries")
+    .select("source, source_id, status")
+    .not("source_id", "is", null);
+
+  const states = {
+    invoice: new Map<string, JournalStatus>(),
+    payment: new Map<string, JournalStatus>(),
+    visit: new Map<string, JournalStatus>(),
+  };
+
+  for (const row of data ?? []) {
+    if (!row.source_id) continue;
+    const status = (row.status as JournalStatus | null) ?? "posted";
+    if (row.source === "invoice") states.invoice.set(row.source_id, status);
+    if (row.source === "payment") states.payment.set(row.source_id, status);
+    if (row.source === "visit") states.visit.set(row.source_id, status);
+  }
+
+  return states;
+}
+
+export async function fetchJournalPostedSourceIds() {
+  const states = await fetchJournalSourceStates();
+  return {
+    invoice: new Set(states.invoice.keys()),
+    payment: new Set(states.payment.keys()),
+    visit: new Set(states.visit.keys()),
+  };
 }
 
 export async function fetchArAgingReport() {

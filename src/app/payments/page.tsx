@@ -2,7 +2,9 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { fetchPayments } from "@/lib/queries";
+import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
+import { paymentJournalReadyReason } from "@/lib/journal";
+import { fetchJournalSourceStates, fetchPayments } from "@/lib/queries";
 import { requireAppAccess } from "@/lib/auth-access";
 import { getViewRole } from "@/lib/demo-role";
 import { RecordPaymentButton } from "@/app/payments/components/RecordPaymentButton";
@@ -80,6 +82,7 @@ export default async function PaymentsPage() {
   }
 
   const { data: payments } = await fetchPaymentsForAccountant();
+  const paymentJournalStates = (await fetchJournalSourceStates()).payment;
   const openInvoices = await fetchOpenInvoicesForPayment();
   const customers = await fetchCustomersForPayment();
   const unappliedCash = await fetchUnappliedCashPayments();
@@ -108,6 +111,7 @@ export default async function PaymentsPage() {
                 <th className="px-4 py-3 font-medium">Method</th>
                 <th className="px-4 py-3 font-medium">Amount</th>
                 <th className="px-4 py-3 font-medium">Unapplied</th>
+                <th className="px-4 py-3 font-medium">Journal</th>
               </tr>
             </thead>
             <tbody>
@@ -156,6 +160,19 @@ export default async function PaymentsPage() {
                       ) : (
                         "—"
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <PostJournalEntryButton
+                        source="payment"
+                        sourceId={payment.id}
+                        journalStatus={paymentJournalStates.get(payment.id) ?? null}
+                        disabledReason={
+                          paymentJournalReadyReason({
+                            amount: Number(payment.amount),
+                            invoiceId: payment.invoice_id,
+                          }) ?? undefined
+                        }
+                      />
                     </td>
                   </tr>
                 );

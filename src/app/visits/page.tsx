@@ -25,6 +25,7 @@ import {
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   fetchAccountantVisits,
+  fetchJournalSourceStates,
   fetchVisitCosts,
   fetchVisits,
 } from "@/lib/queries";
@@ -55,6 +56,9 @@ export default async function VisitsPage({
 
   if (isAccountant) {
     const { data: visits } = await fetchAccountantVisits();
+    const visitJournalStates = Object.fromEntries(
+      (await fetchJournalSourceStates()).visit
+    );
 
     return (
       <AppShell>
@@ -68,6 +72,7 @@ export default async function VisitsPage({
           <AccountantVisitsView
             visits={visits}
             todayIso={new Date().toISOString().slice(0, 10)}
+            visitJournalStates={visitJournalStates}
           />
         )}
       </AppShell>

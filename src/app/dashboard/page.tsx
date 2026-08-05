@@ -485,6 +485,12 @@ export default async function DashboardPage({
               >
                 Profitability Report
               </Link>
+              <Link
+                href="/reports/journal-entries"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Journal Entries
+              </Link>
             </div>
           </Card>
         </div>
