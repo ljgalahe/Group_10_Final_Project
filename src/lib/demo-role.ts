@@ -34,3 +34,7 @@ export function roleCanManageVisits(role: UserRole) {
 export function roleCanViewReports(role: UserRole) {
   return role === "manager" || role === "accountant";
 }
+
+export function roleCanViewEquipment(role: UserRole) {
+  return role === "accountant";
+}

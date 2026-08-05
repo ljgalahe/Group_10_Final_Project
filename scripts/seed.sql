@@ -6,6 +6,8 @@
 --   11111111-1111-1111-1111-111111111101
 
 -- Clear demo data (child tables first)
+delete from equipment_usage;
+delete from equipment;
 delete from payments;
 delete from invoice_lines;
 delete from invoices;
@@ -143,3 +145,31 @@ insert into support_requests (customer_id, category, message, linked_type, linke
   -- Field requests visible to Crew Lead (questions / concerns / complaints)
   ('11111111-1111-1111-1111-111111111102', 'concern', 'Gate code at the north entrance was changed â€” crews need the updated code before the next mow.', 'contract', '22222222-2222-2222-2222-222222222202', 'Open', null, '2026-08-01 15:20:00+00'),
   ('11111111-1111-1111-1111-111111111103', 'complaint', 'Edging along the front walk was missed on the last visit. Please correct on the next stop.', 'contract', '22222222-2222-2222-2222-222222222203', 'In Progress', null, '2026-08-03 11:05:00+00');
+
+-- --- EQUIPMENT (fixed assets — unit of production) -------------------------
+
+insert into equipment (id, name, category, purchase_date, cost, salvage_value, useful_life_years, useful_life_months, estimated_total_hours, status, notes) values
+  ('66666666-6666-6666-6666-666666666601', 'Exmark Lazer Z X-Series', 'Mowers', '2023-03-15', 14500.00, 2500.00, 5, 0, 4000, 'active', 'Primary commercial zero-turn'),
+  ('66666666-6666-6666-6666-666666666602', 'Toro Groundsmaster 4000', 'Mowers', '2022-04-01', 22000.00, 4000.00, 6, 0, 5000, 'active', 'Wide-area mower for large lots'),
+  ('66666666-6666-6666-6666-666666666603', 'Ford F-250 Crew Cab', 'Trucks/Trailers', '2021-09-10', 48500.00, 12000.00, 8, 0, 8000, 'active', 'Main crew transport'),
+  ('66666666-6666-6666-6666-666666666604', '16ft Landscape Trailer', 'Trailers', '2022-11-20', 6200.00, 800.00, 10, 0, 6000, 'active', 'Hauls mowers and materials'),
+  ('66666666-6666-6666-6666-666666666605', 'Hunter ICC2 Irrigation Controller Kit', 'Irrigation tools', '2024-02-01', 1850.00, 200.00, 4, 6, 1500, 'active', 'Controller + diagnostic kit'),
+  ('66666666-6666-6666-6666-666666666606', 'Stihl BR 800 X Backpack Blower', 'Hand/power tools', '2023-06-01', 780.00, 100.00, 3, 0, 1200, 'active', null),
+  ('66666666-6666-6666-6666-666666666607', 'Echo SRM-2620T Trimmer Pair', 'Hand/power tools', '2024-03-12', 520.00, 50.00, 2, 6, 900, 'active', 'Two-pack for crews'),
+  ('66666666-6666-6666-6666-666666666608', 'Older Walk-Behind Mower', 'Mowers', '2018-05-01', 3200.00, 200.00, 5, 0, 2500, 'retired', 'Retired — parts donor');
+
+update equipment set retired_at = '2025-11-01' where id = '66666666-6666-6666-6666-666666666608';
+
+insert into equipment_usage (equipment_id, visit_id, hours, used_on, notes) values
+  ('66666666-6666-6666-6666-666666666601', '33333333-3333-3333-3333-333333333301', 3.0, '2026-06-02', 'Riverside grounds mow'),
+  ('66666666-6666-6666-6666-666666666606', '33333333-3333-3333-3333-333333333301', 1.5, '2026-06-02', 'Blow-off after mow'),
+  ('66666666-6666-6666-6666-666666666601', '33333333-3333-3333-3333-333333333302', 2.0, '2026-06-09', 'Entrance hedge support'),
+  ('66666666-6666-6666-6666-666666666607', '33333333-3333-3333-3333-333333333302', 2.5, '2026-06-09', 'Trimming'),
+  ('66666666-6666-6666-6666-666666666602', '33333333-3333-3333-3333-333333333304', 4.0, '2026-06-03', 'Summit retail frontage'),
+  ('66666666-6666-6666-6666-666666666603', '33333333-3333-3333-3333-333333333304', 4.0, '2026-06-03', 'Crew transport'),
+  ('66666666-6666-6666-6666-666666666604', '33333333-3333-3333-3333-333333333304', 4.0, '2026-06-03', 'Equipment haul'),
+  ('66666666-6666-6666-6666-666666666602', '33333333-3333-3333-3333-333333333305', 5.0, '2026-06-04', 'Metro industrial lot'),
+  ('66666666-6666-6666-6666-666666666603', '33333333-3333-3333-3333-333333333305', 5.5, '2026-06-04', 'Extended day'),
+  ('66666666-6666-6666-6666-666666666605', '33333333-3333-3333-3333-333333333308', 2.0, '2026-06-10', 'Zone 3 diagnostics'),
+  ('66666666-6666-6666-6666-666666666601', '33333333-3333-3333-3333-333333333310', 2.0, '2026-06-11', 'North island mow'),
+  ('66666666-6666-6666-6666-666666666606', '33333333-3333-3333-3333-333333333310', 1.0, '2026-06-11', 'Cleanup blow');

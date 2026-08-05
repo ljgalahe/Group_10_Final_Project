@@ -53,6 +53,7 @@ export function PageHeader({
 export function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     active: "bg-green-100 text-green-800",
+    retired: "bg-stone-200 text-stone-700",
     draft: "bg-gray-100 text-gray-800",
     sent: "bg-blue-100 text-blue-800",
     paid: "bg-green-100 text-green-800",
