@@ -3,6 +3,11 @@
 import { useMemo, useState } from "react";
 import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
 import { VisitAuditLog } from "@/components/VisitAuditLog";
+import {
+  VisitEquipmentUsed,
+  type VisitEquipmentOption,
+  type VisitEquipmentUsageRow,
+} from "@/components/VisitEquipmentUsed";
 import { EmptyState, StatCard, StatusBadge } from "@/components/ui";
 import { visitJournalReadyReason, type JournalStatus } from "@/lib/journal";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -71,10 +76,14 @@ export function AccountantVisitsView({
   visits,
   todayIso,
   visitJournalStates = {},
+  equipment = [],
+  equipmentUsage = [],
 }: {
   visits: AccountantVisit[];
   todayIso: string;
   visitJournalStates?: Record<string, JournalStatus>;
+  equipment?: VisitEquipmentOption[];
+  equipmentUsage?: VisitEquipmentUsageRow[];
 }) {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "scheduled" | "completed"
@@ -641,6 +650,14 @@ export function AccountantVisitsView({
                     )}
                   </ul>
                 </section>
+              </div>
+
+              <div className="mt-4">
+                <VisitEquipmentUsed
+                  visitId={visit.id}
+                  equipment={equipment}
+                  usage={equipmentUsage.filter((row) => row.visitId === visit.id)}
+                />
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">

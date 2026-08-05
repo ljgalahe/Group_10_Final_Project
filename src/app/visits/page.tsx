@@ -1,6 +1,10 @@
 import { completeVisit } from "@/app/actions/business";
 import { ensureCompletedVisitLaborSynced } from "@/app/actions/labor";
 import { AccountantVisitsView } from "@/components/AccountantVisitsView";
+import {
+  fetchEquipment,
+  fetchEquipmentUsage,
+} from "@/app/equipment/queries";
 import { AppShell } from "@/components/AppShell";
 import {
   VisitStatusFilter,
@@ -100,6 +104,10 @@ export default async function VisitsPage({
     const visitJournalStates = Object.fromEntries(
       (await fetchJournalSourceStates()).visit
     );
+    const [equipmentRows, usageRows] = await Promise.all([
+      fetchEquipment(),
+      fetchEquipmentUsage(),
+    ]);
 
     return (
       <AppShell>
@@ -114,6 +122,23 @@ export default async function VisitsPage({
             visits={visits}
             todayIso={new Date().toISOString().slice(0, 10)}
             visitJournalStates={visitJournalStates}
+            equipment={equipmentRows.map((item) => ({
+              id: item.id,
+              name: item.name,
+              category: item.category,
+              status: item.status,
+            }))}
+            equipmentUsage={usageRows.map((row) => ({
+              id: row.id,
+              visitId: row.visit_id,
+              equipmentId: row.equipment_id,
+              equipmentName: row.equipment_name,
+              category:
+                equipmentRows.find((item) => item.id === row.equipment_id)
+                  ?.category ?? "Other",
+              hours: row.hours,
+              notes: row.notes,
+            }))}
           />
         )}
       </AppShell>
