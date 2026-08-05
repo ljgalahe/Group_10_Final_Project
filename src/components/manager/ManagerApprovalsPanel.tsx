@@ -53,12 +53,11 @@ function loadAllVisitExtraWorkNotes(): VisitExtraWorkItem[] {
 
 /**
  * Manager inbox for crew-lead extra-work approvals and field exceptions.
- * Uses the same localStorage keys as the Crew Lead screens so both stay in sync.
+ * Crew member time-off / availability is reviewed by Operations.
  */
 export function ManagerApprovalsPanel({
   visitLabels = {},
 }: {
-  /** Optional map of visit/job id -> label (customer / contract) */
   visitLabels?: Record<string, string>;
 }) {
   const [extraRequests, setExtraRequests] = useState<
@@ -150,6 +149,10 @@ export function ManagerApprovalsPanel({
             <h2 className="text-lg font-semibold text-green-950">
               Approvals & Crew Alerts
             </h2>
+            <p className="mt-1 text-sm text-stone-600">
+              Extra-work and field exceptions. Crew member time-off is handled by
+              Operations.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">

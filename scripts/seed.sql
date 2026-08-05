@@ -171,7 +171,7 @@ insert into equipment (id, name, category, purchase_date, cost, salvage_value, u
   ('66666666-6666-6666-6666-666666666605', 'Hunter ICC2 Irrigation Controller Kit', 'Irrigation tools', '2024-02-01', 1850.00, 200.00, 4, 6, 1500, 'active', 'Controller + diagnostic kit'),
   ('66666666-6666-6666-6666-666666666606', 'Stihl BR 800 X Backpack Blower', 'Hand/power tools', '2023-06-01', 780.00, 0.00, 0, 1, 1, 'active', null),
   ('66666666-6666-6666-6666-666666666607', 'Echo SRM-2620T Trimmer Pair', 'Hand/power tools', '2024-03-12', 520.00, 0.00, 0, 1, 1, 'active', 'Two-pack for crews'),
-  ('66666666-6666-6666-6666-666666666608', 'Older Walk-Behind Mower', 'Mowers', '2018-05-01', 3200.00, 200.00, 5, 0, 2500, 'retired', 'Retired ? parts donor');
+  ('66666666-6666-6666-6666-666666666608', 'Older Walk-Behind Mower', 'Mowers', '2018-05-01', 3200.00, 200.00, 5, 0, 2500, 'retired', 'Retired — parts donor');
 
 update equipment set retired_at = '2025-11-01' where id = '66666666-6666-6666-6666-666666666608';
 

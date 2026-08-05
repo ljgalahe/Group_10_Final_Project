@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requestServiceQuote } from "@/app/actions/support";
+import { requestServiceQuote } from "@/app/actions/quotes";
 import { AppShell } from "@/components/AppShell";
 import { Card, PageHeader } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";

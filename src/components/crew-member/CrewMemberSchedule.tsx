@@ -5,12 +5,13 @@ import { Card, EmptyState, StatusBadge } from "@/components/ui";
 import { ScheduleWeatherStrip } from "@/components/crew-lead/ScheduleWeatherStrip";
 import { VisitWorkPanel } from "@/components/crew-lead/VisitWorkPanel";
 import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
-import { addDays } from "@/components/crew-lead/dateHelpers";
 import type {
   ExtraWorkItem,
   ScheduleJob,
 } from "@/components/crew-lead/schedule-types";
+import { scheduleJobsToJobRows } from "@/components/crew-lead/scheduleJobsToJobRows";
 import { loadVisitWorkState } from "@/components/crew-lead/crewLeadStorage";
+import { ScheduleCalendar } from "@/components/visits/ScheduleCalendar";
 import {
   coworkerNamesForJob,
   crewLeadNameForJob,
@@ -30,14 +31,6 @@ function formatDisplayDate(isoDate: string) {
     year: "numeric",
     timeZone: "UTC",
   });
-}
-
-function weekDates(anchor: string): string[] {
-  const [y, m, d] = anchor.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  const day = date.getUTCDay();
-  const sunday = addDays(anchor, -day);
-  return Array.from({ length: 7 }, (_, i) => addDays(sunday, i));
 }
 
 function JobCard({
@@ -130,13 +123,14 @@ function JobCard({
             (item) => item.contractId === job.contractId
           )}
           readOnly
+          showCustomerNotes={false}
         />
       ) : null}
     </li>
   );
 }
 
-/** Read-only day/week schedule for crew members (assigned visits only). */
+/** Read-only schedule for crew members — same calendar/filter chrome as crew lead. */
 export function CrewMemberSchedule({
   jobs,
   today,
@@ -146,9 +140,11 @@ export function CrewMemberSchedule({
   today: string;
   extraWork?: ExtraWorkItem[];
 }) {
-  const [view, setView] = useState<"day" | "week">("day");
   const [selectedDate, setSelectedDate] = useState(today);
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [filteredVisitIds, setFilteredVisitIds] = useState<Set<string> | null>(
+    null
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -160,124 +156,90 @@ export function CrewMemberSchedule({
     }
   }, []);
 
-  const week = useMemo(() => weekDates(selectedDate), [selectedDate]);
-
-  const visibleJobs = useMemo(
-    () => jobs.filter((job) => job.scheduledDate === selectedDate),
-    [jobs, selectedDate]
-  );
+  const calendarJobs = useMemo(() => scheduleJobsToJobRows(jobs), [jobs]);
+  const todaysAssigned = jobs.filter((job) => job.scheduledDate === today);
+  const selectedJobs = jobs.filter((job) => {
+    if (job.scheduledDate !== selectedDate) return false;
+    if (filteredVisitIds && !filteredVisitIds.has(job.id)) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
       <ScheduleWeatherStrip today={today} />
 
-      <Card>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-green-950">
-              My Schedule
-            </h2>
-            <p className="mt-1 text-sm text-stone-500">
-              Read-only day and week views of visits assigned to you.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-lg border border-stone-300 bg-white p-0.5">
-              <button
-                type="button"
-                onClick={() => setView("day")}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                  view === "day"
-                    ? "bg-green-800 text-white"
-                    : "text-stone-700 hover:bg-stone-50"
-                }`}
-              >
-                Day
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("week")}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                  view === "week"
-                    ? "bg-green-800 text-white"
-                    : "text-stone-700 hover:bg-stone-50"
-                }`}
-              >
-                Week
-              </button>
-            </div>
-            <label className="text-sm">
-              <span className="sr-only">Date</span>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
-              />
-            </label>
-          </div>
-        </div>
-      </Card>
-
       <section id="todays-route" className="scroll-mt-4">
         <div className="mb-3">
           <h2 className="text-2xl font-bold text-green-950">
-            {view === "day"
-              ? formatDisplayDate(selectedDate)
-              : `Week of ${formatDisplayDate(week[0])}`}
+            Today&apos;s Assigned Jobs
           </h2>
           <p className="mt-1 text-sm text-stone-600">
-            {view === "week" ? (
-              <>
-                {formatDisplayDate(selectedDate)} · {visibleJobs.length}{" "}
-                assigned visit
-                {visibleJobs.length === 1 ? "" : "s"}
-              </>
-            ) : (
-              <>
-                {visibleJobs.length} assigned visit
-                {visibleJobs.length === 1 ? "" : "s"}
-              </>
-            )}
+            Visits assigned to you today ({formatDisplayDate(today)}).
           </p>
         </div>
 
-        {view === "week" ? (
-          <div className="mb-4 grid grid-cols-7 gap-1">
-            {week.map((iso) => {
-              const count = jobs.filter((j) => j.scheduledDate === iso).length;
-              const isSelected = selectedDate === iso;
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  onClick={() => setSelectedDate(iso)}
-                  aria-pressed={isSelected}
-                  className={`rounded-md border px-1 py-2 text-center text-xs transition ${
-                    isSelected
-                      ? "border-green-800 bg-green-800 text-white"
-                      : iso === today
-                        ? "border-green-600 bg-green-50 text-green-950"
-                        : "border-stone-200 bg-white text-stone-800 hover:border-green-700"
-                  }`}
-                >
-                  <span className="block font-semibold">
-                    {formatDisplayDate(iso).split(",")[0]}
-                  </span>
-                  <span className="mt-1 block text-[10px]">
-                    {count} job{count === 1 ? "" : "s"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
+        <Card>
+          {todaysAssigned.length === 0 ? (
+            <p className="text-sm text-stone-500">
+              No visits assigned to you today.
+            </p>
+          ) : (
+            <ul className="max-h-[28rem] space-y-3 overflow-y-auto">
+              {todaysAssigned.map((job) => (
+                <JobCard
+                  key={`today-${job.id}`}
+                  job={job}
+                  expanded={expandedJobId === `today-${job.id}`}
+                  onToggle={() =>
+                    setExpandedJobId((id) =>
+                      id === `today-${job.id}` ? null : `today-${job.id}`
+                    )
+                  }
+                  extraWork={extraWork}
+                />
+              ))}
+            </ul>
+          )}
+        </Card>
+      </section>
 
-        {visibleJobs.length === 0 ? (
-          <EmptyState message="No visits assigned to you on this day." />
+      <Card>
+        <h3 className="text-lg font-semibold text-green-950">Schedule</h3>
+        <p className="mt-1 text-sm text-stone-500">
+          Filter by company, employee, job, or status (green = completed, orange
+          = pending), then click a day. Only your assigned visits are shown.
+        </p>
+        {calendarJobs.length === 0 ? (
+          <p className="mt-4 text-sm text-stone-400">
+            No assigned jobs in this range to show on the calendar.
+          </p>
         ) : (
-          <ul className="space-y-4">
-            {visibleJobs.map((job) => (
+          <ScheduleCalendar
+            jobs={calendarJobs}
+            onDateChange={(date) => {
+              if (date) setSelectedDate(date);
+            }}
+            onFilteredJobsChange={(filtered) => {
+              setFilteredVisitIds(new Set(filtered.map((j) => j.visitId)));
+            }}
+          />
+        )}
+      </Card>
+
+      <Card>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold text-green-950">
+            {formatDisplayDate(selectedDate)}
+          </h3>
+          <span className="text-xs text-stone-500">
+            {selectedJobs.length} visit{selectedJobs.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        {selectedJobs.length === 0 ? (
+          <EmptyState message="No visits assigned to you on this day. Use the calendar filters and pick another day." />
+        ) : (
+          <ul className="space-y-3">
+            {selectedJobs.map((job) => (
               <JobCard
                 key={job.id}
                 job={job}
@@ -290,7 +252,7 @@ export function CrewMemberSchedule({
             ))}
           </ul>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

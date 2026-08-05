@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import { AssignedEmployeesList } from "@/components/crew-lead/AssignedEmployeesList";
 import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
 import { ScheduleWeatherStrip } from "@/components/crew-lead/ScheduleWeatherStrip";
@@ -10,15 +9,10 @@ import type {
   ExtraWorkItem,
   ScheduleJob,
 } from "@/components/crew-lead/schedule-types";
+import { scheduleJobsToJobRows } from "@/components/crew-lead/scheduleJobsToJobRows";
 import { VisitWorkPanel } from "@/components/crew-lead/VisitWorkPanel";
 import { Card, EmptyState, StatusBadge } from "@/components/ui";
 import { ScheduleCalendar } from "@/components/visits/ScheduleCalendar";
-import {
-  SCHEDULE_CREW,
-  crewPayTotal,
-  generateDailySampleJobs,
-} from "@/lib/visit-demo";
-import type { JobRow } from "@/lib/visit-jobs";
 
 function formatDisplayDate(isoDate: string) {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -28,35 +22,6 @@ function formatDisplayDate(isoDate: string) {
     day: "numeric",
     year: "numeric",
     timeZone: "UTC",
-  });
-}
-
-function scheduleJobsToJobRows(jobs: ScheduleJob[]): JobRow[] {
-  const samples = new Map(
-    generateDailySampleJobs().map((j) => [j.visitId, j] as const)
-  );
-  return jobs.map((job) => {
-    const overlay = SCHEDULE_CREW[job.id];
-    const sample = samples.get(job.id);
-    const crew = overlay?.crew ?? sample?.crew ?? [];
-    return {
-      visitId: job.id,
-      companyName: job.customerName,
-      location: job.address,
-      jobLabel:
-        overlay?.jobLabel ??
-        sample?.jobLabel ??
-        (job.services.length > 0
-          ? job.services.join(", ")
-          : job.contractTitle),
-      date: job.scheduledDate,
-      status: job.status,
-      crew,
-      crewPay: crew.length ? crewPayTotal(crew) : (sample?.crewPay ?? 0),
-      costTotal: sample?.costTotal ?? 0,
-      weather: sample?.weather ?? null,
-      proof: sample?.proof ?? null,
-    };
   });
 }
 
@@ -70,6 +35,16 @@ function StopsMap({ jobs }: { jobs: ScheduleJob[] }) {
     let cancelled = false;
 
     async function setupMap() {
+      // Serve Leaflet CSS from /public so Turbopack does not try to resolve
+      // relative url(images/…) paths inside node_modules/leaflet/dist/leaflet.css.
+      if (!document.getElementById("leaflet-stylesheet")) {
+        const link = document.createElement("link");
+        link.id = "leaflet-stylesheet";
+        link.rel = "stylesheet";
+        link.href = "/leaflet/leaflet.css";
+        document.head.appendChild(link);
+      }
+
       const L = (await import("leaflet")).default;
 
       if (cancelled || !mapRef.current) return;

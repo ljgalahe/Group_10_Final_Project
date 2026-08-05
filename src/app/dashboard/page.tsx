@@ -28,6 +28,8 @@ import {
   fetchCustomerNeedsAttention,
   fetchCustomerUpcomingVisits,
   fetchDashboardStats,
+  fetchPendingContractApprovals,
+  fetchQuoteRequests,
   fetchVisitLaborEntries,
 } from "@/lib/queries";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
@@ -63,6 +65,20 @@ function attentionDetail(item: CustomerAttentionItem) {
     }
   }
   return item.detail;
+}
+
+async function OpsDashboardCounts() {
+  const [{ data: quotes }, { data: pending }] = await Promise.all([
+    fetchQuoteRequests(),
+    fetchPendingContractApprovals(),
+  ]);
+  const openQuotes = quotes.filter((q) => q.status === "new" || q.status === "survey_scheduled" || q.status === "budgeted").length;
+  return (
+    <p className="mt-4 text-sm text-stone-600">
+      {openQuotes} open quote{openQuotes === 1 ? "" : "s"} · {pending.length}{" "}
+      contract draft{pending.length === 1 ? "" : "s"} awaiting dual approval
+    </p>
+  );
 }
 
 function NeedsAttentionList({ items }: { items: CustomerAttentionItem[] }) {
@@ -170,6 +186,11 @@ export default async function DashboardPage({
       title: "Accounting Dashboard",
       description:
         "Track billing, outstanding balances, and contract profitability.",
+    },
+    operations: {
+      title: "Operations Dashboard",
+      description:
+        "Quotes, scheduling, crew availability, and contract drafts awaiting approval.",
     },
     crew_lead: {
       title: "Crew Lead Dashboard",
@@ -524,7 +545,73 @@ export default async function DashboardPage({
               >
                 Customer Support
               </Link>
+              <Link
+                href="/contracts"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Approve contract drafts
+              </Link>
             </div>
+          </Card>
+        </div>
+      ) : null}
+
+      {role === "operations" ? (
+        <div className="mt-8 space-y-6">
+          <Card>
+            <h2 className="text-lg font-semibold text-green-950">
+              Scheduling hub
+            </h2>
+            <p className="mt-1 text-sm text-stone-600">
+              Calendar, visit create/assign, missed visits needing reschedule,
+              and crew time-off live on Scheduling.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/schedule"
+                className="rounded-lg bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+              >
+                Open Scheduling
+              </Link>
+              <Link
+                href="/schedule#needs-rescheduling"
+                className="rounded-lg border border-amber-700 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-50"
+              >
+                Needs rescheduling
+              </Link>
+              <Link
+                href="/schedule#crew-availability"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Crew time-off
+              </Link>
+            </div>
+          </Card>
+          <Card>
+            <h2 className="text-lg font-semibold text-green-950">
+              Operations Quick Actions
+            </h2>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/quotes"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Quotes inbox
+              </Link>
+              <Link
+                href="/schedule"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Scheduling
+              </Link>
+              <Link
+                href="/contracts"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Contracts
+              </Link>
+            </div>
+            <OpsDashboardCounts />
           </Card>
         </div>
       ) : null}

@@ -42,6 +42,19 @@ function isoFor(year: number, monthIndex: number, day: number) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/** Inclusive ISO date list from a through b (order-independent). */
+function datesInInclusiveRange(a: string, b: string): string[] {
+  const start = a <= b ? a : b;
+  const end = a <= b ? b : a;
+  const out: string[] = [];
+  let cursor = start;
+  while (cursor <= end) {
+    out.push(cursor);
+    cursor = addDays(cursor, 1);
+  }
+  return out;
+}
+
 /** Availability calendar + time-off requests (crew member write exception). */
 export function CrewMemberAvailabilityPanel({
   today,
@@ -56,7 +69,10 @@ export function CrewMemberAvailabilityPanel({
   const [availabilityNotes, setAvailabilityNotes] = useState("");
   const [message, setMessage] = useState("");
   const [resubmitId, setResubmitId] = useState<string | null>(null);
+  /** Inclusive days currently highlighted on the request calendar. */
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  /** First click of a new range; second click completes start→end. */
+  const [rangeAnchor, setRangeAnchor] = useState<string | null>(null);
 
   const [y, m] = today.split("-").map(Number);
   const [viewYear, setViewYear] = useState(y);
@@ -96,15 +112,58 @@ export function CrewMemberAvailabilityPanel({
     return set;
   }, [myRequests]);
 
-  function toggleCalendarDate(iso: string) {
-    const next = selectedDates.includes(iso)
-      ? selectedDates.filter((d) => d !== iso)
-      : [...selectedDates, iso].sort();
-    setSelectedDates(next);
-    if (next.length > 0) {
-      setStartDate(next[0]);
-      setEndDate(next[next.length - 1]);
+  const selectedDateSet = useMemo(
+    () => new Set(selectedDates),
+    [selectedDates]
+  );
+
+  function applyInclusiveRange(a: string, b: string) {
+    const start = a <= b ? a : b;
+    const end = a <= b ? b : a;
+    setStartDate(start);
+    setEndDate(end);
+    setSelectedDates(datesInInclusiveRange(start, end));
+  }
+
+  /** Click start, then end — fills every day in between (normalized). */
+  function pickCalendarDate(iso: string) {
+    if (!rangeAnchor) {
+      setRangeAnchor(iso);
+      setStartDate(iso);
+      setEndDate(iso);
+      setSelectedDates([iso]);
+      return;
     }
+    applyInclusiveRange(rangeAnchor, iso);
+    setRangeAnchor(null);
+  }
+
+  function onStartDateInput(value: string) {
+    if (!value) {
+      setStartDate(value);
+      return;
+    }
+    setRangeAnchor(null);
+    if (!endDate) {
+      setStartDate(value);
+      setSelectedDates([value]);
+      return;
+    }
+    applyInclusiveRange(value, endDate);
+  }
+
+  function onEndDateInput(value: string) {
+    if (!value) {
+      setEndDate(value);
+      return;
+    }
+    setRangeAnchor(null);
+    if (!startDate) {
+      setEndDate(value);
+      setSelectedDates([value]);
+      return;
+    }
+    applyInclusiveRange(startDate, value);
   }
 
   function submitRequest(e: FormEvent) {
@@ -141,6 +200,7 @@ export function CrewMemberAvailabilityPanel({
     setReason("");
     setAvailabilityNotes("");
     setSelectedDates([]);
+    setRangeAnchor(null);
     refresh();
     window.setTimeout(() => setMessage(""), 3000);
   }
@@ -152,7 +212,8 @@ export function CrewMemberAvailabilityPanel({
     setEndDate(req.endDate);
     setReason(req.reason);
     setAvailabilityNotes(req.availabilityNotes);
-    setSelectedDates([]);
+    setSelectedDates(datesInInclusiveRange(req.startDate, req.endDate));
+    setRangeAnchor(null);
   }
 
   const cells = monthDays(viewYear, viewMonth);
@@ -174,8 +235,8 @@ export function CrewMemberAvailabilityPanel({
           Availability Calendar
         </h3>
         <p className="mt-1 text-sm text-stone-500">
-          Tap dates to fill your request range. Highlighted days already have a
-          pending or decided request.
+          Tap a start date, then an end date — the full range fills in green.
+          Amber days already have a pending or decided request.
         </p>
 
         <div className="mt-3 flex items-center justify-between gap-2">
@@ -207,22 +268,27 @@ export function CrewMemberAvailabilityPanel({
               return <div key={`empty-${index}`} className="aspect-square" />;
             }
             const iso = isoFor(viewYear, viewMonth, day);
-            const selected = selectedDates.includes(iso);
+            const inRange = selectedDateSet.has(iso);
+            const isEndpoint =
+              inRange && (iso === startDate || iso === endDate);
             const hasRequest = requestDateSet.has(iso);
             const isToday = iso === today;
             return (
               <button
                 key={iso}
                 type="button"
-                onClick={() => toggleCalendarDate(iso)}
+                onClick={() => pickCalendarDate(iso)}
+                aria-pressed={inRange}
                 className={`aspect-square rounded-md border p-0.5 text-[11px] font-semibold transition ${
-                  selected
+                  isEndpoint
                     ? "border-green-800 bg-green-800 text-white"
-                    : hasRequest
-                      ? "border-amber-400 bg-amber-50 text-amber-950"
-                      : isToday
-                        ? "border-green-600 bg-green-50 text-green-950"
-                        : "border-stone-200 bg-white text-stone-800 hover:border-green-700"
+                    : inRange
+                      ? "border-green-700 bg-green-600 text-white"
+                      : hasRequest
+                        ? "border-amber-400 bg-amber-50 text-amber-950"
+                        : isToday
+                          ? "border-green-600 bg-green-50 text-green-950"
+                          : "border-stone-200 bg-white text-stone-800 hover:border-green-700"
                 }`}
               >
                 {day}
@@ -237,7 +303,7 @@ export function CrewMemberAvailabilityPanel({
           {resubmitId ? "Resubmit Request" : "Time Off & Availability"}
         </h3>
         <p className="mt-1 text-sm text-stone-500">
-          Submit time-off or availability updates for manager review.
+          Submit time-off or availability updates for Operations review.
         </p>
 
         <form onSubmit={submitRequest} className="mt-3 space-y-2">
@@ -261,7 +327,7 @@ export function CrewMemberAvailabilityPanel({
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => onStartDateInput(e.target.value)}
                 className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
                 required
               />
@@ -273,7 +339,7 @@ export function CrewMemberAvailabilityPanel({
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => onEndDateInput(e.target.value)}
                 className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
                 required
               />
@@ -313,7 +379,7 @@ export function CrewMemberAvailabilityPanel({
               type="submit"
               className="rounded-md bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
             >
-              {resubmitId ? "Resubmit to Manager" : "Submit Request"}
+              {resubmitId ? "Resubmit to Operations" : "Submit Request"}
             </button>
             {resubmitId ? (
               <button
@@ -322,6 +388,8 @@ export function CrewMemberAvailabilityPanel({
                   setResubmitId(null);
                   setReason("");
                   setAvailabilityNotes("");
+                  setSelectedDates([]);
+                  setRangeAnchor(null);
                 }}
                 className="rounded-md border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-white"
               >
@@ -369,7 +437,7 @@ export function CrewMemberAvailabilityPanel({
                       ) : null}
                       {req.status === "needs_info" && req.managerMessage ? (
                         <p className="mt-1 text-xs text-amber-800">
-                          Manager: {req.managerMessage}
+                          Operations: {req.managerMessage}
                         </p>
                       ) : null}
                     </div>

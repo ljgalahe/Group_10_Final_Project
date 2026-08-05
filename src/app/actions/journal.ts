@@ -5,6 +5,9 @@ import { createDataClient } from "@/lib/auth-access";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 import {
   accountNameForCode,
+  depreciationAmountForHours,
+  depreciationJournalDraft,
+  depreciationJournalReadyReason,
   invoiceJournalDraft,
   invoiceJournalReadyReason,
   paymentJournalDraft,
@@ -32,6 +35,7 @@ function revalidateJournalPaths() {
   revalidatePath("/invoices", "layout");
   revalidatePath("/payments", "layout");
   revalidatePath("/visits");
+  revalidatePath("/equipment");
   revalidatePath("/contracts", "layout");
 }
 
@@ -62,7 +66,10 @@ async function nextEntryNumber(supabase: Awaited<ReturnType<typeof createDataCli
   return `JE-${String(max + 1).padStart(4, "0")}`;
 }
 
-async function insertJournalEntry(draft: JournalDraft) {
+async function insertJournalEntry(
+  draft: JournalDraft,
+  options?: { revalidate?: boolean }
+) {
   const check = validateJournalLines(draft.lines);
   if (!check.ok) return { ok: false as const, error: check.error };
 
@@ -118,7 +125,7 @@ async function insertJournalEntry(draft: JournalDraft) {
     return { ok: false as const, error: lineError.message };
   }
 
-  revalidateJournalPaths();
+  if (options?.revalidate !== false) revalidateJournalPaths();
   return { ok: true as const, id: entry.id };
 }
 
@@ -362,7 +369,93 @@ export async function postAutomatedJournalEntry(formData: FormData) {
     return insertJournalEntry({ ...draft, status: "posted" });
   }
 
+  if (source === "depreciation") {
+    return postDepreciationJournalForUsage(sourceId);
+  }
+
   return { ok: false as const, error: "Unsupported journal source." };
+}
+
+export async function backfillDepreciationJournals() {
+  const auth = await requireAccountant();
+  if (!auth.ok) return auth;
+
+  const supabase = await createDataClient();
+  const [{ data: usageRows }, { data: existing }] = await Promise.all([
+    supabase.from("equipment_usage").select("id"),
+    supabase
+      .from("journal_entries")
+      .select("source_id")
+      .eq("source", "depreciation")
+      .not("source_id", "is", null),
+  ]);
+
+  const posted = new Set(
+    (existing ?? []).map((row) => row.source_id).filter(Boolean) as string[]
+  );
+
+  for (const row of usageRows ?? []) {
+    if (posted.has(row.id)) continue;
+    await postDepreciationJournalForUsage(row.id, { revalidate: false });
+  }
+
+  return { ok: true as const };
+}
+
+export async function postDepreciationJournalForUsage(
+  usageId: string,
+  options?: { revalidate?: boolean }
+) {
+  const supabase = await createDataClient();
+  const { data: usage } = await supabase
+    .from("equipment_usage")
+    .select(
+      "id, hours, used_on, equipment_id, equipment(name, category, cost, salvage_value, estimated_total_hours), service_visits(contracts(title, customers(name)))"
+    )
+    .eq("id", usageId)
+    .single();
+  if (!usage) return { ok: false as const, error: "Equipment usage not found." };
+
+  const equipment = Array.isArray(usage.equipment) ? usage.equipment[0] : usage.equipment;
+  if (!equipment) return { ok: false as const, error: "Equipment not found." };
+
+  const visit = Array.isArray(usage.service_visits)
+    ? usage.service_visits[0]
+    : usage.service_visits;
+  const contract = Array.isArray(visit?.contracts) ? visit?.contracts[0] : visit?.contracts;
+  const customer = Array.isArray(contract?.customers)
+    ? contract?.customers[0]
+    : contract?.customers;
+
+  const amount = depreciationAmountForHours({
+    cost: Number(equipment.cost),
+    salvage: Number(equipment.salvage_value),
+    estimatedHours: Number(equipment.estimated_total_hours),
+    hours: Number(usage.hours),
+  });
+  const notReady = depreciationJournalReadyReason({
+    category: equipment.category,
+    hours: Number(usage.hours),
+    amount,
+  });
+  if (notReady) return { ok: false as const, error: notReady };
+
+  return insertJournalEntry(
+    {
+      ...depreciationJournalDraft({
+        usageId: usage.id,
+        usedOn: String(usage.used_on),
+        hours: Number(usage.hours),
+        amount,
+        equipmentName: equipment.name,
+        category: equipment.category,
+        customerName: customer?.name ?? "",
+        contractTitle: contract?.title ?? null,
+      }),
+      status: "posted",
+    },
+    options
+  );
 }
 
 export async function deleteJournalEntry(formData: FormData) {

@@ -51,7 +51,7 @@ export default async function CustomerSupportPage({
     <AppShell>
       <PageHeader
         title="Customer Support"
-        description="Review customer questions, concerns, complaints, billing disputes, renewal requests, and service quote requests. Update request status so customers see progress on Contact Us."
+        description="Review customer questions, concerns, complaints, billing disputes, and renewal requests. Service quote requests are handled by Operations."
       />
 
       {params.updated === "1" ? (

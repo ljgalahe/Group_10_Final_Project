@@ -25,6 +25,7 @@ export default async function ChatPage({
       />
       <ChatWorkspace
         initialWith={first(params.with)}
+        initialFrom={first(params.from)}
         initialVisit={first(params.visit)}
         initialJob={first(params.job)}
         initialCompany={first(params.company)}
