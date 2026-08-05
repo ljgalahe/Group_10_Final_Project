@@ -95,12 +95,33 @@ export default async function InvoicesPage({
       ? (await fetchCustomerPaymentMethods(customerId)).data
       : [];
 
-  const filteredInvoices = invoices.filter((invoice) => {
-    const balance = Number(invoice.total) - Number(invoice.amount_paid);
-    if (statusFilter === "due") return balance > 0.001;
-    if (statusFilter === "paid") return balance <= 0.001;
-    return true;
-  });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  function isPastDue(dueDate: string, balance: number) {
+    if (balance <= 0.001) return false;
+    return new Date(dueDate + "T00:00:00") < today;
+  }
+
+  const filteredInvoices = invoices
+    .filter((invoice) => {
+      const balance = Number(invoice.total) - Number(invoice.amount_paid);
+      if (statusFilter === "due") return balance > 0.001;
+      if (statusFilter === "paid") return balance <= 0.001;
+      return true;
+    })
+    .sort((a, b) => {
+      const balA = Number(a.total) - Number(a.amount_paid);
+      const balB = Number(b.total) - Number(b.amount_paid);
+      const pastA = isPastDue(a.due_date, balA) ? 0 : 1;
+      const pastB = isPastDue(b.due_date, balB) ? 0 : 1;
+      if (pastA !== pastB) return pastA - pastB;
+      // Within group: earlier due dates first; paid invoices sort by issue date desc
+      if (balA > 0.001 || balB > 0.001) {
+        return a.due_date.localeCompare(b.due_date);
+      }
+      return b.issue_date.localeCompare(a.issue_date);
+    });
 
   const emptyMessage =
     statusFilter === "due"

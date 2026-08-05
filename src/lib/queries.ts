@@ -732,14 +732,23 @@ export async function fetchCustomerNeedsAttention(customerId: string) {
     });
   }
 
-  // Priority: overdue → open balance → support responses → renewals last
+  // Priority: overdue (highest balance first) → open balance → support → renewals
   const rank: Record<CustomerAttentionItem["kind"], number> = {
     overdue_invoice: 0,
     open_invoice: 1,
     support: 2,
     renewal: 3,
   };
-  items.sort((a, b) => rank[a.kind] - rank[b.kind]);
+  items.sort((a, b) => {
+    const rankDiff = rank[a.kind] - rank[b.kind];
+    if (rankDiff !== 0) return rankDiff;
+    if (a.kind === "overdue_invoice" || a.kind === "open_invoice") {
+      const amtDiff = (b.amount ?? 0) - (a.amount ?? 0);
+      if (amtDiff !== 0) return amtDiff;
+      return (a.dueDate ?? "").localeCompare(b.dueDate ?? "");
+    }
+    return 0;
+  });
 
   return {
     data: items.slice(0, 6),
