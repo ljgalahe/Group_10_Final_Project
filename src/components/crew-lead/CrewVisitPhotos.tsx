@@ -245,12 +245,14 @@ function PhotoGrid({
 export function CrewVisitPhotos({
   jobId,
   status,
+  readOnly = false,
 }: {
   jobId: string;
   status: string;
+  readOnly?: boolean;
 }) {
   const [photos, setPhotos] = useState<VisitPhotosState>(emptyPhotos);
-  const canEdit = status === "scheduled";
+  const canEdit = status === "scheduled" && !readOnly;
   const isCompleted = status === "completed";
 
   useEffect(() => {
