@@ -440,6 +440,16 @@ export async function fetchAllSupportRequests(): Promise<{
   return { data: items, error: null };
 }
 
+/** Contact Us requests relevant to crew (questions, concerns, complaints). */
+export async function fetchCrewApplicableSupportRequests() {
+  const { data, error } = await fetchAllSupportRequests();
+  const applicable = new Set(["question", "concern", "complaint"]);
+  return {
+    data: data.filter((item) => applicable.has(item.category)),
+    error,
+  };
+}
+
 export async function fetchSupportRequestForCustomer(
   requestId: string,
   customerId: string

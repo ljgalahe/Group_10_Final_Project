@@ -38,6 +38,7 @@ export function emptyVisitWorkState(): VisitWorkState {
     assignedEmployees: [],
     completedTaskIds: [],
     extraWorkNotes: [],
+    crewAdditionalNotes: "",
     jobStartedAt: null,
     jobEndedAt: null,
     plannedHours: 4,
@@ -105,6 +106,7 @@ export function loadVisitWorkState(jobId: string): VisitWorkState {
       assignedEmployees: assigned,
       completedTaskIds: parsed.completedTaskIds ?? [],
       extraWorkNotes: parsed.extraWorkNotes ?? [],
+      crewAdditionalNotes: parsed.crewAdditionalNotes ?? "",
       jobStartedAt: parsed.jobStartedAt ?? null,
       jobEndedAt: parsed.jobEndedAt ?? null,
       plannedHours:
@@ -185,6 +187,7 @@ export function buildCompletedVisitState(
     employees,
     completedTaskIds: Array.from(new Set(taskIds)),
     extraWorkNotes,
+    crewAdditionalNotes: base.crewAdditionalNotes ?? "",
     jobStartedAt: started,
     jobEndedAt: ended,
     plannedHours,
