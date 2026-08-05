@@ -95,10 +95,7 @@ export function CrewMemberTodayJobs({
                         {job.services.join(", ") || "General Maintenance"}
                       </p>
                       <div className="mt-2">
-                        <CrewSiteNotes
-                          customerId={job.customerId}
-                          compact
-                        />
+                        <CrewSiteNotes notes={job.customerNotes} compact />
                       </div>
                     </div>
                     <StatusBadge status={job.status} />

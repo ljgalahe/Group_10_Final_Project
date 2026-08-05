@@ -274,7 +274,7 @@ export default async function VisitsPage({
           description={
             role === "crew_member"
               ? "Upcoming and completed visits assigned to you (read-only)."
-              : "Filter by company, employee, or job. Open a visit for location, hours, supplies, and photo proof."
+              : "Scheduled and completed crew visits with Labor, Materials, and Equipment costs."
           }
         />
         {cardData.length === 0 ? (

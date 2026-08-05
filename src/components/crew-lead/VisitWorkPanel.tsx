@@ -89,7 +89,6 @@ export function VisitWorkPanel({
     useState<FieldExceptionType>("could_not_access");
   const [exceptionDetails, setExceptionDetails] = useState("");
   const [exceptionMessage, setExceptionMessage] = useState("");
-  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     setState(
@@ -101,7 +100,6 @@ export function VisitWorkPanel({
       )
     );
     setRoster(loadDailyRoster());
-    setShowMore(false);
   }, [job.id, job.status, tasks, contractExtraWork.length]);
 
   const isCompleted = job.status === "completed";
@@ -418,6 +416,12 @@ export function VisitWorkPanel({
         <p className="text-xs text-stone-500">Completed visit — view only.</p>
       ) : null}
 
+      <CrewSiteNotes
+        notes={job.customerNotes}
+        status={job.status}
+        showAdditionalNotes={false}
+      />
+
       <Section title="1. Time clock" hint={`Planned ${plannedHours.toFixed(1)} hrs`}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="grid grid-cols-3 gap-4 text-sm">
@@ -509,161 +513,144 @@ export function VisitWorkPanel({
         </div>
       </Section>
 
-      <div className="rounded-lg border border-stone-200 bg-white">
-        <button
-          type="button"
-          onClick={() => setShowMore((v) => !v)}
-          className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-green-950"
-        >
-          More (extra work, issues, notes)
-          <span className="text-xs font-medium text-green-800">
-            {showMore ? "Hide" : "Show"}
-          </span>
-        </button>
+      <Section title="5. Extra work">
+        {contractExtraWork.length > 0 ? (
+          <ul className="space-y-2">
+            {contractExtraWork.map((item) => (
+              <li
+                key={item.id}
+                className="rounded-md bg-stone-50 px-3 py-2 text-sm"
+              >
+                <span className="font-medium">{item.title}</span>
+                <span className="text-stone-500">
+                  {" "}
+                  ·{" "}
+                  {isCompleted
+                    ? "Approved"
+                    : formatStatusLabel(item.status)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-stone-500">None from management.</p>
+        )}
 
-        {showMore ? (
-          <div className="space-y-4 border-t border-stone-100 px-4 py-4">
-            <div>
-              <p className="text-sm font-medium text-stone-800">Extra work</p>
-              {contractExtraWork.length > 0 ? (
-                <ul className="mt-2 space-y-2">
-                  {contractExtraWork.map((item) => (
-                    <li
-                      key={item.id}
-                      className="rounded-md bg-stone-50 px-3 py-2 text-sm"
-                    >
-                      <span className="font-medium">{item.title}</span>
-                      <span className="text-stone-500">
-                        {" "}
-                        · {isCompleted ? "Approved" : formatStatusLabel(item.status)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-1 text-sm text-stone-500">None from management.</p>
-              )}
-
-              {state.extraWorkNotes.map((note) => (
-                <div
-                  key={note.id}
-                  className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
-                >
-                  <p>{note.description}</p>
-                  {canEditCrew ? (
-                    <select
-                      value={note.status}
-                      onChange={(e) =>
-                        updateExtraStatus(
-                          note.id,
-                          e.target
-                            .value as (typeof EXTRA_STATUSES)[number]["value"]
-                        )
-                      }
-                      className="mt-2 rounded border border-stone-300 bg-white px-2 py-1 text-xs"
-                    >
-                      {EXTRA_STATUSES.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <p className="mt-1 text-xs text-stone-500">
-                      {formatStatusLabel(note.status)}
-                    </p>
-                  )}
-                </div>
-              ))}
-
-              {canEditCrew ? (
-                <form onSubmit={addExtraWork} className="mt-3 space-y-2">
-                  <textarea
-                    value={extraDescription}
-                    onChange={(e) => setExtraDescription(e.target.value)}
-                    placeholder="Describe extra work…"
-                    rows={2}
-                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <select
-                      value={extraStatus}
-                      onChange={(e) =>
-                        setExtraStatus(
-                          e.target
-                            .value as (typeof EXTRA_STATUSES)[number]["value"]
-                        )
-                      }
-                      className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
-                    >
-                      {EXTRA_STATUSES.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="submit"
-                      className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </form>
-              ) : null}
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-stone-800">
-                Report a problem
+        {state.extraWorkNotes.map((note) => (
+          <div
+            key={note.id}
+            className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
+          >
+            <p>{note.description}</p>
+            {canEditCrew ? (
+              <select
+                value={note.status}
+                onChange={(e) =>
+                  updateExtraStatus(
+                    note.id,
+                    e.target
+                      .value as (typeof EXTRA_STATUSES)[number]["value"]
+                  )
+                }
+                className="mt-2 rounded border border-stone-300 bg-white px-2 py-1 text-xs"
+              >
+                {EXTRA_STATUSES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="mt-1 text-xs text-stone-500">
+                {formatStatusLabel(note.status)}
               </p>
-              {canEditCrew ? (
-                <form onSubmit={submitException} className="mt-2 space-y-2">
-                  <select
-                    value={exceptionType}
-                    onChange={(e) =>
-                      setExceptionType(e.target.value as FieldExceptionType)
-                    }
-                    className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
-                  >
-                    <option value="could_not_access">Could not access site</option>
-                    <option value="dog_loose">Dog loose / unsafe animal</option>
-                    <option value="equipment_failure">Equipment failure</option>
-                    <option value="other">Other</option>
-                  </select>
-                  <textarea
-                    value={exceptionDetails}
-                    onChange={(e) => setExceptionDetails(e.target.value)}
-                    placeholder="What happened?"
-                    rows={2}
-                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
-                  >
-                    Send to manager
-                  </button>
-                  {exceptionMessage ? (
-                    <p className="text-sm text-green-800">{exceptionMessage}</p>
-                  ) : null}
-                </form>
-              ) : (
-                <p className="mt-1 text-sm text-stone-500">
-                  Available on scheduled visits.
-                </p>
-              )}
-            </div>
-
-            <CrewSiteNotes
-              notes={job.customerNotes}
-              jobId={job.id}
-              status={job.status}
-            />
+            )}
           </div>
+        ))}
+
+        {canEditCrew ? (
+          <form onSubmit={addExtraWork} className="mt-3 space-y-2">
+            <textarea
+              value={extraDescription}
+              onChange={(e) => setExtraDescription(e.target.value)}
+              placeholder="Describe extra work…"
+              rows={2}
+              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+            />
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={extraStatus}
+                onChange={(e) =>
+                  setExtraStatus(
+                    e.target
+                      .value as (typeof EXTRA_STATUSES)[number]["value"]
+                  )
+                }
+                className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+              >
+                {EXTRA_STATUSES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+              >
+                Add
+              </button>
+            </div>
+          </form>
         ) : null}
-      </div>
+      </Section>
+
+      <Section title="6. Report a problem">
+        {canEditCrew ? (
+          <form onSubmit={submitException} className="space-y-2">
+            <select
+              value={exceptionType}
+              onChange={(e) =>
+                setExceptionType(e.target.value as FieldExceptionType)
+              }
+              className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="could_not_access">Could not access site</option>
+              <option value="dog_loose">Dog loose / unsafe animal</option>
+              <option value="equipment_failure">Equipment failure</option>
+              <option value="other">Other</option>
+            </select>
+            <textarea
+              value={exceptionDetails}
+              onChange={(e) => setExceptionDetails(e.target.value)}
+              placeholder="What happened?"
+              rows={2}
+              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+              required
+            />
+            <button
+              type="submit"
+              className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
+            >
+              Send to manager
+            </button>
+            {exceptionMessage ? (
+              <p className="text-sm text-green-800">{exceptionMessage}</p>
+            ) : null}
+          </form>
+        ) : (
+          <p className="text-sm text-stone-500">
+            Available on scheduled visits.
+          </p>
+        )}
+      </Section>
+
+      <CrewSiteNotes
+        jobId={job.id}
+        status={job.status}
+        showCustomerNotes={false}
+        showAdditionalNotes
+      />
     </div>
   );
 }
