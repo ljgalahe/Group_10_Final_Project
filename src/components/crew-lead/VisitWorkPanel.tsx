@@ -233,6 +233,8 @@ export function VisitWorkPanel({
 
   return (
     <div className="mt-4 space-y-4 rounded-lg border border-stone-200 bg-stone-50 p-4">
+      <CrewSiteNotes notes={job.customerNotes} />
+
       <div>
         <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
           {isCompleted ? "Employees Who Worked" : "Assigned Employees"}
@@ -649,8 +651,6 @@ export function VisitWorkPanel({
           </p>
         )}
       </div>
-
-      <CrewSiteNotes customerId={job.customerId} />
     </div>
   );
 }

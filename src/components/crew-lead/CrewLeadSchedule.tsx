@@ -9,7 +9,6 @@ import type {
 import { normalizeServiceName } from "@/components/crew-lead/buildCrewSchedule";
 import { VisitWorkPanel } from "@/components/crew-lead/VisitWorkPanel";
 import { AssignedEmployeesList } from "@/components/crew-lead/AssignedEmployeesList";
-import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
 import { ScheduleWeatherStrip } from "@/components/crew-lead/ScheduleWeatherStrip";
 
 function formatDisplayDate(isoDate: string) {
@@ -323,10 +322,6 @@ export function CrewLeadSchedule({
                             status={job.status}
                             services={job.services}
                           />
-                          <CrewSiteNotes
-                            customerId={job.customerId}
-                            compact
-                          />
                           <button
                             type="button"
                             onClick={() =>
@@ -476,7 +471,6 @@ export function CrewLeadSchedule({
                           status={job.status}
                           services={job.services}
                         />
-                        <CrewSiteNotes customerId={job.customerId} compact />
                         <button
                           type="button"
                           onClick={() =>

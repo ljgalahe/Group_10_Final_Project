@@ -113,32 +113,3 @@ export function tasksForServices(services: string[]): { id: string; label: strin
 export function formatStatusLabel(status: string): string {
   return toTitleCase(status.replace(/_/g, " "));
 }
-
-const CUSTOMER_SITE_NOTES: Record<string, string[]> = {
-  "11111111-1111-1111-1111-111111111101": [
-    "Office park has a security dog that barks at crews near the rear lot — do not approach the fenced kennel area.",
-    "Park trailers only in the designated service bay; front entrance must stay clear for tenants.",
-  ],
-  "11111111-1111-1111-1111-111111111102": [
-    "Retail center: avoid leaf blowing near storefronts before 9:00 AM.",
-    "Irrigation controller is inside the locked utility closet — key is in the crew lockbox.",
-  ],
-  "11111111-1111-1111-1111-111111111103": [
-    "HOA common areas: resident owns a dog that may bite if the side gate is left open — keep gate latched.",
-    "Do not mow within 3 feet of playground equipment during school pickup hours.",
-  ],
-  "11111111-1111-1111-1111-111111111104": [
-    "Industrial site: PPE required (vest + boots). Check in at the guard booth before entering.",
-    "Detention pond bank can be slick after rain — use caution and avoid lone work near the edge.",
-  ],
-};
-
-const DEFAULT_SITE_NOTES = [
-  "Confirm site access and any posted hazards before starting work.",
-  "Report unsafe animals, broken fencing, or access issues to the crew lead immediately.",
-];
-
-/** Site notes the crew lead should know before arriving (dogs, access, hazards). */
-export function siteNotesForCustomer(customerId: string): string[] {
-  return CUSTOMER_SITE_NOTES[customerId] ?? DEFAULT_SITE_NOTES;
-}

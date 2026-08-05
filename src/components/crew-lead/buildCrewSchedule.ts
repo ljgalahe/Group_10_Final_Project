@@ -1,4 +1,5 @@
 import type { ScheduleJob } from "@/components/crew-lead/schedule-types";
+import { customerNotesForCrew } from "@/lib/customer-notes";
 
 /** Approximate Oxford, Mississippi coordinates for demo customer sites */
 const CUSTOMER_COORDS: Record<string, { lat: number; lng: number }> = {
@@ -27,6 +28,13 @@ export function oxfordAddressForCustomer(
   return fallback.replace(/Austin,\s*TX/gi, "Oxford, MS");
 }
 
+type CustomerRow = {
+  id: string;
+  name: string;
+  address: string | null;
+  customer_notes?: string | null;
+};
+
 type ContractRow = {
   id: string;
   title: string;
@@ -35,10 +43,7 @@ type ContractRow = {
   season_start: string;
   season_end: string;
   customer_id: string;
-  customers:
-    | { id: string; name: string; address: string | null }
-    | { id: string; name: string; address: string | null }[]
-    | null;
+  customers: CustomerRow | CustomerRow[] | null;
   contract_services:
     | { service_name: string; included: boolean }[]
     | null;
@@ -54,10 +59,7 @@ type VisitRow = {
         id: string;
         title: string;
         customer_id: string;
-        customers:
-          | { id: string; name: string; address: string | null }
-          | { id: string; name: string; address: string | null }[]
-          | null;
+        customers: CustomerRow | CustomerRow[] | null;
         contract_services:
           | { service_name: string; included: boolean }[]
           | null;
@@ -66,10 +68,7 @@ type VisitRow = {
         id: string;
         title: string;
         customer_id: string;
-        customers:
-          | { id: string; name: string; address: string | null }
-          | { id: string; name: string; address: string | null }[]
-          | null;
+        customers: CustomerRow | CustomerRow[] | null;
         contract_services:
           | { service_name: string; included: boolean }[]
           | null;
@@ -156,6 +155,7 @@ export function buildCrewSchedule(
       address: oxfordAddressForCustomer(customer.id, customer.address),
       contractTitle: contract.title,
       services: servicesFrom(contract.contract_services),
+      customerNotes: customerNotesForCrew(customer.customer_notes),
       lat: coords.lat,
       lng: coords.lng,
       source: "visit",
@@ -172,6 +172,7 @@ export function buildCrewSchedule(
       const intervalDays = Math.max(1, Math.round(7 / perWeek));
       const services = servicesFrom(contract.contract_services);
       const coords = coordsFor(customer.id, contractIndex);
+      const notes = customerNotesForCrew(customer.customer_notes);
 
       let cursor = new Date(start);
       const seasonStart = contract.season_start?.slice(0, 10);
@@ -200,6 +201,7 @@ export function buildCrewSchedule(
               address: oxfordAddressForCustomer(customer.id, customer.address),
               contractTitle: contract.title,
               services,
+              customerNotes: notes,
               lat: coords.lat,
               lng: coords.lng,
               source: "projected",

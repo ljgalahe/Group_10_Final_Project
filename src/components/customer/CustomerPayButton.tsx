@@ -3,6 +3,11 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { customerPayInvoice } from "@/app/actions/business";
+import {
+  NewPaymentMethodFields,
+  isNewPaymentMethodValid,
+} from "@/components/customer/NewPaymentMethodFields";
+import type { PaymentMethodType } from "@/lib/customer-payment-methods";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { CustomerPaymentMethod } from "@/lib/types";
 
@@ -35,14 +40,28 @@ export function CustomerPayButton({
   const [selection, setSelection] = useState<string>(
     paymentMethods[0]?.id ?? NEW_METHOD
   );
+  const [methodType, setMethodType] = useState<PaymentMethodType>("card");
   const [nickname, setNickname] = useState("");
   const [accountDetails, setAccountDetails] = useState("");
+  const [billingName, setBillingName] = useState("");
+  const [expMonth, setExpMonth] = useState("");
+  const [expYear, setExpYear] = useState("");
+  const [makeDefault, setMakeDefault] = useState(false);
   const [amountStr, setAmountStr] = useState(amountDue.toFixed(2));
+
+  function resetNewMethodFields() {
+    setMethodType("card");
+    setNickname("");
+    setAccountDetails("");
+    setBillingName("");
+    setExpMonth("");
+    setExpYear("");
+    setMakeDefault(paymentMethods.length === 0);
+  }
 
   function openModal() {
     setSelection(paymentMethods[0]?.id ?? NEW_METHOD);
-    setNickname("");
-    setAccountDetails("");
+    resetNewMethodFields();
     setAmountStr(amountDue.toFixed(2));
     setOpen(true);
   }
@@ -71,6 +90,11 @@ export function CustomerPayButton({
       if (selection === NEW_METHOD) {
         formData.set("new_method_nickname", nickname);
         formData.set("new_method_details", accountDetails);
+        formData.set("new_method_type", methodType);
+        formData.set("new_method_billing_name", billingName);
+        formData.set("new_method_exp_month", expMonth);
+        formData.set("new_method_exp_year", expYear);
+        formData.set("new_method_is_default", makeDefault ? "1" : "0");
       } else {
         formData.set("payment_method_id", selection);
       }
@@ -82,10 +106,16 @@ export function CustomerPayButton({
     }
   }
 
+  const newMethodValid = isNewPaymentMethodValid(
+    accountDetails,
+    methodType,
+    expMonth,
+    expYear
+  );
+
   const canConfirm =
     amountValid &&
-    (selection !== NEW_METHOD ||
-      accountDetails.replace(/\D/g, "").length >= 4);
+    (selection !== NEW_METHOD || newMethodValid);
 
   return (
     <>
@@ -107,7 +137,7 @@ export function CustomerPayButton({
           aria-modal="true"
           aria-labelledby="customer-pay-title"
         >
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-lg">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-lg">
             <h2
               id="customer-pay-title"
               className="text-xl font-semibold text-green-950"
@@ -227,43 +257,24 @@ export function CustomerPayButton({
             </fieldset>
 
             {selection === NEW_METHOD ? (
-              <div className="mt-4 space-y-3 rounded-lg border border-stone-200 bg-stone-50 p-4">
-                <div>
-                  <label
-                    htmlFor="new_method_details"
-                    className="block text-xs font-medium text-stone-600"
-                  >
-                    Card number or account details
-                  </label>
-                  <input
-                    id="new_method_details"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    placeholder="Enter digits (demo only)"
-                    value={accountDetails}
-                    onChange={(e) => setAccountDetails(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="new_method_nickname"
-                    className="block text-xs font-medium text-stone-600"
-                  >
-                    Nickname this payment method
-                  </label>
-                  <input
-                    id="new_method_nickname"
-                    type="text"
-                    autoComplete="off"
-                    placeholder="e.g. Business Visa"
-                    value={nickname}
-                    onChange={(e) => setNickname(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
+              <NewPaymentMethodFields
+                idPrefix="pay"
+                methodType={methodType}
+                onMethodTypeChange={setMethodType}
+                accountDetails={accountDetails}
+                onAccountDetailsChange={setAccountDetails}
+                nickname={nickname}
+                onNicknameChange={setNickname}
+                billingName={billingName}
+                onBillingNameChange={setBillingName}
+                expMonth={expMonth}
+                onExpMonthChange={setExpMonth}
+                expYear={expYear}
+                onExpYearChange={setExpYear}
+                makeDefault={makeDefault}
+                onMakeDefaultChange={setMakeDefault}
+                showDefaultOption
+              />
             ) : null}
 
             <p className="mt-4 text-xs text-stone-500">

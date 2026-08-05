@@ -9,6 +9,8 @@ export type ScheduleJob = {
   address: string;
   contractTitle: string;
   services: string[];
+  /** Customer notes (dogs, parking, access) for this property */
+  customerNotes: string[];
   lat: number;
   lng: number;
   source: "visit" | "projected";

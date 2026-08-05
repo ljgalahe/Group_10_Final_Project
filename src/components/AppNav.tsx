@@ -9,6 +9,7 @@ const navItems = [
   { href: "/schedule", label: "Schedule", roles: ["crew_lead"] },
   { href: "/visits", label: "Visits", roles: ["manager", "accountant", "crew_lead", "customer"] },
   { href: "/invoices", label: "Invoices", roles: ["manager", "accountant", "customer"] },
+  { href: "/profile", label: "Profile", roles: ["customer"] },
   { href: "/contact", label: "Contact Us", roles: ["customer"] },
   { href: "/support", label: "Customer Support", roles: ["manager"] },
   { href: "/payments", label: "Payments", roles: ["manager", "accountant"] },

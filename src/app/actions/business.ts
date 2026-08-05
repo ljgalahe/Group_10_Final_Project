@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createDataClient } from "@/lib/auth-access";
-import { buildPaymentMethodDisplayLabel } from "@/lib/customer-payment-methods";
+import {
+  buildPaymentMethodDisplayLabel,
+  extractLastFour,
+} from "@/lib/customer-payment-methods";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import type { CostType } from "@/lib/types";
 
@@ -236,11 +239,47 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
   let paymentMethodLabel = "Card ending in 4242";
 
   if (isNew && customerId) {
+    const methodTypeRaw = (
+      (formData.get("new_method_type") as string) || "card"
+    ).trim();
+    const methodType = methodTypeRaw === "bank" ? "bank" : "card";
+    const billingName = (
+      (formData.get("new_method_billing_name") as string) || ""
+    ).trim();
+    const expMonth = parseInt(
+      ((formData.get("new_method_exp_month") as string) || "").trim(),
+      10
+    );
+    const expYear = parseInt(
+      ((formData.get("new_method_exp_year") as string) || "").trim(),
+      10
+    );
+    const makeDefault = formData.get("new_method_is_default") === "1";
+
     const displayLabel = buildPaymentMethodDisplayLabel(
       newNickname,
-      newDetails
+      newDetails,
+      methodType
     );
-    if (!displayLabel) return;
+    const lastFour = extractLastFour(newDetails);
+    if (!displayLabel || !lastFour) return;
+
+    const validExpMonth =
+      Number.isFinite(expMonth) && expMonth >= 1 && expMonth <= 12;
+    const validExpYear = Number.isFinite(expYear) && expYear >= 2024;
+
+    if (makeDefault) {
+      await supabase
+        .from("customer_payment_methods")
+        .update({ is_default: false })
+        .eq("customer_id", customerId);
+    }
+
+    const { count } = await supabase
+      .from("customer_payment_methods")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", customerId);
+    const isFirst = (count ?? 0) === 0;
 
     const { data: saved, error } = await supabase
       .from("customer_payment_methods")
@@ -248,6 +287,13 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
         customer_id: customerId,
         nickname: newNickname || null,
         display_label: displayLabel,
+        method_type: methodType,
+        last_four: lastFour,
+        billing_name: billingName || null,
+        expires_month:
+          methodType === "card" && validExpMonth ? expMonth : null,
+        expires_year: methodType === "card" && validExpYear ? expYear : null,
+        is_default: makeDefault || isFirst,
       })
       .select("display_label")
       .single();
@@ -288,4 +334,5 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
   revalidatePath(`/invoices/${invoiceId}`);
   revalidatePath("/invoices");
   revalidatePath("/dashboard");
+  revalidatePath("/profile");
 }

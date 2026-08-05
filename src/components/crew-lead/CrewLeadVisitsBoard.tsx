@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { completeVisit } from "@/app/actions/business";
 import { AssignedEmployeesList } from "@/components/crew-lead/AssignedEmployeesList";
 import { CrewLeadVisitDetails } from "@/components/crew-lead/CrewLeadVisitDetails";
-import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
 import {
   getAssignedEmployeesForJob,
   loadVisitWorkStateForStatus,
@@ -219,14 +218,6 @@ export function CrewLeadVisitsBoard({
                       status={visit.status}
                       services={crewJob?.services ?? []}
                     />
-                    {crewJob ? (
-                      <div className="mt-2">
-                        <CrewSiteNotes
-                          customerId={crewJob.customerId}
-                          compact
-                        />
-                      </div>
-                    ) : null}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="inline-flex rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-800">

@@ -181,13 +181,13 @@ export default async function DashboardPage({
       supabase
         .from("contracts")
         .select(
-          "id, title, status, visits_per_week, season_start, season_end, customer_id, customers(id, name, address), contract_services(service_name, included)"
+          "id, title, status, visits_per_week, season_start, season_end, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included)"
         )
         .eq("status", "active"),
       supabase
         .from("service_visits")
         .select(
-          "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address), contract_services(service_name, included))"
+          "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
         )
         .order("scheduled_date", { ascending: true }),
     ]);
@@ -397,6 +397,12 @@ export default async function DashboardPage({
                 className="rounded-lg border border-green-800/40 bg-white px-4 py-2 text-sm font-medium text-green-900 shadow-sm hover:border-green-800 hover:bg-green-50"
               >
                 Request a quote
+              </Link>
+              <Link
+                href="/profile"
+                className="rounded-lg border border-green-800/40 bg-white px-4 py-2 text-sm font-medium text-green-900 shadow-sm hover:border-green-800 hover:bg-green-50"
+              >
+                Profile
               </Link>
               <Link
                 href="/contact"
