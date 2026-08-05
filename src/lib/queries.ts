@@ -174,6 +174,46 @@ export async function fetchVisits() {
   return { data: data ?? [], error };
 }
 
+export async function fetchVisitLaborEntries(visitIds: string[]) {
+  if (visitIds.length === 0) {
+    return { data: [] as Array<{
+      id: string;
+      visit_id: string;
+      member_demo_id: string;
+      member_name: string;
+      member_role: string;
+      hours: number | string;
+      hourly_rate: number | string;
+      started_at: string | null;
+      ended_at: string | null;
+    }>, error: null };
+  }
+
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("visit_labor_entries")
+    .select(
+      "id, visit_id, member_demo_id, member_name, member_role, hours, hourly_rate, started_at, ended_at"
+    )
+    .in("visit_id", visitIds);
+
+  if (error) {
+    const msg = (error.message || "").toLowerCase();
+    if (
+      error.code === "PGRST205" ||
+      error.code === "42P01" ||
+      msg.includes("visit_labor_entries") ||
+      msg.includes("does not exist") ||
+      msg.includes("schema cache")
+    ) {
+      return { data: [], error: null };
+    }
+    return { data: [], error };
+  }
+
+  return { data: data ?? [], error: null };
+}
+
 export async function fetchAccountantVisits() {
   const supabase = await createDataClient();
 
@@ -191,17 +231,19 @@ export async function fetchAccountantVisits() {
     ...new Set(visits.map((visit) => visit.contract_id).filter(Boolean)),
   ];
 
-  const [{ data: costs }, { data: invoices }] = await Promise.all([
-    visitIds.length
-      ? supabase.from("visit_costs").select("*").in("visit_id", visitIds)
-      : Promise.resolve({ data: [] as never[] }),
-    contractIds.length
-      ? supabase
-          .from("invoices")
-          .select("id, contract_id, status, issue_date, created_at")
-          .in("contract_id", contractIds)
-      : Promise.resolve({ data: [] as never[] }),
-  ]);
+  const [{ data: costs }, { data: invoices }, { data: laborEntries }] =
+    await Promise.all([
+      visitIds.length
+        ? supabase.from("visit_costs").select("*").in("visit_id", visitIds)
+        : Promise.resolve({ data: [] as never[] }),
+      contractIds.length
+        ? supabase
+            .from("invoices")
+            .select("id, contract_id, status, issue_date, created_at")
+            .in("contract_id", contractIds)
+        : Promise.resolve({ data: [] as never[] }),
+      fetchVisitLaborEntries(visitIds),
+    ]);
 
   return {
     data: visits.map((visit) => ({
@@ -209,6 +251,9 @@ export async function fetchAccountantVisits() {
       visit_costs: (costs ?? []).filter((cost) => cost.visit_id === visit.id),
       invoices: (invoices ?? []).filter(
         (invoice) => invoice.contract_id === visit.contract_id
+      ),
+      visit_labor_entries: (laborEntries ?? []).filter(
+        (entry) => entry.visit_id === visit.id
       ),
     })),
     error: null,

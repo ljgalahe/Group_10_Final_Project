@@ -10,10 +10,12 @@ import {
   todayDateOnly,
 } from "@/components/crew-lead/buildCrewSchedule";
 import { CrewMemberAvailabilityPanel } from "@/components/crew-member/CrewMemberAvailabilityPanel";
+import { CrewMemberHoursWorked } from "@/components/crew-member/CrewMemberHoursWorked";
 import { CrewMemberTodayJobs } from "@/components/crew-member/CrewMemberTodayJobs";
 import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPanel";
 import { Card, PageHeader, StatCard } from "@/components/ui";
 import { filterJobsForCrewMember } from "@/lib/crew-member";
+import type { VisitLaborEntry } from "@/lib/crew-hours";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type {
@@ -26,6 +28,7 @@ import {
   fetchCustomerNeedsAttention,
   fetchCustomerUpcomingVisits,
   fetchDashboardStats,
+  fetchVisitLaborEntries,
 } from "@/lib/queries";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
 
@@ -175,7 +178,7 @@ export default async function DashboardPage({
     crew_member: {
       title: "Crew Member Dashboard",
       description:
-        "Today's assigned jobs and your availability / time-off requests.",
+        "Today's assigned jobs, hours worked, and your availability / time-off requests.",
     },
     customer: {
       title: "Customer Portal",
@@ -192,6 +195,11 @@ export default async function DashboardPage({
   let scheduleJobs: ReturnType<typeof buildCrewSchedule> = [];
   let memberJobs: ReturnType<typeof buildCrewSchedule> = [];
   let memberExtraWork: ExtraWorkItem[] = [];
+  let memberLaborEntries: VisitLaborEntry[] = [];
+  let memberLaborByVisit: Record<
+    string,
+    { quantity: number | null; description: string | null }
+  > = {};
   const visitLabels: Record<string, string> = {};
   let crewSupportRequests: SupportRequestQueueItem[] = [];
 
@@ -230,6 +238,35 @@ export default async function DashboardPage({
         quotedAmount: Number(row.quoted_amount),
         status: row.status,
       }));
+      const memberVisitIds = memberJobs.map((job) => job.id);
+      const [{ data: laborRows }, { data: laborCosts }] = await Promise.all([
+        fetchVisitLaborEntries(memberVisitIds),
+        memberVisitIds.length
+          ? supabase
+              .from("visit_costs")
+              .select("visit_id, quantity, description")
+              .in("visit_id", memberVisitIds)
+              .eq("cost_type", "labor")
+          : Promise.resolve({ data: [] as never[] }),
+      ]);
+      memberLaborEntries = (laborRows ?? []).map((row) => ({
+        id: row.id,
+        visit_id: row.visit_id,
+        member_demo_id: row.member_demo_id,
+        member_name: row.member_name,
+        member_role: row.member_role,
+        hours: Number(row.hours),
+        hourly_rate: Number(row.hourly_rate),
+        started_at: row.started_at,
+        ended_at: row.ended_at,
+      }));
+      for (const cost of laborCosts ?? []) {
+        memberLaborByVisit[cost.visit_id] = {
+          quantity:
+            cost.quantity == null ? null : Number(cost.quantity),
+          description: cost.description ?? null,
+        };
+      }
     }
     for (const job of scheduleJobs) {
       visitLabels[job.id] = `${job.customerName} · ${job.contractTitle}`;
@@ -511,6 +548,14 @@ export default async function DashboardPage({
             jobs={memberJobs}
             today={today}
             extraWork={memberExtraWork}
+            laborEntries={memberLaborEntries}
+            laborByVisit={memberLaborByVisit}
+          />
+          <CrewMemberHoursWorked
+            jobs={memberJobs}
+            today={today}
+            laborEntries={memberLaborEntries}
+            laborByVisit={memberLaborByVisit}
           />
           <Card>
             <h2 className="mb-4 text-lg font-semibold text-green-950">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { syncVisitLabor } from "@/app/actions/labor";
 import { CrewSiteNotes } from "@/components/crew-lead/CrewSiteNotes";
 import {
   addFieldException,
@@ -21,6 +22,23 @@ import {
   materialsForServices,
   tasksForServices,
 } from "@/components/crew-lead/visitWorkDefaults";
+
+function persistLaborToBilling(
+  job: ScheduleJob,
+  next: VisitWorkState,
+  canSync: boolean
+) {
+  if (!canSync) return;
+  if (job.source === "projected") return;
+  void syncVisitLabor({
+    visitId: job.id,
+    status: job.status,
+    employees: next.employees,
+    assignedEmployees: next.assignedEmployees,
+    jobStartedAt: next.jobStartedAt,
+    jobEndedAt: next.jobEndedAt,
+  });
+}
 
 const EXTRA_STATUSES = [
   { value: "needed", label: "Needed" },
@@ -91,16 +109,20 @@ export function VisitWorkPanel({
   const [exceptionMessage, setExceptionMessage] = useState("");
 
   useEffect(() => {
-    setState(
-      loadVisitWorkStateForStatus(
-        job.id,
-        job.status,
-        tasks.map((task) => task.id),
-        contractExtraWork.length > 0
-      )
+    const next = loadVisitWorkStateForStatus(
+      job.id,
+      job.status,
+      tasks.map((task) => task.id),
+      contractExtraWork.length > 0
     );
+    setState(next);
     setRoster(loadDailyRoster());
-  }, [job.id, job.status, tasks, contractExtraWork.length]);
+    // Completed visits auto-fill hours locally; sync so accountant sees labor costs.
+    if (!readOnly && job.status === "completed" && next.employees.length > 0) {
+      persistLaborToBilling(job, next, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync on visit identity/status only
+  }, [job.id, job.status, job.source, tasks, contractExtraWork.length, readOnly]);
 
   const isCompleted = job.status === "completed";
   const canEditCrew = job.status === "scheduled" && !readOnly;
@@ -109,6 +131,7 @@ export function VisitWorkPanel({
     if (!canEditCrew) return;
     setState(next);
     saveVisitWorkState(job.id, next);
+    persistLaborToBilling(job, next, true);
   }
 
   function addEmployee(e: FormEvent) {

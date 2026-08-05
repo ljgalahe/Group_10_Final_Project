@@ -29,6 +29,17 @@ type AccountantVisit = {
     quantity: number | string | null;
     created_at: string;
   }>;
+  visit_labor_entries?: Array<{
+    id: string;
+    visit_id: string;
+    member_demo_id: string;
+    member_name: string;
+    member_role: string;
+    hours: number | string;
+    hourly_rate: number | string;
+    started_at?: string | null;
+    ended_at?: string | null;
+  }>;
   invoices: Array<{
     id: string;
     status: string;
@@ -80,13 +91,22 @@ export function AccountantVisitsView({
         visit.contracts?.monthly_fee,
         visit.contracts?.visits_per_week
       );
+      const laborCost = visit.visit_costs.find((cost) => cost.cost_type === "labor");
+      const hours =
+        laborCost?.quantity != null && Number(laborCost.quantity) > 0
+          ? Number(laborCost.quantity)
+          : (visit.visit_labor_entries ?? []).reduce(
+              (sum, entry) => sum + Number(entry.hours),
+              0
+            );
       acc.labor += totals.labor;
       acc.materials += totals.materials;
       acc.equipment += totals.equipment;
       acc.revenue += revenue;
+      acc.hours += hours;
       return acc;
     },
-    { labor: 0, materials: 0, equipment: 0, revenue: 0 }
+    { labor: 0, materials: 0, equipment: 0, revenue: 0, hours: 0 }
   );
 
   const invoicesReady = visits.filter(
@@ -238,11 +258,16 @@ export function AccountantVisitsView({
         <p className="mb-3 text-sm font-semibold text-green-950">
           Accounting Metrics
         </p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           <StatCard
             label="Today's Visits"
             value={todayVisits.length || summaryVisits}
             hint={todayVisits.length ? "Scheduled today" : "All tracked visits"}
+          />
+          <StatCard
+            label="Crew Hours"
+            value={metrics.hours.toFixed(1)}
+            hint="Synced from crew labor"
           />
           <StatCard label="Labor Cost" value={formatCurrency(metrics.labor)} />
           <StatCard
@@ -302,11 +327,23 @@ export function AccountantVisitsView({
           const variancePct = estimated > 0 ? (variance / estimated) * 100 : 0;
           const overBudget = variance > 0;
           const laborCost = visit.visit_costs.find((cost) => cost.cost_type === "labor");
+          const syncedEntries = (visit.visit_labor_entries ?? []).map((entry) => ({
+            visit_id: entry.visit_id,
+            member_demo_id: entry.member_demo_id,
+            member_name: entry.member_name,
+            member_role: entry.member_role,
+            hours: Number(entry.hours),
+            hourly_rate: Number(entry.hourly_rate),
+            started_at: entry.started_at,
+            ended_at: entry.ended_at,
+          }));
           const crew = crewDetailsForVisit(
             visit.id,
             visit.contracts?.assigned_crew,
             laborCost?.quantity == null ? null : Number(laborCost.quantity),
-            laborCost?.amount == null ? null : Number(laborCost.amount)
+            laborCost?.amount == null ? null : Number(laborCost.amount),
+            syncedEntries,
+            laborCost?.description
           );
           const priority = visitPriority(visit.id, visit.crew_notes);
           const gps = gpsTimes(visit.scheduled_date, visit.completed_at);
@@ -427,10 +464,13 @@ export function AccountantVisitsView({
 
                 <section className="rounded-lg bg-stone-100 p-4">
                   <h3 className="mb-3 text-sm font-semibold text-green-950">
-                    Crew Information
+                    Crew hours &amp; hourly billing
                   </h3>
                   <p className="mb-3 text-xs text-stone-500">
                     Crew Leader: {crew.leader}
+                    {crew.fromSyncedLabor
+                      ? " · Synced from crew labor (hours × rate = labor cost)"
+                      : " · Estimated until crew labor is synced"}
                   </p>
                   <div className="overflow-hidden rounded-md border border-stone-200 bg-white">
                     <table className="min-w-full text-xs">
