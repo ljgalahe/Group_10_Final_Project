@@ -210,7 +210,7 @@ export function CrewLeadVisitsBoard({
                       {visit.contractTitle}
                     </p>
                     <p className="text-sm text-stone-500">
-                      {visit.customerName} ┬╖ {formatDate(visit.scheduledDate)}
+                      {visit.customerName} · {formatDate(visit.scheduledDate)}
                     </p>
                     {visit.crewNotes ? (
                       <p className="mt-2 text-sm text-stone-600">
@@ -261,7 +261,7 @@ export function CrewLeadVisitsBoard({
                           <span className="font-medium text-stone-800">
                             {titleCaseCostType(cost.cost_type)}
                           </span>
-                          : {cost.description ?? "ΓÇö"} ΓÇö{" "}
+                          : {cost.description ?? "—"} —{" "}
                           {formatCurrency(Number(cost.amount))}
                         </li>
                       ))}
@@ -271,6 +271,14 @@ export function CrewLeadVisitsBoard({
                       No costs logged yet.
                     </p>
                   )}
+                </div>
+
+                <div className="mt-4">
+                  <CrewVisitPhotos
+                    jobId={visit.id}
+                    status={visit.status}
+                    readOnly={readOnly}
+                  />
                 </div>
 
                 {crewJob ? (
