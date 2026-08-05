@@ -5,7 +5,6 @@ import { RecordPaymentForm } from "@/app/payments/components/RecordPaymentForm";
 
 export function RecordPaymentButton({
   invoices,
-  customers = [],
   defaultInvoiceId,
   invoiceOnly = false,
   redirectTo = "/payments",
@@ -19,7 +18,6 @@ export function RecordPaymentButton({
     amount_paid: number;
     customers: { name: string } | null;
   }[];
-  customers?: { id: string; name: string }[];
   defaultInvoiceId?: string;
   invoiceOnly?: boolean;
   redirectTo?: string;
@@ -45,8 +43,8 @@ export function RecordPaymentButton({
                 <h2 className="text-lg font-semibold text-green-950">Record Payment</h2>
                 <p className="mt-1 text-sm text-stone-500">
                   {invoiceOnly && invoice
-                    ? `Recording payment for ${invoice.invoice_number}. Overpayments are tracked as unapplied cash.`
-                    : "Apply a cash or check payment to an invoice, or record unapplied cash."}
+                    ? `Apply a payment to ${invoice.invoice_number}.`
+                    : "Apply a cash or check payment to an open invoice."}
                 </p>
               </div>
               <button
@@ -61,7 +59,6 @@ export function RecordPaymentButton({
             <div className="mt-4">
               <RecordPaymentForm
                 invoices={invoices}
-                customers={customers}
                 defaultInvoiceId={defaultInvoiceId}
                 invoiceOnly={invoiceOnly}
                 redirectTo={redirectTo}

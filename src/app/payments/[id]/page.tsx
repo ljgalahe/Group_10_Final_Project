@@ -80,16 +80,6 @@ export default async function PaymentDetailPage({
               <dd className="font-semibold">{formatCurrency(Number(payment.amount))}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-stone-500">Applied to Invoice</dt>
-              <dd>{formatCurrency(Number(payment.applied_amount ?? payment.amount))}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-stone-500">Unapplied Cash</dt>
-              <dd className={Number(payment.unapplied_amount) > 0 ? "font-semibold text-amber-800" : ""}>
-                {formatCurrency(Number(payment.unapplied_amount ?? 0))}
-              </dd>
-            </div>
-            <div className="flex justify-between">
               <dt className="text-stone-500">Date</dt>
               <dd>{formatDate(payment.payment_date)}</dd>
             </div>
@@ -144,8 +134,7 @@ export default async function PaymentDetailPage({
             </dl>
           ) : (
             <p className="mt-4 text-sm text-stone-600">
-              This cash receipt has not been matched to an invoice. The full amount is
-              held as unapplied cash for {customer?.name ?? "the customer"} until applied.
+              This payment is not linked to an invoice.
             </p>
           )}
         </Card>
@@ -180,8 +169,11 @@ export default async function PaymentDetailPage({
       )}
 
       <div className="mt-6">
-        <Link href="/payments" className="text-sm text-green-800 hover:underline">
-          ← Back to payments
+        <Link
+          href={isAccountant ? "/invoices" : "/payments"}
+          className="text-sm text-green-800 hover:underline"
+        >
+          ← Back to {isAccountant ? "invoices" : "payments"}
         </Link>
       </div>
     </AppShell>

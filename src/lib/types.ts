@@ -35,7 +35,7 @@ export type InvoiceStatus =
 export type ExtraWorkStatus = "quoted" | "approved" | "completed" | "declined";
 export type CostType = "labor" | "materials" | "equipment";
 export type PaymentMethod = "check" | "ach" | "card" | "bank_transfer";
-export type PaymentStatus = "applied" | "unapplied" | "void";
+export type PaymentStatus = "applied" | "void";
 export type SupportCategory =
   | "question"
   | "concern"
@@ -186,7 +186,6 @@ export interface Payment {
   payment_number?: string | null;
   customer_id?: string | null;
   applied_amount?: number | null;
-  unapplied_amount?: number | null;
   reference_number?: string | null;
   recorded_by?: string | null;
   recorded_by_name?: string | null;
@@ -212,8 +211,6 @@ export interface PaymentsSummary {
   outstandingInvoiceIds: string[];
   collectionRate: number | null;
   averageDaysToPay: number | null;
-  /** Kept for compatibility with existing payment tooling */
-  unappliedPayments: number;
   partialPaymentsCount: number;
 }
 

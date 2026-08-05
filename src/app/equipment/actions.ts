@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { postDepreciationJournalForUsage } from "@/app/actions/journal";
 import { createDataClient } from "@/lib/auth-access";
 import { getViewRole } from "@/lib/demo-role";
 import { EQUIPMENT_CATEGORIES } from "./equipment-types";
@@ -140,13 +141,77 @@ export async function logEquipmentHours(formData: FormData): Promise<void> {
 
   if (!visit || visit.status !== "completed") return;
 
-  await supabase.from("equipment_usage").insert({
-    equipment_id: equipmentId,
-    visit_id: visitId,
-    hours,
-    used_on: visit.scheduled_date,
-    notes,
-  });
+  const { data: usage } = await supabase
+    .from("equipment_usage")
+    .insert({
+      equipment_id: equipmentId,
+      visit_id: visitId,
+      hours,
+      used_on: visit.scheduled_date,
+      notes,
+    })
+    .select("id")
+    .single();
+
+  if (usage?.id) {
+    await postDepreciationJournalForUsage(usage.id);
+  }
 
   revalidatePath("/equipment");
+  revalidatePath("/visits");
+  revalidatePath("/reports/journal-entries");
+}
+
+export async function addVisitEquipmentUsage(formData: FormData): Promise<void> {
+  await requireAccountant();
+  const supabase = await createDataClient();
+
+  const equipmentId = String(formData.get("equipment_id") ?? "");
+  const visitId = String(formData.get("visit_id") ?? "");
+  const hours = Number(formData.get("hours"));
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!equipmentId || !visitId || !(hours > 0)) return;
+
+  const { data: visit } = await supabase
+    .from("service_visits")
+    .select("scheduled_date")
+    .eq("id", visitId)
+    .single();
+
+  if (!visit) return;
+
+  const { data: usage } = await supabase
+    .from("equipment_usage")
+    .insert({
+      equipment_id: equipmentId,
+      visit_id: visitId,
+      hours,
+      used_on: visit.scheduled_date,
+      notes,
+    })
+    .select("id")
+    .single();
+
+  if (usage?.id) {
+    await postDepreciationJournalForUsage(usage.id);
+  }
+
+  revalidatePath("/visits");
+  revalidatePath("/equipment");
+  revalidatePath("/reports/journal-entries");
+}
+
+export async function removeVisitEquipmentUsage(formData: FormData): Promise<void> {
+  await requireAccountant();
+  const supabase = await createDataClient();
+  const id = String(formData.get("usage_id") ?? "");
+  if (!id) return;
+
+  await supabase.from("journal_entries").delete().eq("source", "depreciation").eq("source_id", id);
+  await supabase.from("equipment_usage").delete().eq("id", id);
+
+  revalidatePath("/visits");
+  revalidatePath("/equipment");
+  revalidatePath("/reports/journal-entries");
 }

@@ -57,20 +57,13 @@ export function enrichPaymentRow<T extends {
   payment_number?: string | null;
   status?: string | null;
   applied_amount?: number | null;
-  unapplied_amount?: number | null;
   amount?: number | null;
 }>(payment: T) {
   const legacy = parseLegacyPaymentNotes(payment.notes);
-  const unapplied = Number(payment.unapplied_amount ?? 0);
-  const applied = Number(
-    payment.applied_amount ??
-      (unapplied > 0 ? Number(payment.amount ?? 0) - unapplied : payment.amount ?? 0)
-  );
 
   let status = payment.status ?? null;
   if (!status) {
-    if (unapplied > 0 && applied <= 0) status = "unapplied";
-    else status = "applied";
+    status = "applied";
   }
 
   return {

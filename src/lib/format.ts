@@ -73,7 +73,6 @@ export function statusColor(status: string) {
     canceled: "bg-stone-200 text-stone-700",
     voided: "bg-stone-200 text-stone-700",
     applied: "bg-green-100 text-green-800",
-    unapplied: "bg-yellow-100 text-yellow-800",
     void: "bg-stone-200 text-stone-700",
     scheduled: "bg-yellow-100 text-yellow-800",
     completed: "bg-green-100 text-green-800",
