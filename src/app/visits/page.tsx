@@ -68,10 +68,6 @@ function formatVisitDescription(notes: string | null) {
   return withPeriod.charAt(0).toUpperCase() + withPeriod.slice(1);
 }
 
-function formatExtraWorkStatus(status: string) {
-  return status.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 function parseStatusFilter(raw?: string): VisitStatusFilterValue {
   if (raw === "completed" || raw === "all") return raw;
   return "scheduled";
@@ -501,28 +497,34 @@ export default async function VisitsPage({
                             </div>
                           ) : null}
                           {contractExtra.length > 0 ? (
-                            <div className="mt-4">
+                            <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
                               <p className="text-sm font-medium text-stone-800">
-                                Extra work for this agreement
+                                Extra work
                               </p>
-                              <ul className="mt-1.5 space-y-2">
+                              <p className="mt-0.5 text-xs text-stone-500">
+                                Add-on work for this agreement (outside routine
+                                visits).
+                              </p>
+                              <ul className="mt-3 space-y-2">
                                 {contractExtra.map((work) => (
                                   <li
                                     key={work.id}
-                                    className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm"
+                                    className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2.5 shadow-sm"
                                   >
-                                    <p className="font-medium text-green-950">
-                                      {work.title}
-                                      <span className="ml-2 text-xs font-normal text-stone-500">
-                                        {formatExtraWorkStatus(work.status)}
-                                      </span>
-                                    </p>
-                                    {work.description ? (
-                                      <p className="mt-0.5 text-stone-600">
-                                        {work.description}
-                                      </p>
-                                    ) : null}
-                                    <p className="mt-1 text-xs text-stone-500">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="font-medium text-green-950">
+                                          {work.title}
+                                        </p>
+                                        <StatusBadge status={work.status} />
+                                      </div>
+                                      {work.description ? (
+                                        <p className="mt-1 text-sm text-stone-600">
+                                          {work.description}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                    <p className="shrink-0 text-sm font-semibold tabular-nums text-green-900">
                                       {formatCurrency(
                                         Number(work.quoted_amount)
                                       )}

@@ -14,69 +14,100 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { fetchContracts, fetchVisits } from "@/lib/queries";
 import type { ServiceVisit } from "@/lib/types";
 
+function SimpleContractsTable({
+  contracts,
+  showCustomerColumn,
+}: {
+  contracts: Awaited<ReturnType<typeof fetchContracts>>["data"];
+  showCustomerColumn: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+      <table className="min-w-full text-sm">
+        <thead className="bg-stone-50 text-left text-stone-600">
+          <tr>
+            <th className="px-4 py-3 font-medium">Contract</th>
+            {showCustomerColumn ? (
+              <th className="px-4 py-3 font-medium">Customer</th>
+            ) : null}
+            <th className="px-4 py-3 font-medium">Season</th>
+            <th className="px-4 py-3 font-medium">Monthly Fee</th>
+            <th className="px-4 py-3 font-medium">Visits/Week</th>
+            <th className="px-4 py-3 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {contracts.map((contract) => (
+            <tr key={contract.id} className="border-t border-stone-100">
+              <td className="px-4 py-3">
+                <Link
+                  href={`/contracts/${contract.id}`}
+                  className="font-medium text-green-800 hover:underline"
+                >
+                  {contract.title}
+                </Link>
+              </td>
+              {showCustomerColumn ? (
+                <td className="px-4 py-3">
+                  {(contract.customers as { name: string } | null)?.name}
+                </td>
+              ) : null}
+              <td className="px-4 py-3">
+                {formatDate(contract.season_start)} –{" "}
+                {formatDate(contract.season_end)}
+              </td>
+              <td className="px-4 py-3">
+                {contract.monthly_fee
+                  ? formatCurrency(Number(contract.monthly_fee))
+                  : "—"}
+              </td>
+              <td className="px-4 py-3">
+                {contract.visits_per_week ?? "—"}
+              </td>
+              <td className="px-4 py-3">
+                <StatusBadge status={contract.status} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default async function ContractsPage() {
   await requireAppAccess();
 
   const role = await getViewRole();
   const { data: contracts } = await fetchContracts();
 
-  if (role === "crew_lead") {
+  // Customer (and crew) see the simple agreement list — not manager ops dashboards.
+  if (role === "customer" || role === "crew_lead" || role === "crew_member") {
+    const isCustomer = role === "customer";
     return (
       <AppShell>
         <PageHeader
           title="Contracts"
-          description="Structured seasonal agreements with service terms, billing rules, and included services."
+          description={
+            isCustomer
+              ? "Your seasonal service agreements, terms, and included services."
+              : "Structured seasonal agreements with service terms, billing rules, and included services."
+          }
         />
 
         {contracts.length === 0 ? (
-          <EmptyState message="No contracts yet. Run the seed script in Supabase to load demo data." />
+          <EmptyState
+            message={
+              isCustomer
+                ? "No contracts on file for this property."
+                : "No contracts yet. Run the seed script in Supabase to load demo data."
+            }
+          />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-            <table className="min-w-full text-sm">
-              <thead className="bg-stone-50 text-left text-stone-600">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Contract</th>
-                  <th className="px-4 py-3 font-medium">Customer</th>
-                  <th className="px-4 py-3 font-medium">Season</th>
-                  <th className="px-4 py-3 font-medium">Monthly Fee</th>
-                  <th className="px-4 py-3 font-medium">Visits/Week</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contracts.map((contract) => (
-                  <tr key={contract.id} className="border-t border-stone-100">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/contracts/${contract.id}`}
-                        className="font-medium text-green-800 hover:underline"
-                      >
-                        {contract.title}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      {(contract.customers as { name: string } | null)?.name}
-                    </td>
-                    <td className="px-4 py-3">
-                      {formatDate(contract.season_start)} –{" "}
-                      {formatDate(contract.season_end)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {contract.monthly_fee
-                        ? formatCurrency(Number(contract.monthly_fee))
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {contract.visits_per_week ?? "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={contract.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SimpleContractsTable
+            contracts={contracts}
+            showCustomerColumn={!isCustomer}
+          />
         )}
       </AppShell>
     );
