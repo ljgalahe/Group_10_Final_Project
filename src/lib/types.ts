@@ -3,9 +3,18 @@ export type UserRole = "manager" | "accountant" | "crew_lead" | "customer";
 export type ContractStatus = "draft" | "active" | "completed" | "cancelled";
 export type BillingMethod = "monthly" | "per_visit" | "seasonal";
 export type VisitStatus = "scheduled" | "completed" | "cancelled";
-export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
+export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "disputed";
 export type ExtraWorkStatus = "quoted" | "approved" | "completed" | "declined";
 export type CostType = "labor" | "materials" | "equipment";
+export type SupportCategory =
+  | "question"
+  | "concern"
+  | "complaint"
+  | "billing_dispute"
+  | "renewal"
+  | "service_quote";
+export type SupportLinkType = "contract" | "visit" | "invoice";
+export type SupportRequestStatus = "Open" | "In Progress" | "Resolved";
 
 export interface Profile {
   id: string;
@@ -111,6 +120,43 @@ export interface Payment {
   notes: string | null;
   created_at: string;
 }
+
+export interface CustomerPaymentMethod {
+  id: string;
+  customer_id: string;
+  nickname: string | null;
+  display_label: string;
+  created_at: string;
+}
+
+export interface SupportRequest {
+  id: string;
+  customer_id: string;
+  category: SupportCategory;
+  message: string;
+  linked_type: SupportLinkType | null;
+  linked_id: string | null;
+  status: string;
+  resolution_notes: string | null;
+  created_at: string;
+}
+
+export const SUPPORT_CATEGORIES: {
+  value: SupportCategory;
+  label: string;
+}[] = [
+  { value: "question", label: "Question" },
+  { value: "concern", label: "Concern" },
+  { value: "complaint", label: "Complaint" },
+  { value: "billing_dispute", label: "Billing Dispute" },
+  { value: "renewal", label: "Renewal Request" },
+  { value: "service_quote", label: "Service Quote" },
+];
+
+/** Categories customers can pick on Contact Us (special flows have their own UI). */
+export const SUPPORT_FORM_CATEGORIES = SUPPORT_CATEGORIES.filter(
+  (c) => c.value !== "renewal" && c.value !== "service_quote"
+);
 
 export const DEMO_ROLES: { role: UserRole; label: string; description: string }[] = [
   { role: "manager", label: "Manager", description: "Oversee contracts and profitability" },

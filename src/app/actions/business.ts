@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createDataClient } from "@/lib/auth-access";
+import { buildPaymentMethodDisplayLabel } from "@/lib/customer-payment-methods";
+import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import type { CostType } from "@/lib/types";
 
 export async function completeVisit(formData: FormData): Promise<void> {
@@ -145,42 +147,8 @@ export async function recordPayment(formData: FormData): Promise<void> {
   const paymentMethod = (formData.get("payment_method") as string) || "simulated";
   const notes = formData.get("notes") as string;
 
-  const { data: invoice } = await supabase
-    .from("invoices")
-    .select("*")
-    .eq("id", invoiceId)
-    .single();
+  if (!Number.isFinite(amount) || amount <= 0) return;
 
-  if (!invoice) return;
-
-  const { error: paymentError } = await supabase.from("payments").insert({
-    invoice_id: invoiceId,
-    amount,
-    payment_date: new Date().toISOString().slice(0, 10),
-    payment_method: paymentMethod,
-    notes: notes || null,
-  });
-
-  if (paymentError) return;
-
-  const newAmountPaid = Number(invoice.amount_paid) + amount;
-  const newStatus =
-    newAmountPaid >= Number(invoice.total) ? "paid" : invoice.status;
-
-  await supabase
-    .from("invoices")
-    .update({ amount_paid: newAmountPaid, status: newStatus })
-    .eq("id", invoiceId);
-
-  revalidatePath("/invoices");
-  revalidatePath("/payments");
-  revalidatePath("/reports/ar-aging");
-  revalidatePath("/reports/profitability");
-}
-
-export async function customerPayInvoice(formData: FormData): Promise<void> {
-  const invoiceId = formData.get("invoice_id") as string;
-  const supabase = await createDataClient();
   const { data: invoice } = await supabase
     .from("invoices")
     .select("*")
@@ -192,11 +160,132 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
   const balance = Number(invoice.total) - Number(invoice.amount_paid);
   if (balance <= 0) return;
 
+  // Cap at remaining balance (supports partial payments)
+  const payAmount =
+    Math.round(Math.min(amount, balance) * 100) / 100;
+
+  const { error: paymentError } = await supabase.from("payments").insert({
+    invoice_id: invoiceId,
+    amount: payAmount,
+    payment_date: new Date().toISOString().slice(0, 10),
+    payment_method: paymentMethod,
+    notes: notes || null,
+  });
+
+  if (paymentError) return;
+
+  const newAmountPaid =
+    Math.round((Number(invoice.amount_paid) + payAmount) * 100) / 100;
+  const newStatus =
+    newAmountPaid + 0.001 >= Number(invoice.total)
+      ? "paid"
+      : invoice.status === "paid"
+        ? "sent"
+        : invoice.status;
+
+  await supabase
+    .from("invoices")
+    .update({ amount_paid: newAmountPaid, status: newStatus })
+    .eq("id", invoiceId);
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/payments");
+  revalidatePath("/dashboard");
+  revalidatePath("/reports/ar-aging");
+  revalidatePath("/reports/profitability");
+}
+
+export async function customerPayInvoice(formData: FormData): Promise<void> {
+  const invoiceId = formData.get("invoice_id") as string;
+  const methodId = ((formData.get("payment_method_id") as string) || "").trim();
+  const isNew = formData.get("is_new_method") === "1";
+  const newNickname = ((formData.get("new_method_nickname") as string) || "").trim();
+  const newDetails = ((formData.get("new_method_details") as string) || "").trim();
+  const requestedAmount = parseFloat(
+    (formData.get("amount") as string) || ""
+  );
+
+  const supabase = await createDataClient();
+  const role = await getViewRole();
+  const customerId =
+    role === "customer" ? await getViewCustomerId() : null;
+
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("id", invoiceId)
+    .single();
+
+  if (!invoice) return;
+
+  // Customers may only pay their own invoices
+  if (customerId && invoice.customer_id !== customerId) return;
+
+  const balance = Number(invoice.total) - Number(invoice.amount_paid);
+  if (balance <= 0) return;
+
+  // Default to full balance if amount missing; allow any amount up to balance
+  let payAmount = Number.isFinite(requestedAmount)
+    ? requestedAmount
+    : balance;
+  payAmount = Math.round(payAmount * 100) / 100;
+  if (payAmount <= 0 || payAmount > balance + 0.001) return;
+  payAmount = Math.min(payAmount, balance);
+
+  let paymentMethodLabel = "Card ending in 4242";
+
+  if (isNew && customerId) {
+    const displayLabel = buildPaymentMethodDisplayLabel(
+      newNickname,
+      newDetails
+    );
+    if (!displayLabel) return;
+
+    const { data: saved, error } = await supabase
+      .from("customer_payment_methods")
+      .insert({
+        customer_id: customerId,
+        nickname: newNickname || null,
+        display_label: displayLabel,
+      })
+      .select("display_label")
+      .single();
+
+    if (error || !saved) return;
+    paymentMethodLabel = saved.display_label;
+  } else if (methodId && customerId) {
+    const { data: method } = await supabase
+      .from("customer_payment_methods")
+      .select("display_label")
+      .eq("id", methodId)
+      .eq("customer_id", customerId)
+      .single();
+
+    if (!method) return;
+    paymentMethodLabel = method.display_label;
+  } else if (methodId) {
+    const { data: method } = await supabase
+      .from("customer_payment_methods")
+      .select("display_label")
+      .eq("id", methodId)
+      .single();
+    if (method) paymentMethodLabel = method.display_label;
+  }
+
   const paymentFormData = new FormData();
   paymentFormData.set("invoice_id", invoiceId);
-  paymentFormData.set("amount", balance.toString());
-  paymentFormData.set("payment_method", "simulated_card");
-  paymentFormData.set("notes", "Customer portal simulated payment");
+  paymentFormData.set("amount", payAmount.toFixed(2));
+  paymentFormData.set("payment_method", paymentMethodLabel);
+  paymentFormData.set(
+    "notes",
+    payAmount + 0.001 >= balance
+      ? "Customer portal payment (full)"
+      : "Customer portal payment (partial)"
+  );
 
   await recordPayment(paymentFormData);
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/invoices");
+  revalidatePath("/dashboard");
 }

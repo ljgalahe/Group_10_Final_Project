@@ -92,7 +92,7 @@ export default async function ContractDetailPage({
               <dd className="text-right">{customer.address ?? "—"}</dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-stone-500">Contact</dt>
+              <dt className="text-stone-500">Customer Contact</dt>
               <dd>{customer.contact_name ?? "—"}</dd>
             </div>
           </dl>
