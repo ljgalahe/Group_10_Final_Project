@@ -33,35 +33,6 @@ type OpenInvoice = {
   customer_id: string;
 };
 
-type DashboardFilter =
-  | "this_month"
-  | "outstanding"
-  | "overdue"
-  | "collection_rate"
-  | "avg_days"
-  | null;
-
-const DASHBOARD_FILTER_LABELS: Record<
-  Exclude<DashboardFilter, null>,
-  string
-> = {
-  this_month: "Total payments this month",
-  outstanding: "Payments on invoices with outstanding balance",
-  overdue: "Payments from overdue customers",
-  collection_rate: "Applied payments (collection rate)",
-  avg_days: "Payments used for average days to pay",
-};
-
-function currentMonthRange() {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
-  const from = `${year}-${String(month + 1).padStart(2, "0")}-01`;
-  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const to = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  return { from, to };
-}
-
 function paymentCustomerId(payment: Payment): string | undefined {
   return (
     payment.invoices?.customers?.id ??
@@ -77,14 +48,6 @@ function paymentCustomerName(payment: Payment): string {
 
 function paymentInvoiceNumber(payment: Payment): string {
   return payment.invoices?.invoice_number ?? "—";
-}
-
-function isAppliedPayment(payment: Payment): boolean {
-  const status = payment.status ?? "applied";
-  if (status === "void" || status === "unapplied") return false;
-  const unapplied = Number(payment.unapplied_amount ?? 0);
-  const amount = Number(payment.amount);
-  return unapplied < amount;
 }
 
 export function PaymentsManagerClient({
@@ -106,7 +69,6 @@ export function PaymentsManagerClient({
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [dashboardFilter, setDashboardFilter] = useState<DashboardFilter>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -152,35 +114,8 @@ export function PaymentsManagerClient({
     return () => window.clearTimeout(timer);
   }, [panelOpen, selectedPayment]);
 
-  const outstandingInvoiceSet = useMemo(
-    () => new Set(summary.outstandingInvoiceIds),
-    [summary.outstandingInvoiceIds]
-  );
-  const overdueCustomerSet = useMemo(
-    () => new Set(summary.overdueCustomerIds),
-    [summary.overdueCustomerIds]
-  );
-
   const filteredPayments = useMemo(() => {
     return payments.filter((payment) => {
-      if (dashboardFilter === "this_month") {
-        const { from, to } = currentMonthRange();
-        if (payment.payment_date < from || payment.payment_date > to) {
-          return false;
-        }
-      } else if (dashboardFilter === "outstanding") {
-        if (!outstandingInvoiceSet.has(payment.invoice_id)) return false;
-      } else if (dashboardFilter === "overdue") {
-        const customerId = paymentCustomerId(payment);
-        if (!customerId || !overdueCustomerSet.has(customerId)) return false;
-      } else if (dashboardFilter === "collection_rate") {
-        if (!isAppliedPayment(payment)) return false;
-      } else if (dashboardFilter === "avg_days") {
-        if (!isAppliedPayment(payment) || !payment.invoices?.issue_date) {
-          return false;
-        }
-      }
-
       const customerId = paymentCustomerId(payment);
       if (customerFilter) {
         if (customerId !== customerFilter) return false;
@@ -206,18 +141,10 @@ export function PaymentsManagerClient({
     statusFilter,
     dateFrom,
     dateTo,
-    dashboardFilter,
-    outstandingInvoiceSet,
-    overdueCustomerSet,
   ]);
 
   const filtersActive = Boolean(
-    customerFilter ||
-      methodFilter ||
-      statusFilter ||
-      dateFrom ||
-      dateTo ||
-      dashboardFilter
+    customerFilter || methodFilter || statusFilter || dateFrom || dateTo
   );
 
   function clearFilters() {
@@ -226,28 +153,6 @@ export function PaymentsManagerClient({
     setStatusFilter("");
     setDateFrom("");
     setDateTo("");
-    setDashboardFilter(null);
-  }
-
-  function applyDashboardFilter(next: Exclude<DashboardFilter, null>) {
-    if (dashboardFilter === next) {
-      setDashboardFilter(null);
-      if (next === "this_month") {
-        setDateFrom("");
-        setDateTo("");
-      }
-      return;
-    }
-
-    setDashboardFilter(next);
-    if (next === "this_month") {
-      const { from, to } = currentMonthRange();
-      setDateFrom(from);
-      setDateTo(to);
-    } else {
-      setDateFrom("");
-      setDateTo("");
-    }
   }
 
   function openModal() {
@@ -272,42 +177,29 @@ export function PaymentsManagerClient({
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-semibold text-green-950">
-              Payment dashboard
-            </h2>
-            <p className="text-sm text-stone-500">
-              Click a card to filter the payment history below.
-            </p>
-          </div>
-          {dashboardFilter ? (
-            <p className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-900">
-              Showing: {DASHBOARD_FILTER_LABELS[dashboardFilter]}
-            </p>
-          ) : null}
+        <div>
+          <h2 className="text-lg font-semibold text-green-950">
+            Payment dashboard
+          </h2>
+          <p className="text-sm text-stone-500">
+            Snapshot of collections and outstanding balances.
+          </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <DashboardStatCard
             label="Total Payments This Month"
             value={formatCurrency(summary.collectedThisMonth)}
             hint="Applied collections in the current month"
-            active={dashboardFilter === "this_month"}
-            onClick={() => applyDashboardFilter("this_month")}
           />
           <DashboardStatCard
             label="Outstanding Balance"
             value={formatCurrency(summary.outstandingBalance)}
             hint="Open invoice balances remaining"
-            active={dashboardFilter === "outstanding"}
-            onClick={() => applyDashboardFilter("outstanding")}
           />
           <DashboardStatCard
             label="Overdue Customers"
             value={summary.overdueCustomerCount}
             hint="Customers with past-due invoices"
-            active={dashboardFilter === "overdue"}
-            onClick={() => applyDashboardFilter("overdue")}
           />
           <DashboardStatCard
             label="Collection Rate"
@@ -317,8 +209,6 @@ export function PaymentsManagerClient({
                 : `${summary.collectionRate}%`
             }
             hint="Amount paid ÷ total billed"
-            active={dashboardFilter === "collection_rate"}
-            onClick={() => applyDashboardFilter("collection_rate")}
           />
           <DashboardStatCard
             label="Average Days to Pay"
@@ -328,8 +218,6 @@ export function PaymentsManagerClient({
                 : `${summary.averageDaysToPay} days`
             }
             hint="Issue date to payment date"
-            active={dashboardFilter === "avg_days"}
-            onClick={() => applyDashboardFilter("avg_days")}
           />
         </div>
       </section>
@@ -347,16 +235,42 @@ export function PaymentsManagerClient({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-        <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={openModal}
+          className="rounded-lg bg-green-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700"
+        >
+          Record Payment
+        </button>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-green-950">
+              Filter payment history
+            </h2>
+            <p className="text-xs text-stone-500">
+              Narrow the payment table below. This does not record a payment.
+            </p>
+          </div>
+          {filtersActive ? (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+            >
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <label className="block text-xs font-medium text-stone-500">
             Customer
             <select
               value={customerFilter}
-              onChange={(e) => {
-                setDashboardFilter(null);
-                setCustomerFilter(e.target.value);
-              }}
+              onChange={(e) => setCustomerFilter(e.target.value)}
               className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-800"
             >
               <option value="">All customers</option>
@@ -371,10 +285,7 @@ export function PaymentsManagerClient({
             Payment method
             <select
               value={methodFilter}
-              onChange={(e) => {
-                setDashboardFilter(null);
-                setMethodFilter(e.target.value);
-              }}
+              onChange={(e) => setMethodFilter(e.target.value)}
               className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-800"
             >
               <option value="">All methods</option>
@@ -390,10 +301,7 @@ export function PaymentsManagerClient({
             <input
               type="date"
               value={dateFrom}
-              onChange={(e) => {
-                setDashboardFilter(null);
-                setDateFrom(e.target.value);
-              }}
+              onChange={(e) => setDateFrom(e.target.value)}
               className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-800"
             />
           </label>
@@ -402,10 +310,7 @@ export function PaymentsManagerClient({
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => {
-                setDashboardFilter(null);
-                setDateTo(e.target.value);
-              }}
+              onChange={(e) => setDateTo(e.target.value)}
               className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-800"
             />
           </label>
@@ -413,10 +318,7 @@ export function PaymentsManagerClient({
             Payment status
             <select
               value={statusFilter}
-              onChange={(e) => {
-                setDashboardFilter(null);
-                setStatusFilter(e.target.value);
-              }}
+              onChange={(e) => setStatusFilter(e.target.value)}
               className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-800"
             >
               <option value="">All statuses</option>
@@ -425,24 +327,6 @@ export function PaymentsManagerClient({
               <option value="void">Void</option>
             </select>
           </label>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {filtersActive ? (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="rounded-lg border border-stone-300 px-4 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
-            >
-              Clear filters
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={openModal}
-            className="rounded-lg bg-green-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700"
-          >
-            Record Payment
-          </button>
         </div>
       </div>
 
@@ -794,33 +678,17 @@ function DashboardStatCard({
   label,
   value,
   hint,
-  active,
-  onClick,
 }: {
   label: string;
   value: string | number;
   hint?: string;
-  active: boolean;
-  onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-xl border p-5 text-left shadow-sm transition ${
-        active
-          ? "border-green-700 bg-green-50 ring-2 ring-green-700/20"
-          : "border-stone-200 bg-white hover:border-green-300 hover:bg-green-50/40"
-      }`}
-    >
+    <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-stone-500">{label}</p>
       <p className="mt-2 text-3xl font-bold text-green-900">{value}</p>
       {hint ? <p className="mt-1 text-xs text-stone-400">{hint}</p> : null}
-      <p className="mt-3 text-xs font-medium text-green-800">
-        {active ? "Click to clear filter" : "Click to filter table"}
-      </p>
-    </button>
+    </div>
   );
 }
 
