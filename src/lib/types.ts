@@ -1,11 +1,24 @@
 export type UserRole =
   | "manager"
   | "accountant"
+  | "operations"
   | "crew_lead"
   | "crew_member"
   | "customer";
 
 export type ContractStatus = "draft" | "active" | "completed" | "cancelled";
+export type ContractApprovalState =
+  | "draft"
+  | "pending_approvals"
+  | "approved"
+  | "changes_requested";
+export type QuoteStatus =
+  | "new"
+  | "survey_scheduled"
+  | "budgeted"
+  | "contract_drafted"
+  | "closed";
+export type VisitKind = "service" | "survey";
 export type BillingMethod = "monthly" | "per_visit" | "seasonal";
 export type VisitStatus = "scheduled" | "completed" | "cancelled";
 export type InvoiceStatus =
@@ -75,6 +88,28 @@ export interface Contract {
   account_manager: string | null;
   renewal_date: string | null;
   created_at: string;
+  approval_state?: ContractApprovalState | string | null;
+  manager_approved_at?: string | null;
+  accountant_approved_at?: string | null;
+  quote_id?: string | null;
+  drafted_by_role?: string | null;
+  customers?: Customer;
+}
+
+export interface QuoteRequest {
+  id: string;
+  customer_id: string;
+  service_description: string;
+  notes: string | null;
+  related_contract_id: string | null;
+  status: QuoteStatus;
+  property_address: string | null;
+  budget_hours: number | null;
+  budget_supplies: string | null;
+  survey_visit_id: string | null;
+  draft_contract_id: string | null;
+  created_at: string;
+  updated_at?: string;
   customers?: Customer;
 }
 
@@ -236,7 +271,12 @@ export const CREW_APPLICABLE_SUPPORT_CATEGORIES = SUPPORT_CATEGORIES.filter(
 export const DEMO_ROLES: { role: UserRole; label: string; description: string }[] = [
   { role: "manager", label: "Manager", description: "Oversee contracts and profitability" },
   { role: "accountant", label: "Accountant", description: "Billing, payments, and AR" },
-  { role: "crew_lead", label: "Crew Lead", description: "Schedule and complete visits" },
+  {
+    role: "operations",
+    label: "Operations",
+    description: "Quotes, scheduling, and crew availability",
+  },
+  { role: "crew_lead", label: "Crew Lead", description: "Execute assigned visits" },
   {
     role: "crew_member",
     label: "Crew Member",
@@ -244,6 +284,12 @@ export const DEMO_ROLES: { role: UserRole; label: string; description: string }[
   },
   { role: "customer", label: "Customer", description: "View contracts and pay invoices" },
 ];
+
+export const DEMO_CREW_LEADS = [
+  "Morgan Hale",
+  "Alex Rivera",
+  "Sam Ortiz",
+] as const;
 
 export const DEMO_CUSTOMER_ID = "11111111-1111-1111-1111-111111111101";
 

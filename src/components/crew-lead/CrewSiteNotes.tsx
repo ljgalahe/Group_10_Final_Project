@@ -18,6 +18,7 @@ export function CrewSiteNotes({
   compact = false,
   showCustomerNotes = true,
   showAdditionalNotes = true,
+  readOnly = false,
 }: {
   /** Customer notes from profile/database for this property. */
   notes?: string[];
@@ -27,11 +28,13 @@ export function CrewSiteNotes({
   compact?: boolean;
   showCustomerNotes?: boolean;
   showAdditionalNotes?: boolean;
+  /** When true, additional notes are view-only (crew member portal). */
+  readOnly?: boolean;
 }) {
   const customerNotes = notes.filter(Boolean);
   const [additionalNotes, setAdditionalNotes] = useState("");
   const isScheduled = status === "scheduled";
-  const canEditAdditional = Boolean(jobId) && isScheduled;
+  const canEditAdditional = Boolean(jobId) && isScheduled && !readOnly;
 
   useEffect(() => {
     if (!jobId || !showAdditionalNotes) {
@@ -86,7 +89,7 @@ export function CrewSiteNotes({
 
   const additionalBlock = showAdditionalNotes ? (
     <div className="rounded-lg border border-stone-200 bg-stone-50 p-4">
-      <h4 className="text-sm font-semibold uppercase tracking-wide text-stone-800">
+      <h4 className="text-sm font-semibold text-green-950">
         Additional Notes
       </h4>
       {canEditAdditional ? (

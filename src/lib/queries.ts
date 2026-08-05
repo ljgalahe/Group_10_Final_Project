@@ -33,7 +33,15 @@ export async function fetchContracts() {
   }
 
   const { data, error } = await query;
-  return { data: data ?? [], error };
+  let rows = data ?? [];
+  if (customerId) {
+    rows = rows.filter((c) => {
+      const state = (c as { approval_state?: string | null }).approval_state;
+      if (!state || state === "approved") return true;
+      return false;
+    });
+  }
+  return { data: rows, error };
 }
 
 export async function fetchContractsDetailed() {
@@ -921,6 +929,7 @@ export async function fetchAllSupportRequests(): Promise<{
   const { data, error } = await supabase
     .from("support_requests")
     .select("*, customers(name)")
+    .neq("category", "service_quote")
     .order("created_at", { ascending: false });
 
   if (error || !data) {
@@ -1434,3 +1443,33 @@ export async function fetchCustomerUpcomingVisits(
 
   return { data: visits, error };
 }
+
+export async function fetchQuoteRequests() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("quote_requests")
+    .select("*, customers(id, name, address, contact_name, contact_email)")
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+
+export async function fetchQuoteRequestById(id: string) {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("quote_requests")
+    .select("*, customers(id, name, address, contact_name, contact_email, contact_phone)")
+    .eq("id", id)
+    .maybeSingle();
+  return { data, error };
+}
+
+export async function fetchPendingContractApprovals() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("contracts")
+    .select("*, customers(name, address)")
+    .eq("approval_state", "pending_approvals")
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+

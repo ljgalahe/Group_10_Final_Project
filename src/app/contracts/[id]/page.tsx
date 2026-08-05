@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { approveExtraWork, generateInvoice } from "@/app/actions/business";
 import { AppShell } from "@/components/AppShell";
 import { ContractDetailsForm } from "@/components/ContractDetailsForm";
+import { ContractDualApprovalPanel } from "@/components/ContractDualApprovalPanel";
 import { ContractInternalControls } from "@/components/ContractInternalControls";
 import { BillableStatusCard } from "@/components/BillingCards";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
@@ -45,6 +46,13 @@ export default async function ContractDetailPage({
 
   const customer = contractRow.customers as Customer;
   const contract = contractRow as Contract;
+
+  if (role === "customer") {
+    const state = contract.approval_state;
+    if (state && state !== "approved") {
+      redirect("/contracts");
+    }
+  }
   const services = (contractRow.contract_services ?? []) as {
     id: string;
     service_name: string;
@@ -135,6 +143,16 @@ export default async function ContractDetailPage({
           <BillableStatusCard current={billableStatus} />
         </div>
       ) : null}
+
+      <div className="mb-6">
+        <ContractDualApprovalPanel
+          contractId={id}
+          approvalState={contract.approval_state}
+          managerApprovedAt={contract.manager_approved_at}
+          accountantApprovedAt={contract.accountant_approved_at}
+          role={role}
+        />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

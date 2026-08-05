@@ -11,6 +11,7 @@ import {
   CrewLeadVisitsBoard,
   type CrewLeadVisitCardData,
 } from "@/components/crew-lead/CrewLeadVisitsBoard";
+import { CrewMemberVisitsBoard } from "@/components/crew-member/CrewMemberVisitsBoard";
 import {
   normalizeServiceName,
   oxfordAddressForCustomer,
@@ -293,11 +294,12 @@ export default async function VisitsPage({
                 : "No visits scheduled. Run the seed script to load demo visits."
             }
           />
+        ) : role === "crew_member" ? (
+          <CrewMemberVisitsBoard visits={cardData} extraWork={extraWork} />
         ) : (
           <CrewLeadVisitsBoard
             visits={cardData}
             extraWork={extraWork}
-            readOnly={role === "crew_member"}
           />
         )}
       </AppShell>
@@ -596,7 +598,7 @@ export default async function VisitsPage({
                         )}
                       </div>
 
-                      {role === "manager" ? (
+                      {canManage && !isCustomer ? (
                         <div className="mt-4 border-t border-stone-100 pt-4">
                           <VisitCostForm visitId={visit.id} />
                         </div>

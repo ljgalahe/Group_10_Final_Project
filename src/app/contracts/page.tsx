@@ -12,6 +12,7 @@ import {
   fetchContractProfitabilityMap,
   fetchContracts,
   fetchContractsDetailed,
+  fetchPendingContractApprovals,
   fetchPendingContractChangeRequests,
 } from "@/lib/queries";
 
@@ -29,12 +30,14 @@ export default async function ContractsPage() {
       { data: pendingRequests },
       { data: auditLogs },
       billing,
+      { data: pendingApprovals },
     ] = await Promise.all([
       fetchContractsDetailed(),
       fetchContractProfitabilityMap(),
       fetchPendingContractChangeRequests(),
       fetchContractAuditLogs(),
       fetchAccountantContractBilling(),
+      fetchPendingContractApprovals(),
     ]);
     const unprofitableIds = [...profitMap.entries()]
       .filter(([, info]) => info.unprofitable)
@@ -54,6 +57,26 @@ export default async function ContractsPage() {
             </Link>
           }
         />
+        {pendingApprovals.length > 0 ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="font-semibold">
+              {pendingApprovals.length} Operations draft
+              {pendingApprovals.length === 1 ? "" : "s"} need your approval
+            </p>
+            <ul className="mt-2 list-disc pl-5">
+              {pendingApprovals.map((c) => (
+                <li key={c.id}>
+                  <Link
+                    href={`/contracts/${c.id}`}
+                    className="font-medium text-green-900 hover:underline"
+                  >
+                    {c.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <AccountantContractsView
           contracts={contracts}
           unprofitableIds={unprofitableIds}
@@ -67,13 +90,51 @@ export default async function ContractsPage() {
   }
 
   const { data: contracts } = await fetchContracts();
+  const pendingApprovals =
+    role === "manager"
+      ? (await fetchPendingContractApprovals()).data
+      : [];
 
   return (
     <AppShell>
       <PageHeader
         title="Contracts"
-        description="Structured seasonal agreements with service terms, billing rules, and included services."
+        description={
+          role === "operations"
+            ? "Draft contracts from quotes. Manager and Accountant must both approve before customers see them."
+            : "Structured seasonal agreements with service terms, billing rules, and included services."
+        }
+        action={
+          role === "operations" ? (
+            <Link
+              href="/quotes"
+              className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Quotes inbox
+            </Link>
+          ) : undefined
+        }
       />
+      {pendingApprovals.length > 0 ? (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">
+            {pendingApprovals.length} contract
+            {pendingApprovals.length === 1 ? "" : "s"} awaiting dual approval
+          </p>
+          <ul className="mt-2 list-disc pl-5">
+            {pendingApprovals.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/contracts/${c.id}`}
+                  className="font-medium text-green-900 hover:underline"
+                >
+                  {c.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <ContractsTable contracts={contracts} />
     </AppShell>
   );
