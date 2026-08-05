@@ -33,7 +33,7 @@ const navItems = [
   { href: "/profile", label: "Profile", roles: ["customer"] },
   { href: "/contact", label: "Contact Us", roles: ["customer"] },
   { href: "/support", label: "Customer Support", roles: ["manager"] },
-  { href: "/payments", label: "Payments", roles: ["manager", "accountant"] },
+  { href: "/payments", label: "Payments", roles: ["manager"] },
   { href: "/equipment", label: "Equipment", roles: ["accountant"] },
   { href: "/reports/ar-aging", label: "AR Aging", roles: ["manager", "accountant"] },
   { href: "/reports/profitability", label: "Profitability", roles: ["manager", "accountant"] },

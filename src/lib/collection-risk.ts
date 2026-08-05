@@ -120,7 +120,7 @@ export function buildCollectionRisk(
 
   for (const payment of payments) {
     const status = payment.status ?? "applied";
-    if (status === "void" || status === "unapplied") continue;
+    if (status === "void") continue;
 
     const customerId =
       payment.invoices?.customers?.id ??
