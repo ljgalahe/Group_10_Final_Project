@@ -27,11 +27,11 @@ const navItems = [
   {
     href: "/chat",
     label: "Chat",
-    roles: ["manager", "accountant", "crew_lead", "crew_member", "customer"],
+    roles: ["manager", "accountant", "crew_lead", "crew_member"],
   },
   { href: "/invoices", label: "Invoices", roles: ["manager", "accountant", "customer"] },
-  { href: "/profile", label: "Profile", roles: ["customer"] },
   { href: "/contact", label: "Contact Us", roles: ["customer"] },
+  { href: "/profile", label: "Profile", roles: ["customer"] },
   { href: "/support", label: "Customer Support", roles: ["manager"] },
   { href: "/payments", label: "Payments", roles: ["manager", "accountant"] },
   { href: "/equipment", label: "Equipment", roles: ["accountant"] },

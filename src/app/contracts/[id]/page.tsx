@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { approveExtraWork, generateInvoice } from "@/app/actions/business";
+import { AccountantContractDetail } from "@/components/AccountantContractDetail";
 import { AppShell } from "@/components/AppShell";
 import {
   ContractProgressChart,
@@ -14,23 +15,48 @@ import {
   buildContractProgress,
   buildScopeCreepAlerts,
 } from "@/lib/contract-controls";
-import { getViewRole, roleCanManageBilling } from "@/lib/demo-role";
+import {
+  getViewRole,
+  roleCanEditContractDetails,
+  roleCanManageBilling,
+} from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { fetchContract, fetchVisits } from "@/lib/queries";
 import type { ServiceVisit } from "@/lib/types";
 
 export default async function ContractDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{
+    edit?: string;
+    invoiceError?: string;
+    openVisits?: string;
+  }>;
 }) {
   const { id } = await params;
   await requireAppAccess();
 
   const role = await getViewRole();
-  const [{ data: contract }, { data: visits }] = await Promise.all([
+  if (roleCanEditContractDetails(role)) {
+    const query = searchParams ? await searchParams : {};
+    return (
+      <AccountantContractDetail
+        id={id}
+        edit={query.edit}
+        invoiceError={query.invoiceError}
+      />
+    );
+  }
+
+  const showOpsDashboard = role === "manager";
+
+  const [{ data: contract }, visitsResult] = await Promise.all([
     fetchContract(id),
-    fetchVisits(),
+    showOpsDashboard
+      ? fetchVisits()
+      : Promise.resolve({ data: [] as ServiceVisit[] }),
   ]);
   if (!contract) notFound();
 
@@ -53,13 +79,15 @@ export default async function ContractDetailPage({
     status: string;
   }[];
 
-  const contractVisits = (visits as ServiceVisit[]).filter(
+  const contractVisits = ((visitsResult.data ?? []) as ServiceVisit[]).filter(
     (v) => v.contract_id === id
   );
-  const progress = buildContractProgress(contract, contractVisits);
-  const scopeAlerts = buildScopeCreepAlerts([contract]).filter(
-    (a) => a.contractId === id
-  );
+  const progress = showOpsDashboard
+    ? buildContractProgress(contract, contractVisits)
+    : null;
+  const scopeAlerts = showOpsDashboard
+    ? buildScopeCreepAlerts([contract]).filter((a) => a.contractId === id)
+    : [];
 
   return (
     <AppShell>
@@ -82,48 +110,52 @@ export default async function ContractDetailPage({
       />
 
       <div className="space-y-6">
-        <Card>
-          <h3 className="text-lg font-semibold text-green-950">
-            Contract completion
-          </h3>
-          <p className="mt-1 text-sm text-stone-500">
-            Percent complete, on-track status, and agreement status for this
-            property.
-          </p>
-          <div className="mt-6">
-            <ContractProgressChart
-              percentComplete={progress.percentComplete}
-              trackStatus={progress.trackStatus}
-              contractStatus={progress.contractStatus}
-              seasonElapsedPct={progress.seasonElapsedPct}
-              completedVisits={progress.completedVisits}
-              promisedVisits={progress.promisedVisits}
-            />
-          </div>
-        </Card>
+        {showOpsDashboard && progress ? (
+          <>
+            <Card>
+              <h3 className="text-lg font-semibold text-green-950">
+                Contract completion
+              </h3>
+              <p className="mt-1 text-sm text-stone-500">
+                Percent complete, on-track status, and agreement status for this
+                property.
+              </p>
+              <div className="mt-6">
+                <ContractProgressChart
+                  percentComplete={progress.percentComplete}
+                  trackStatus={progress.trackStatus}
+                  contractStatus={progress.contractStatus}
+                  seasonElapsedPct={progress.seasonElapsedPct}
+                  completedVisits={progress.completedVisits}
+                  promisedVisits={progress.promisedVisits}
+                />
+              </div>
+            </Card>
 
-        <Card>
-          <h3 className="text-lg font-semibold text-green-950">
-            Contract Promise vs Actual Work Map
-          </h3>
-          <p className="mt-1 text-sm text-stone-500">
-            What the contract promised, what was scheduled/completed/skipped, and
-            extras not included in the agreement.
-          </p>
-          <ContractPromiseSummary progress={progress} />
-          <PromiseVsActualTable rows={progress.rows} />
-        </Card>
+            <Card>
+              <h3 className="text-lg font-semibold text-green-950">
+                Contract Promise vs Actual Work Map
+              </h3>
+              <p className="mt-1 text-sm text-stone-500">
+                What the contract promised, what was scheduled/completed/skipped,
+                and extras not included in the agreement.
+              </p>
+              <ContractPromiseSummary progress={progress} />
+              <PromiseVsActualTable rows={progress.rows} />
+            </Card>
 
-        <Card>
-          <h3 className="text-lg font-semibold text-green-950">
-            Out-of-scope work watch
-          </h3>
-          <p className="mt-1 text-sm text-stone-500">
-            Detects repeated uncontracted work and offers change-order, renewal,
-            or goodwill actions. Filter by company or task.
-          </p>
-          <OutOfScopeWorkWatch alerts={scopeAlerts} />
-        </Card>
+            <Card>
+              <h3 className="text-lg font-semibold text-green-950">
+                Out-of-scope work watch
+              </h3>
+              <p className="mt-1 text-sm text-stone-500">
+                Detects repeated uncontracted work and offers change-order,
+                renewal, or goodwill actions. Filter by company or task.
+              </p>
+              <OutOfScopeWorkWatch alerts={scopeAlerts} />
+            </Card>
+          </>
+        ) : null}
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>

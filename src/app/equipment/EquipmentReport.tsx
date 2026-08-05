@@ -466,8 +466,8 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
               Hours used during visits
             </h2>
             <p className="mt-0.5 text-sm text-stone-500">
-              Logged equipment hours on completed visits drive unit-of-production
-              depreciation.
+              Logged hours on mowers, trucks, trailers, and irrigation create
+              depreciation journal entries automatically.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
@@ -600,6 +600,9 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                     </td>
                     <td className="px-2 py-2.5 text-stone-800">
                       {row.equipment_name}
+                      <span className="mt-0.5 block text-xs text-stone-400">
+                        {row.equipment_category}
+                      </span>
                     </td>
                     <td className="px-2 py-2.5 tabular-nums font-medium">
                       {row.hours.toFixed(1)}

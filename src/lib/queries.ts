@@ -698,6 +698,7 @@ export async function fetchJournalSourceStates() {
     invoice: new Map<string, JournalStatus>(),
     payment: new Map<string, JournalStatus>(),
     visit: new Map<string, JournalStatus>(),
+    depreciation: new Map<string, JournalStatus>(),
   };
 
   for (const row of data ?? []) {
@@ -706,6 +707,9 @@ export async function fetchJournalSourceStates() {
     if (row.source === "invoice") states.invoice.set(row.source_id, status);
     if (row.source === "payment") states.payment.set(row.source_id, status);
     if (row.source === "visit") states.visit.set(row.source_id, status);
+    if (row.source === "depreciation") {
+      states.depreciation.set(row.source_id, status);
+    }
   }
 
   return states;
@@ -717,6 +721,7 @@ export async function fetchJournalPostedSourceIds() {
     invoice: new Set(states.invoice.keys()),
     payment: new Set(states.payment.keys()),
     visit: new Set(states.visit.keys()),
+    depreciation: new Set(states.depreciation.keys()),
   };
 }
 
