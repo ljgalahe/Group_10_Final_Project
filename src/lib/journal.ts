@@ -1,3 +1,5 @@
+import { formatVisitCostDescription } from "@/lib/crew-hours";
+
 export type JournalSource = "invoice" | "payment" | "visit" | "manual" | "depreciation";
 export type JournalStatus = "draft" | "ready" | "posted";
 
@@ -246,7 +248,11 @@ export function visitJournalDraft(input: {
         : cost.cost_type === "materials"
           ? { accountCode: "5020", accountName: "Materials" }
           : { accountCode: "5030", accountName: "Equipment" };
-    const label = cost.description?.trim() || cost.cost_type;
+    const label = formatVisitCostDescription(
+      input.visitId,
+      cost.cost_type,
+      cost.description
+    );
     lines.push({
       ...account,
       accountName: `${account.accountName} — ${label}`,

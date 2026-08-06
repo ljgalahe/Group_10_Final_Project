@@ -40,6 +40,16 @@ export function roleCanManageQuotes(role: UserRole) {
   return role === "operations";
 }
 
+/** Prospective customer marketing / inquiry start page. */
+export function roleIsInquiries(role: UserRole) {
+  return role === "inquiries";
+}
+
+/** Operations inbox for reviewing and converting prospect inquiries. */
+export function roleCanViewInquiriesInbox(role: UserRole) {
+  return role === "operations";
+}
+
 export function roleCanManageCompanySchedule(role: UserRole) {
   return role === "operations";
 }
@@ -81,4 +91,9 @@ export function roleCanAccessSchedule(role: UserRole) {
  */
 export function roleIsReadOnlyCrew(role: UserRole) {
   return role === "crew_member";
+}
+
+/** Hourly rates / labor pay totals — managers & accountants only. */
+export function roleCanViewLaborPay(role: UserRole) {
+  return role === "manager" || role === "accountant";
 }

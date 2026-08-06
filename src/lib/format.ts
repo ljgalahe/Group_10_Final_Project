@@ -1,15 +1,20 @@
 export function formatCurrency(amount: number) {
+  const value = Number(amount);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-  }).format(amount);
+  }).format(Number.isFinite(value) ? value : 0);
 }
 
 export function formatDate(dateStr: string) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+  const [year, month, day] = dateStr.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return dateStr;
+  // Force UTC so server and browser always render the same calendar day.
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 

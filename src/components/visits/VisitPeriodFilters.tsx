@@ -62,7 +62,7 @@ export function VisitPeriodFilters({
               disabled={pending}
               onChange={(e) => go({ year: Number(e.target.value) })}
             >
-              {[2025, 2026, 2027].map((y) => (
+              {[2024, 2025, 2026, 2027].map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>

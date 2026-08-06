@@ -310,7 +310,7 @@ export function CrewVisitPhotos({
 
   return (
     <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-4">
-      <h4 className="text-sm font-semibold text-green-950">
+      <h4 className="text-sm font-semibold uppercase tracking-wide text-green-950">
         Before & After Photos
       </h4>
       <div className="mt-3 grid gap-3 lg:grid-cols-2">

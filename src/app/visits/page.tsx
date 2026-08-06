@@ -15,7 +15,6 @@ import {
   CrewLeadVisitsBoard,
   type CrewLeadVisitCardData,
 } from "@/components/crew-lead/CrewLeadVisitsBoard";
-import { CrewMemberVisitsBoard } from "@/components/crew-member/CrewMemberVisitsBoard";
 import {
   normalizeServiceName,
   oxfordAddressForCustomer,
@@ -39,6 +38,7 @@ import {
   roleCanManageVisits,
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { formatVisitCostDescription } from "@/lib/crew-hours";
 import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
 import {
   fetchAccountantVisits,
@@ -71,6 +71,10 @@ function formatVisitDescription(notes: string | null) {
   const trimmed = notes.trim();
   const withPeriod = /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
   return withPeriod.charAt(0).toUpperCase() + withPeriod.slice(1);
+}
+
+function formatExtraWorkStatus(status: string) {
+  return status.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function parseStatusFilter(raw?: string): VisitStatusFilterValue {
@@ -304,7 +308,7 @@ export default async function VisitsPage({
           description={
             role === "crew_member"
               ? "Upcoming and completed visits assigned to you (read-only)."
-              : "Scheduled and completed crew visits with Labor, Materials, and Equipment costs."
+              : "Scheduled and completed crew visits with hours, materials, and equipment."
           }
         />
         {cardData.length === 0 ? (
@@ -315,12 +319,11 @@ export default async function VisitsPage({
                 : "No visits scheduled. Run the seed script to load demo visits."
             }
           />
-        ) : role === "crew_member" ? (
-          <CrewMemberVisitsBoard visits={cardData} extraWork={extraWork} />
         ) : (
           <CrewLeadVisitsBoard
             visits={cardData}
             extraWork={extraWork}
+            readOnly={role === "crew_member"}
           />
         )}
       </AppShell>
@@ -350,7 +353,7 @@ export default async function VisitsPage({
       <AppShell>
         <PageHeader
           title="Service Visits"
-          description={`Work directory and visit outcomes for ${periodLabel(period)}. Company scheduling (create, assign, calendar, reschedule) is owned by Operations.`}
+          description={`Summary and job list for ${periodLabel(period)}. Switch the time range or organize by company or job.`}
         />
 
         <div className="mb-6">
@@ -365,7 +368,6 @@ export default async function VisitsPage({
           periodLabelText={periodLabel(period)}
           completedHref={completedHref}
           pendingHref={pendingHref}
-          showSchedule={false}
           afterSummary={
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -525,34 +527,28 @@ export default async function VisitsPage({
                             </div>
                           ) : null}
                           {contractExtra.length > 0 ? (
-                            <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
+                            <div className="mt-4">
                               <p className="text-sm font-medium text-stone-800">
-                                Extra work
+                                Extra work for this agreement
                               </p>
-                              <p className="mt-0.5 text-xs text-stone-500">
-                                Add-on work for this agreement (outside routine
-                                visits).
-                              </p>
-                              <ul className="mt-3 space-y-2">
+                              <ul className="mt-1.5 space-y-2">
                                 {contractExtra.map((work) => (
                                   <li
                                     key={work.id}
-                                    className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2.5 shadow-sm"
+                                    className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm"
                                   >
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <p className="font-medium text-green-950">
-                                          {work.title}
-                                        </p>
-                                        <StatusBadge status={work.status} />
-                                      </div>
-                                      {work.description ? (
-                                        <p className="mt-1 text-sm text-stone-600">
-                                          {work.description}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                    <p className="shrink-0 text-sm font-semibold tabular-nums text-green-900">
+                                    <p className="font-medium text-green-950">
+                                      {work.title}
+                                      <span className="ml-2 text-xs font-normal text-stone-500">
+                                        {formatExtraWorkStatus(work.status)}
+                                      </span>
+                                    </p>
+                                    {work.description ? (
+                                      <p className="mt-0.5 text-stone-600">
+                                        {work.description}
+                                      </p>
+                                    ) : null}
+                                    <p className="mt-1 text-xs text-stone-500">
                                       {formatCurrency(
                                         Number(work.quoted_amount)
                                       )}
@@ -611,11 +607,22 @@ export default async function VisitsPage({
                           <ul className="mt-2 space-y-1 text-sm text-stone-600">
                             {costs.map((cost) => (
                               <li key={cost.id}>
-                                <span className="capitalize">
-                                  {cost.cost_type}
+                                <span className="font-medium text-stone-800">
+                                  {cost.cost_type === "labor"
+                                    ? "Labor"
+                                    : cost.cost_type === "materials"
+                                      ? "Materials"
+                                      : cost.cost_type === "equipment"
+                                        ? "Equipment"
+                                        : cost.cost_type}
                                 </span>
-                                : {cost.description ?? "—"} —{" "}
-                                {formatCurrency(Number(cost.amount))}
+                                :{" "}
+                                {formatVisitCostDescription(
+                                  visit.id,
+                                  cost.cost_type,
+                                  cost.description
+                                )}{" "}
+                                — {formatCurrency(Number(cost.amount))}
                               </li>
                             ))}
                           </ul>
@@ -626,7 +633,7 @@ export default async function VisitsPage({
                         )}
                       </div>
 
-                      {canManage && !isCustomer ? (
+                      {role === "manager" ? (
                         <div className="mt-4 border-t border-stone-100 pt-4">
                           <VisitCostForm visitId={visit.id} />
                         </div>

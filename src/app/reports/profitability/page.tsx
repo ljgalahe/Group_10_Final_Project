@@ -43,7 +43,7 @@ export default async function ProfitabilityPage() {
     jobCostVariance,
     profitPerCrewHour,
   ] = await Promise.all([
-    fetchProfitabilityReport(),
+    fetchProfitabilityReport({ useAccountantVisitCosts: isAccountant }),
     fetchProfitLeakInputs(),
     isAccountant ? fetchFinancialStatementInputs() : Promise.resolve(null),
     isAccountant ? fetchDirectCostsBreakdown() : Promise.resolve(null),
@@ -79,7 +79,11 @@ export default async function ProfitabilityPage() {
     <AppShell>
       <PageHeader
         title="Contract Profitability"
-        description="Revenue billed minus direct visit costs, by active contract."
+        description={
+          isAccountant
+            ? "Revenue billed minus visit costs — scheduled visits use estimated cost; completed visits use actual cost."
+            : "Revenue billed minus direct visit costs, by active contract."
+        }
         action={
           isAccountant && financialStatementInputs ? (
             <CreateFinancialStatementButton inputs={financialStatementInputs} />
@@ -104,7 +108,7 @@ export default async function ProfitabilityPage() {
           />
         ) : (
           <StatCard
-            label="Total Direct Costs"
+            label={isAccountant ? "Total Visit Costs" : "Total Direct Costs"}
             value={formatCurrency(totalCosts)}
           />
         )}
@@ -148,6 +152,7 @@ export default async function ProfitabilityPage() {
             directCostsBreakdown={
               isAccountant ? directCostsBreakdown : null
             }
+            costsLabel={isAccountant ? "Visit Costs" : "Direct Costs"}
           />
         </>
       )}
@@ -158,21 +163,23 @@ export default async function ProfitabilityPage() {
         </h2>
         <p className="mt-2 text-sm text-stone-600">
           <strong>Revenue</strong> comes from invoices billed on each contract.
-          <strong> Direct costs</strong> are labor, materials, and equipment
-          logged on service visits.
           {isAccountant ? (
             <>
               {" "}
-              Use <strong>Estimated vs. actual job cost</strong> to spot visits
-              that blew past their quote, then Contract Performance Analysis for
-              contract-level leaks and recommendations before renewal.
+              <strong> Visit costs</strong> match the Visits tab: scheduled
+              visits use estimated cost; completed visits use actual labor,
+              materials, and equipment. Use{" "}
+              <strong>Estimated vs. actual job cost</strong> to spot visits that
+              blew past their quote, then Performance analysis for contract-level
+              leaks and recommendations before renewal.
             </>
           ) : (
             <>
               {" "}
-              Use Contract Performance Analysis to select a contract, review
-              estimated profit leaks, and act on manager recommendations before
-              renewal.
+              <strong> Direct costs</strong> are labor, materials, and equipment
+              logged on service visits. Use Contract Performance Analysis to
+              select a contract, review estimated profit leaks, and act on
+              manager recommendations before renewal.
             </>
           )}
         </p>

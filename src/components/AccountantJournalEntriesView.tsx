@@ -6,6 +6,7 @@ import { JournalEntryForm } from "@/components/JournalEntryForm";
 import { Card, EmptyState, StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { JournalSource } from "@/lib/journal";
+import type { ChartOfAccount } from "@/lib/chart-of-accounts";
 import type { JournalEntry } from "@/lib/queries";
 
 const FILTERS: Array<{ value: "all" | JournalSource; label: string }> = [
@@ -27,9 +28,11 @@ const sourceBadge: Record<JournalSource, string> = {
 
 export function AccountantJournalEntriesView({
   entries,
+  chartAccounts,
   todayIso,
 }: {
   entries: JournalEntry[];
+  chartAccounts: ChartOfAccount[];
   todayIso: string;
 }) {
   const [sourceFilter, setSourceFilter] = useState<"all" | JournalSource>("all");
@@ -323,6 +326,7 @@ export function AccountantJournalEntriesView({
         <JournalEntryForm
           mode="create"
           todayIso={todayIso}
+          chartAccounts={chartAccounts}
           onClose={() => setCreating(false)}
         />
       ) : null}
@@ -330,6 +334,7 @@ export function AccountantJournalEntriesView({
         <JournalEntryForm
           mode="edit"
           todayIso={todayIso}
+          chartAccounts={chartAccounts}
           entry={editing}
           onClose={() => setEditingId(null)}
         />

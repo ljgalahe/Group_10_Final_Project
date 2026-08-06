@@ -22,9 +22,11 @@ type ContractRow = {
 export function AllContractsTable({
   rows,
   directCostsBreakdown = null,
+  costsLabel = "Direct Costs",
 }: {
   rows: ContractRow[];
   directCostsBreakdown?: DirectCostsBreakdown | null;
+  costsLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [customer, setCustomer] = useState(ALL);
@@ -121,7 +123,7 @@ export function AllContractsTable({
                   <th className="px-4 py-3 font-medium">Customer</th>
                   <th className="px-4 py-3 font-medium">Monthly Fee</th>
                   <th className="px-4 py-3 font-medium">Revenue Billed</th>
-                  <th className="px-4 py-3 font-medium">Direct Costs</th>
+                  <th className="px-4 py-3 font-medium">{costsLabel}</th>
                   <th className="px-4 py-3 font-medium">Margin</th>
                   <th className="px-4 py-3 font-medium">Margin %</th>
                 </tr>

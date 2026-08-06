@@ -37,14 +37,16 @@ if (!url || !key) {
 const supabase = createClient(url, key);
 
 const expected = {
-  customers: 4,
-  contracts: 6,
-  service_visits: 11,
-  visit_costs: 11,
-  extra_work_orders: 3,
-  invoices: 7,
-  invoice_lines: 8,
-  payments: 3,
+  customers: 20,
+  contracts: 40,
+  service_visits: 800,
+  visit_costs: 1500,
+  visit_labor_entries: 2000,
+  extra_work_orders: 4,
+  invoices: 200,
+  invoice_lines: 200,
+  payments: 100,
+  equipment: 35,
 };
 
 console.log("Checking seed data in Supabase...\n");

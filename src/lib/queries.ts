@@ -5,9 +5,15 @@ import {
   type JournalSource,
   type JournalStatus,
 } from "@/lib/journal";
+import {
+  DEFAULT_CHART_OF_ACCOUNTS,
+  type AccountType,
+  type ChartOfAccount,
+} from "@/lib/chart-of-accounts";
 import { enrichPaymentRow, isMissingColumnError } from "@/lib/payment-schema";
 import { daysBetween, isOpenInvoiceStatus } from "@/lib/payment-utils";
 import type { Payment, PaymentsSummary, UserRole } from "@/lib/types";
+import { visitProfitabilityCost } from "@/lib/visit-accounting";
 
 export async function getScopedCustomerId(role: UserRole) {
   if (role === "customer") {
@@ -121,7 +127,9 @@ export async function fetchCustomers() {
 }
 
 export async function fetchContractProfitabilityMap() {
-  const report = await fetchProfitabilityReport();
+  const report = await fetchProfitabilityReport({
+    useAccountantVisitCosts: true,
+  });
   const map = new Map<string, { margin: number; unprofitable: boolean }>();
   for (const row of report) {
     map.set(row.contractId, {
@@ -187,6 +195,10 @@ export async function fetchVisits() {
   return { data: data ?? [], error };
 }
 
+/** PostgREST defaults to max 1000 rows; accountant metrics need the full set. */
+const SUPABASE_PAGE_SIZE = 1000;
+const SUPABASE_IN_CHUNK = 200;
+
 export async function fetchVisitLaborEntries(visitIds: string[]) {
   if (visitIds.length === 0) {
     return { data: [] as Array<{
@@ -202,72 +214,181 @@ export async function fetchVisitLaborEntries(visitIds: string[]) {
     }>, error: null };
   }
 
-  const supabase = await createDataClient();
-  const { data, error } = await supabase
-    .from("visit_labor_entries")
-    .select(
-      "id, visit_id, member_demo_id, member_name, member_role, hours, hourly_rate, started_at, ended_at"
-    )
-    .in("visit_id", visitIds);
+  type LaborRow = {
+    id: string;
+    visit_id: string;
+    member_demo_id: string;
+    member_name: string;
+    member_role: string;
+    hours: number | string;
+    hourly_rate: number | string;
+    started_at: string | null;
+    ended_at: string | null;
+  };
 
-  if (error) {
-    const msg = (error.message || "").toLowerCase();
-    if (
-      error.code === "PGRST205" ||
-      error.code === "42P01" ||
-      msg.includes("visit_labor_entries") ||
-      msg.includes("does not exist") ||
-      msg.includes("schema cache")
-    ) {
-      return { data: [], error: null };
+  const supabase = await createDataClient();
+  const all: LaborRow[] = [];
+
+  for (let i = 0; i < visitIds.length; i += SUPABASE_IN_CHUNK) {
+    const chunk = visitIds.slice(i, i + SUPABASE_IN_CHUNK);
+    let from = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("visit_labor_entries")
+        .select(
+          "id, visit_id, member_demo_id, member_name, member_role, hours, hourly_rate, started_at, ended_at"
+        )
+        .in("visit_id", chunk)
+        .range(from, from + SUPABASE_PAGE_SIZE - 1);
+
+      if (error) {
+        const msg = (error.message || "").toLowerCase();
+        if (
+          error.code === "PGRST205" ||
+          error.code === "42P01" ||
+          msg.includes("visit_labor_entries") ||
+          msg.includes("does not exist") ||
+          msg.includes("schema cache")
+        ) {
+          return { data: [], error: null };
+        }
+        return { data: all, error };
+      }
+
+      const rows = (data ?? []) as LaborRow[];
+      all.push(...rows);
+      if (rows.length < SUPABASE_PAGE_SIZE) break;
+      from += SUPABASE_PAGE_SIZE;
     }
-    return { data: [], error };
   }
 
-  return { data: data ?? [], error: null };
+  return { data: all, error: null };
+}
+
+async function fetchAllPaged<T>(
+  fetchPage: (
+    from: number,
+    to: number
+  ) => Promise<{ data: T[] | null; error: unknown }>
+): Promise<{ data: T[]; error: unknown }> {
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await fetchPage(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) return { data: all, error };
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+    from += SUPABASE_PAGE_SIZE;
+  }
+  return { data: all, error: null };
 }
 
 export async function fetchAccountantVisits() {
   const supabase = await createDataClient();
 
-  const { data: visits, error } = await supabase
-    .from("service_visits")
-    .select(
-      "*, contracts(id, title, monthly_fee, visits_per_week, assigned_crew, billing_method, customer_id, customers(name))"
-    )
-    .order("scheduled_date", { ascending: false });
+  const { data: pagedVisits, error } = await fetchAllPaged((from, to) =>
+    supabase
+      .from("service_visits")
+      .select(
+        "*, contracts(id, title, monthly_fee, visits_per_week, assigned_crew, billing_method, customer_id, customers(name))"
+      )
+      .order("scheduled_date", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
 
-  if (error || !visits) return { data: [], error };
+  // Dedupe in case page boundaries still overlap on shared scheduled_date values.
+  const visits = Array.from(
+    new Map(pagedVisits.map((visit) => [visit.id, visit])).values()
+  );
 
-  const visitIds = visits.map((visit) => visit.id);
+  if (error || visits.length === 0) {
+    return { data: [], error: (error as { message?: string } | null) ?? null };
+  }
+
   const contractIds = [
     ...new Set(visits.map((visit) => visit.contract_id).filter(Boolean)),
-  ];
+  ] as string[];
 
-  const [{ data: costs }, { data: invoices }, { data: laborEntries }] =
-    await Promise.all([
-      visitIds.length
-        ? supabase.from("visit_costs").select("*").in("visit_id", visitIds)
-        : Promise.resolve({ data: [] as never[] }),
-      contractIds.length
-        ? supabase
-            .from("invoices")
-            .select("id, contract_id, status, issue_date, created_at")
-            .in("contract_id", contractIds)
-        : Promise.resolve({ data: [] as never[] }),
-      fetchVisitLaborEntries(visitIds),
-    ]);
+  const completedIds = visits
+    .filter((visit) => visit.status === "completed")
+    .map((visit) => visit.id);
+
+  type VisitCostRow = {
+    id: string;
+    visit_id: string;
+    cost_type: string;
+    description: string | null;
+    amount: number | string;
+    quantity: number | string | null;
+    created_at: string;
+  };
+  type InvoiceRow = {
+    id: string;
+    contract_id: string;
+    status: string;
+    issue_date: string;
+    created_at: string;
+  };
+
+  const costs: VisitCostRow[] = [];
+  for (let i = 0; i < completedIds.length; i += SUPABASE_IN_CHUNK) {
+    const chunk = completedIds.slice(i, i + SUPABASE_IN_CHUNK);
+    let from = 0;
+    for (;;) {
+      const { data, error: costError } = await supabase
+        .from("visit_costs")
+        .select("*")
+        .in("visit_id", chunk)
+        .range(from, from + SUPABASE_PAGE_SIZE - 1);
+      if (costError) break;
+      const rows = (data ?? []) as VisitCostRow[];
+      costs.push(...rows);
+      if (rows.length < SUPABASE_PAGE_SIZE) break;
+      from += SUPABASE_PAGE_SIZE;
+    }
+  }
+
+  const invoices: InvoiceRow[] = [];
+  for (let i = 0; i < contractIds.length; i += SUPABASE_IN_CHUNK) {
+    const chunk = contractIds.slice(i, i + SUPABASE_IN_CHUNK);
+    const { data } = await supabase
+      .from("invoices")
+      .select("id, contract_id, status, issue_date, created_at")
+      .in("contract_id", chunk);
+    invoices.push(...((data ?? []) as InvoiceRow[]));
+  }
+
+  const { data: laborEntries } = await fetchVisitLaborEntries(completedIds);
+
+  const costsByVisit = new Map<string, VisitCostRow[]>();
+  for (const cost of costs) {
+    const list = costsByVisit.get(cost.visit_id) ?? [];
+    list.push(cost);
+    costsByVisit.set(cost.visit_id, list);
+  }
+
+  const laborByVisit = new Map<string, typeof laborEntries>();
+  for (const entry of laborEntries) {
+    const list = laborByVisit.get(entry.visit_id) ?? [];
+    list.push(entry);
+    laborByVisit.set(entry.visit_id, list);
+  }
+
+  const invoicesByContract = new Map<string, InvoiceRow[]>();
+  for (const invoice of invoices) {
+    const list = invoicesByContract.get(invoice.contract_id) ?? [];
+    list.push(invoice);
+    invoicesByContract.set(invoice.contract_id, list);
+  }
 
   return {
     data: visits.map((visit) => ({
       ...visit,
-      visit_costs: (costs ?? []).filter((cost) => cost.visit_id === visit.id),
-      invoices: (invoices ?? []).filter(
-        (invoice) => invoice.contract_id === visit.contract_id
-      ),
-      visit_labor_entries: (laborEntries ?? []).filter(
-        (entry) => entry.visit_id === visit.id
-      ),
+      visit_costs: costsByVisit.get(visit.id) ?? [],
+      invoices: invoicesByContract.get(visit.contract_id) ?? [],
+      visit_labor_entries: laborByVisit.get(visit.id) ?? [],
     })),
     error: null,
   };
@@ -555,7 +676,9 @@ export async function fetchDashboardStats() {
   };
 }
 
-export async function fetchProfitabilityReport() {
+export async function fetchProfitabilityReport(options?: {
+  useAccountantVisitCosts?: boolean;
+}) {
   const supabase = await createDataClient();
   const { data: contracts } = await supabase
     .from("contracts")
@@ -574,17 +697,30 @@ export async function fetchProfitabilityReport() {
 
     const { data: visits } = await supabase
       .from("service_visits")
-      .select("id")
+      .select("id, status")
       .eq("contract_id", contract.id);
-    const visitIds = visits?.map((v) => v.id) ?? [];
+    const visitIds = (visits ?? []).map((v) => v.id);
 
     let costs = 0;
     if (visitIds.length > 0) {
       const { data: visitCosts } = await supabase
         .from("visit_costs")
-        .select("amount")
+        .select("visit_id, amount")
         .in("visit_id", visitIds);
-      costs = (visitCosts ?? []).reduce((s, c) => s + Number(c.amount), 0);
+      const actualByVisit = new Map<string, number>();
+      for (const row of visitCosts ?? []) {
+        actualByVisit.set(
+          row.visit_id,
+          (actualByVisit.get(row.visit_id) ?? 0) + Number(row.amount)
+        );
+      }
+
+      for (const visit of visits ?? []) {
+        const actual = actualByVisit.get(visit.id) ?? 0;
+        costs += options?.useAccountantVisitCosts
+          ? visitProfitabilityCost(visit.id, visit.status, actual)
+          : actual;
+      }
     }
 
     const margin = revenue - costs;
@@ -608,6 +744,7 @@ export async function fetchProfitabilityReport() {
   return results;
 }
 
+export type { ChartOfAccount } from "@/lib/chart-of-accounts";
 export type { JournalSource, JournalStatus };
 
 export type JournalLine = {
@@ -676,6 +813,24 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
 
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+export async function fetchChartOfAccounts(): Promise<ChartOfAccount[]> {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("chart_of_accounts")
+    .select("code, name, account_type")
+    .order("code", { ascending: true });
+
+  if (error || !data?.length) {
+    return DEFAULT_CHART_OF_ACCOUNTS;
+  }
+
+  return data.map((row) => ({
+    code: row.code,
+    name: row.name,
+    accountType: row.account_type as AccountType,
+  }));
 }
 
 export async function fetchJournalSourceStates() {

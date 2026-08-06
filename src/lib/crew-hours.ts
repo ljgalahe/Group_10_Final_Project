@@ -117,6 +117,40 @@ export function encodeLaborDescription(entries: VisitLaborEntry[]): string {
   return `${LABOR_V1_PREFIX}|${body}`;
 }
 
+/** Human-readable labor/materials/equipment description for visit cost lists. */
+export function formatVisitCostDescription(
+  visitId: string,
+  costType: string,
+  description: string | null | undefined,
+  options?: { hidePay?: boolean }
+): string {
+  const type = costType.trim().toLowerCase();
+  if (type === "labor") {
+    const encoded = parseLaborDescription(visitId, description);
+    if (encoded && encoded.length > 0) {
+      return encoded
+        .map((entry) => {
+          const hours = Number(entry.hours) || 0;
+          const rate = Number(entry.hourly_rate) || 0;
+          const hrsLabel = Number.isInteger(hours)
+            ? `${hours}`
+            : hours.toFixed(1);
+          if (options?.hidePay) {
+            return `${entry.member_name} ${hrsLabel} hrs`;
+          }
+          return `${entry.member_name} ${hrsLabel} hrs @ $${rate.toFixed(0)}/hr`;
+        })
+        .join("; ");
+    }
+  }
+
+  const trimmed = description?.trim();
+  if (!trimmed) return "—";
+  // Never surface the internal labor encoding blob.
+  if (trimmed.startsWith(`${LABOR_V1_PREFIX}|`)) return "Crew labor hours";
+  return trimmed;
+}
+
 export function parseLaborDescription(
   visitId: string,
   description: string | null | undefined

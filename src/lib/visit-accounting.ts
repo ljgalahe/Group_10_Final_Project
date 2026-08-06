@@ -1,5 +1,10 @@
 import type { CostType } from "@/lib/types";
 import {
+  CREW_LEADS,
+  DEMO_EMPLOYEES,
+  type DemoCrewId,
+} from "@/lib/demo-org";
+import {
   entriesToAccountantEmployees,
   laborTotals,
   parseLaborDescription,
@@ -8,12 +13,13 @@ import {
 
 export type VisitPriority = "Routine" | "High" | "Emergency" | "Seasonal";
 
-const CREW_ROSTERS = [
-  { leader: "John Smith", employees: ["John Smith", "Mike Jones"] },
-  { leader: "Alex Rivera", employees: ["Alex Rivera", "Dana Brooks", "Pat Simmons"] },
-  { leader: "Jordan Lee", employees: ["Jordan Lee", "Sam Patel"] },
-  { leader: "Maria Chen", employees: ["Maria Chen", "James Ortiz"] },
-];
+const CREW_ROSTERS = (Object.keys(CREW_LEADS) as DemoCrewId[]).map((crew) => {
+  const members = DEMO_EMPLOYEES.filter((e) => e.crew === crew);
+  return {
+    leader: CREW_LEADS[crew],
+    employees: members.map((m) => m.name),
+  };
+});
 
 function hashString(value: string) {
   return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -50,6 +56,17 @@ export function estimatedVisitCost(actualCost: number, visitId: string) {
   if (actualCost <= 0) return 380;
   const factor = 0.82 + (hashString(visitId) % 12) / 100;
   return Math.round(actualCost * factor);
+}
+
+/** Match accountant Visits: estimate while scheduled, actual after completed. */
+export function visitProfitabilityCost(
+  visitId: string,
+  status: string,
+  actualCost: number
+) {
+  if (status === "completed") return actualCost;
+  if (status === "cancelled") return 0;
+  return estimatedVisitCost(actualCost, visitId);
 }
 
 export function crewDetailsForVisit(
@@ -158,16 +175,15 @@ export function gpsTimes(scheduledDate: string, completedAt: string | null) {
 
   if (completedAt) {
     const completed = new Date(completedAt);
-    const departed = completed.toLocaleTimeString("en-US", {
+    const timeOpts: Intl.DateTimeFormatOptions = {
       hour: "numeric",
       minute: "2-digit",
-    });
+      timeZone: "UTC",
+    };
+    const departed = completed.toLocaleTimeString("en-US", timeOpts);
     const arrivedDate = new Date(completed.getTime() - 3 * 60 * 60 * 1000);
     return {
-      arrived: arrivedDate.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      }),
+      arrived: arrivedDate.toLocaleTimeString("en-US", timeOpts),
       departed,
     };
   }

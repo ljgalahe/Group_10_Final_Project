@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Card } from "@/components/ui";
 import {
   addFieldException,
   addManagementExtraRequest,
   DEFAULT_DAILY_ROSTER,
+  getAssignedEmployeesForJob,
   loadDailyRoster,
   loadFieldExceptions,
   loadManagementExtraRequests,
@@ -13,28 +14,64 @@ import {
   type CrewMember,
   type ManagementExtraWorkRequest,
 } from "@/components/crew-lead/crewLeadStorage";
-import type { FieldExceptionReport } from "@/components/crew-lead/schedule-types";
+import type {
+  FieldExceptionReport,
+  ScheduleJob,
+} from "@/components/crew-lead/schedule-types";
 import { formatStatusLabel } from "@/components/crew-lead/visitWorkDefaults";
 import {
   chatHrefForManager,
   messageManagerAboutEquipment,
 } from "@/lib/chat-demo";
+import { assignedCrewForJob } from "@/lib/crew-member";
 
 const COMMON_EQUIPMENT = [
-  "Commercial Mower",
-  "Zero-Turn Mower",
-  "Trailer",
-  "Stick Edger",
-  "Weed Eater",
-  "Hedge Trimmer",
-  "Blower",
-  "Utility Vehicle",
-  "Water Tank / Hose Reel",
+  "Exmark Lazer Z X-Series",
+  "Ferris ISX 3300",
+  "Scag Cheetah II",
+  "Toro Groundsmaster 4000",
+  "Wright Stander ZK",
+  "Ford F-250 Crew Cab",
+  "Ford F-350 Super Duty",
+  "Chevy Silverado 2500",
+  "Ram 2500 Tradesman",
+  "16ft Landscape Trailer",
+  "18ft Equipment Trailer",
+  "14ft Dump Trailer",
+  "Bobcat S570 Skid Steer",
+  "Stihl BR 800 X Backpack Blower",
+  "Billy Goat Force Blower",
+  "Echo / Stihl Trimmer Pack",
+  "Hunter ICC2 Irrigation Kit",
+  "Rain Bird ESP-LXD Kit",
   "Other",
 ] as const;
 
+function jobAssignmentLabel(job: ScheduleJob): string {
+  const site = job.customerName?.trim() || "Site";
+  const work =
+    job.services.length > 0
+      ? job.services.join(", ")
+      : job.contractTitle?.trim() || "Service visit";
+  return `${site} — ${work}`;
+}
+
+function memberAssignedToJob(member: CrewMember, jobId: string): boolean {
+  const assigned =
+    typeof window !== "undefined"
+      ? getAssignedEmployeesForJob(jobId)
+      : assignedCrewForJob(jobId);
+  return assigned.some(
+    (row) => row.id === member.id || row.name === member.name
+  );
+}
+
 /** Links plus Extra Work approval + today's crew roster for Crew Lead dashboard. */
-export function CrewLeadQuickActions() {
+export function CrewLeadQuickActions({
+  todaysJobs = [],
+}: {
+  todaysJobs?: ScheduleJob[];
+}) {
   const [roster, setRoster] = useState<CrewMember[]>(DEFAULT_DAILY_ROSTER);
   const [requests, setRequests] = useState<ManagementExtraWorkRequest[]>([]);
   const [exceptions, setExceptions] = useState<FieldExceptionReport[]>([]);
@@ -56,12 +93,30 @@ export function CrewLeadQuickActions() {
     null
   );
   const [equipmentMessage, setEquipmentMessage] = useState("");
+  const [assignmentTick, setAssignmentTick] = useState(0);
 
   useEffect(() => {
     setRoster(loadDailyRoster());
     setRequests(loadManagementExtraRequests());
     setExceptions(loadFieldExceptions());
+    setAssignmentTick((n) => n + 1);
   }, []);
+
+  const assignmentsByMemberId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const member of roster) {
+      const labels: string[] = [];
+      for (const job of todaysJobs) {
+        if (memberAssignedToJob(member, job.id)) {
+          labels.push(jobAssignmentLabel(job));
+        }
+      }
+      map.set(member.id, labels);
+    }
+    return map;
+    // assignmentTick forces re-read of localStorage assignment overlays after mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional tick
+  }, [roster, todaysJobs, assignmentTick]);
 
   function submitExtraWork(e: FormEvent) {
     e.preventDefault();
@@ -338,27 +393,48 @@ export function CrewLeadQuickActions() {
             Today&apos;s Crew
           </h3>
           <p className="mt-1 text-sm text-stone-500">
-            Employees scheduled for your crew today.
+            Who is on your crew today and which jobs/sites they are assigned to.
           </p>
           <ul className="mt-3 space-y-2">
-            {roster.map((member) => (
-              <li
-                key={member.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
-              >
-                <div>
-                  <p className="font-medium text-green-950">{member.name}</p>
-                  <p className="text-xs text-stone-500">{member.role}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeRosterMember(member.id)}
-                  className="text-xs font-medium text-red-700 hover:underline"
+            {roster.map((member) => {
+              const assignments = assignmentsByMemberId.get(member.id) ?? [];
+              return (
+                <li
+                  key={member.id}
+                  className="flex items-start justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
                 >
-                  Remove
-                </button>
-              </li>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-green-950">{member.name}</p>
+                    <p className="text-xs text-stone-500">{member.role}</p>
+                    {assignments.length > 0 ? (
+                      <ul className="mt-1 space-y-0.5">
+                        {assignments.map((label) => (
+                          <li
+                            key={`${member.id}-${label}`}
+                            className="text-xs text-stone-600"
+                          >
+                            {label}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-xs text-stone-400">
+                        {todaysJobs.length === 0
+                          ? "No jobs scheduled today"
+                          : "Not assigned to a visit today"}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeRosterMember(member.id)}
+                    className="shrink-0 text-xs font-medium text-red-700 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           <form
             onSubmit={addRosterMember}

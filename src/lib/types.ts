@@ -2,6 +2,7 @@ export type UserRole =
   | "manager"
   | "accountant"
   | "operations"
+  | "inquiries"
   | "crew_lead"
   | "crew_member"
   | "customer";
@@ -20,7 +21,11 @@ export type QuoteStatus =
   | "closed";
 export type VisitKind = "service" | "survey";
 export type BillingMethod = "monthly" | "per_visit" | "seasonal";
-export type VisitStatus = "scheduled" | "completed" | "cancelled";
+export type VisitStatus =
+  | "scheduled"
+  | "completed"
+  | "cancelled"
+  | "rescheduled";
 export type InvoiceStatus =
   | "draft"
   | "approved"
@@ -273,6 +278,11 @@ export const DEMO_ROLES: { role: UserRole; label: string; description: string }[
     label: "Operations",
     description: "Quotes, scheduling, and crew availability",
   },
+  {
+    role: "inquiries",
+    label: "Inquiries",
+    description: "New commercial prospect start page and service request",
+  },
   { role: "crew_lead", label: "Crew Lead", description: "Execute assigned visits" },
   {
     role: "crew_member",
@@ -297,4 +307,4 @@ export const DEMO_CREW_MEMBER = {
   roleTitle: "Crew Member",
 } as const;
 
-export const DEMO_CREW_LEAD_NAME = "Morgan Hale";
+export const DEMO_CREW_LEAD_NAME = "Alex Rivera";

@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createDataClient } from "@/lib/auth-access";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 import {
+  ACCOUNT_TYPE_LABELS,
+  inferAccountType,
+  type AccountType,
+} from "@/lib/chart-of-accounts";
+import {
   accountNameForCode,
   depreciationAmountForHours,
   depreciationJournalDraft,
@@ -32,6 +37,7 @@ async function requireAccountant() {
 
 function revalidateJournalPaths() {
   revalidatePath("/reports/journal-entries");
+  revalidatePath("/reports/general-ledger");
   revalidatePath("/invoices", "layout");
   revalidatePath("/payments", "layout");
   revalidatePath("/visits");
@@ -394,12 +400,131 @@ export async function backfillDepreciationJournals() {
     (existing ?? []).map((row) => row.source_id).filter(Boolean) as string[]
   );
 
-  for (const row of usageRows ?? []) {
-    if (posted.has(row.id)) continue;
+  const unposted = (usageRows ?? []).filter((row) => !posted.has(row.id));
+  for (const row of unposted) {
     await postDepreciationJournalForUsage(row.id, { revalidate: false });
   }
 
   return { ok: true as const };
+}
+
+/**
+ * Post every journal entry that is already marked ready.
+ * Does not delete or rewrite lines — status ready → posted only.
+ */
+export async function postAllReadyJournalEntries() {
+  const auth = await requireAccountant();
+  if (!auth.ok) return auth;
+
+  const supabase = await createDataClient();
+  const now = new Date().toISOString();
+  const { data: ready, error: listError } = await supabase
+    .from("journal_entries")
+    .select("id")
+    .eq("status", "ready");
+
+  if (listError) return { ok: false as const, error: listError.message };
+
+  let posted = 0;
+  for (const entry of ready ?? []) {
+    const { error } = await supabase
+      .from("journal_entries")
+      .update({
+        status: "posted",
+        posted_at: now,
+        updated_at: now,
+      })
+      .eq("id", entry.id)
+      .eq("status", "ready");
+    if (!error) posted += 1;
+  }
+
+  return { ok: true as const, posted };
+}
+
+/**
+ * Create+post journal entries for completed visits that are ready
+ * (have costs) but do not yet have a visit journal. Leaves existing
+ * entries untouched.
+ */
+export async function ensureReadyVisitJournalsPosted() {
+  const auth = await requireAccountant();
+  if (!auth.ok) return auth;
+
+  const supabase = await createDataClient();
+  const existingIds = new Set<string>();
+  let from = 0;
+  for (;;) {
+    const { data: page } = await supabase
+      .from("journal_entries")
+      .select("source_id")
+      .eq("source", "visit")
+      .not("source_id", "is", null)
+      .range(from, from + 999);
+    if (!page?.length) break;
+    for (const row of page) {
+      if (row.source_id) existingIds.add(row.source_id);
+    }
+    if (page.length < 1000) break;
+    from += 1000;
+  }
+
+  let created = 0;
+  const maxPerLoad = 100;
+  from = 0;
+  for (;;) {
+    if (created >= maxPerLoad) break;
+
+    const { data: visits } = await supabase
+      .from("service_visits")
+      .select("id, scheduled_date, status, contracts(title, customers(name))")
+      .eq("status", "completed")
+      .order("scheduled_date", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + 199);
+
+    if (!visits?.length) break;
+
+    for (const visit of visits) {
+      if (created >= maxPerLoad) break;
+      if (existingIds.has(visit.id)) continue;
+
+      const { data: costs } = await supabase
+        .from("visit_costs")
+        .select("cost_type, description, amount")
+        .eq("visit_id", visit.id);
+      if (visitJournalReadyReason(visit.status, costs?.length ?? 0)) continue;
+
+      const contract = Array.isArray(visit.contracts)
+        ? visit.contracts[0]
+        : visit.contracts;
+      const customer = Array.isArray(contract?.customers)
+        ? contract?.customers[0]
+        : contract?.customers;
+      const draft = visitJournalDraft({
+        visitId: visit.id,
+        scheduledDate: visit.scheduled_date,
+        customerName: customer?.name ?? "",
+        contractTitle: contract?.title ?? null,
+        costs: costs ?? [],
+      });
+      if (!draft) continue;
+
+      const result = await insertJournalEntry(
+        { ...draft, status: "posted" },
+        { revalidate: false }
+      );
+      if (result.ok) {
+        created += 1;
+        existingIds.add(visit.id);
+      }
+    }
+
+    if (visits.length < 200) break;
+    from += 200;
+  }
+
+  return { ok: true as const, created };
 }
 
 export async function postDepreciationJournalForUsage(
@@ -471,4 +596,53 @@ export async function deleteJournalEntry(formData: FormData) {
 
   revalidateJournalPaths();
   return { ok: true as const };
+}
+
+const VALID_ACCOUNT_TYPES = new Set(Object.keys(ACCOUNT_TYPE_LABELS));
+
+export async function addChartOfAccountAction(
+  _prev: { ok: boolean; error?: string } | null,
+  formData: FormData
+): Promise<{ ok: boolean; error?: string }> {
+  const auth = await requireAccountant();
+  if (!auth.ok) return auth;
+
+  const code = String(formData.get("account_code") || "").trim();
+  const name = String(formData.get("account_name") || "").trim();
+  const accountTypeRaw = String(formData.get("account_type") || "").trim();
+  const accountType = (
+    VALID_ACCOUNT_TYPES.has(accountTypeRaw)
+      ? accountTypeRaw
+      : inferAccountType(code)
+  ) as AccountType;
+
+  if (!/^\d{4}$/.test(code)) {
+    return { ok: false, error: "Account code must be exactly 4 digits." };
+  }
+  if (!name) {
+    return { ok: false, error: "Account name is required." };
+  }
+
+  const supabase = await createDataClient();
+  const { error } = await supabase.from("chart_of_accounts").insert({
+    code,
+    name,
+    account_type: accountType,
+  });
+
+  if (error) {
+    if (error.code === "23505") {
+      return { ok: false, error: "That account code is already in use." };
+    }
+    if (/chart_of_accounts/i.test(error.message)) {
+      return {
+        ok: false,
+        error: "Chart of accounts is not set up yet. Run the latest database migration.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidateJournalPaths();
+  return { ok: true };
 }

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getViewRole } from "@/lib/demo-role";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { signOut } from "@/app/actions/auth";
@@ -17,8 +16,18 @@ const navItems = [
     ],
   },
   {
+    href: "/inquiries",
+    label: "Home",
+    roles: ["inquiries"],
+  },
+  {
     href: "/quotes",
     label: "Quotes",
+    roles: ["operations"],
+  },
+  {
+    href: "/ops/inquiries",
+    label: "Inquiries",
     roles: ["operations"],
   },
   {
@@ -57,6 +66,7 @@ const navItems = [
   { href: "/reports/ar-aging", label: "AR Aging", roles: ["manager", "accountant"] },
   { href: "/reports/profitability", label: "Profitability", roles: ["manager", "accountant"] },
   { href: "/reports/journal-entries", label: "Journal Entries", roles: ["accountant"] },
+  { href: "/reports/general-ledger", label: "General Ledger", roles: ["accountant"] },
 ];
 
 export async function AppNav() {
@@ -67,20 +77,21 @@ export async function AppNav() {
     <header className="border-b border-green-800/20 bg-green-900 text-white">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4">
         <div>
-          <Link href="/dashboard" className="text-lg font-bold tracking-tight">
+          {/* Plain anchors avoid next/link onTouchStart hydration mismatches. */}
+          <a href="/dashboard" className="text-lg font-bold tracking-tight">
             GreenScape Commercial
-          </Link>
+          </a>
           <p className="text-xs text-green-200">Contract-to-Cash Management</p>
         </div>
         <nav className="flex flex-wrap items-center gap-2">
           {visibleItems.map((item) => (
-            <Link
+            <a
               key={item.href}
               href={item.href}
               className="rounded-md px-3 py-2 text-sm hover:bg-green-800"
             >
               {item.label}
-            </Link>
+            </a>
           ))}
         </nav>
         <div className="flex items-center gap-3">

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.mjs",
+    "seed:generate": "node scripts/generate-realistic-seed.mjs",
+    "seed:apply": "node scripts/generate-realistic-seed.mjs --apply"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
