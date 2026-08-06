@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { AccountantJournalEntriesView } from "@/components/AccountantJournalEntriesView";
 import { AppShell } from "@/components/AppShell";
 import { PageHeader } from "@/components/ui";
+import { loadAccountingReportData } from "@/app/reports/accounting-data";
 import { requireAppAccess } from "@/lib/auth-access";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
-import { fetchJournalEntries } from "@/lib/queries";
 
 export default async function JournalEntriesPage() {
   await requireAppAccess();
@@ -12,7 +12,7 @@ export default async function JournalEntriesPage() {
   const role = await getViewRole();
   if (!roleCanEditContractDetails(role)) redirect("/dashboard");
 
-  const entries = await fetchJournalEntries();
+  const { entries, chartAccounts } = await loadAccountingReportData();
 
   return (
     <AppShell>
@@ -22,6 +22,7 @@ export default async function JournalEntriesPage() {
       />
       <AccountantJournalEntriesView
         entries={entries}
+        chartAccounts={chartAccounts}
         todayIso={new Date().toISOString().slice(0, 10)}
       />
     </AppShell>

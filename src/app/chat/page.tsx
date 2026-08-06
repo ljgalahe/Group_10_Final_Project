@@ -25,10 +25,14 @@ export default async function ChatPage({
       />
       <ChatWorkspace
         initialWith={first(params.with)}
+        initialFrom={first(params.from)}
         initialVisit={first(params.visit)}
         initialJob={first(params.job)}
         initialCompany={first(params.company)}
         initialConcern={first(params.concern)}
+        initialComposeTitle={first(params.composeTitle)}
+        initialComposeBody={first(params.composeBody)}
+        initialComposeCategory={first(params.composeCategory)}
       />
     </AppShell>
   );

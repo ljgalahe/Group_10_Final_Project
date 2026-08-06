@@ -3,11 +3,13 @@ export function StatCard({
   value,
   hint,
   compact = false,
+  valueClassName,
 }: {
   label: string;
   value: string | number;
   hint?: string;
   compact?: boolean;
+  valueClassName?: string;
 }) {
   return (
     <div
@@ -17,7 +19,7 @@ export function StatCard({
     >
       <p className="text-sm font-medium text-stone-500">{label}</p>
       <p
-        className={`mt-1 font-bold text-green-900 ${
+        className={`mt-1 font-bold ${valueClassName ?? "text-green-900"} ${
           compact ? "text-xl leading-snug" : "mt-2 text-3xl"
         }`}
       >
@@ -64,7 +66,6 @@ export function StatusBadge({ status }: { status: string }) {
     canceled: "bg-stone-200 text-stone-700",
     voided: "bg-stone-200 text-stone-700",
     applied: "bg-green-100 text-green-800",
-    unapplied: "bg-yellow-100 text-yellow-800",
     void: "bg-stone-200 text-stone-700",
     disputed: "bg-orange-100 text-orange-900",
     open: "bg-blue-100 text-blue-800",
@@ -76,6 +77,7 @@ export function StatusBadge({ status }: { status: string }) {
     completed: "bg-green-100 text-green-800",
     cancelled: "bg-gray-100 text-gray-800",
     rescheduled: "bg-orange-100 text-orange-800",
+    closed: "bg-stone-200 text-stone-800",
     approved: "bg-green-100 text-green-800",
     quoted: "bg-purple-100 text-purple-800",
     routine: "bg-stone-100 text-stone-700",

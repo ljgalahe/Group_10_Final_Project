@@ -1,4 +1,6 @@
-export type JournalSource = "invoice" | "payment" | "visit" | "manual";
+import { formatVisitCostDescription } from "@/lib/crew-hours";
+
+export type JournalSource = "invoice" | "payment" | "visit" | "manual" | "depreciation";
 export type JournalStatus = "draft" | "ready" | "posted";
 
 export type JournalLineInput = {
@@ -23,12 +25,14 @@ export type JournalDraft = {
 export const JOURNAL_ACCOUNTS = [
   { code: "1000", name: "Cash" },
   { code: "1200", name: "Accounts Receivable" },
+  { code: "1500", name: "Accumulated Depreciation" },
   { code: "2000", name: "Accounts Payable" },
   { code: "2100", name: "Accrued Expenses" },
   { code: "4000", name: "Service Revenue" },
   { code: "5010", name: "Direct Labor" },
   { code: "5020", name: "Materials" },
   { code: "5030", name: "Equipment" },
+  { code: "5040", name: "Depreciation Expense" },
   { code: "5900", name: "Other Expense" },
 ] as const;
 
@@ -37,7 +41,15 @@ export const JOURNAL_SOURCE_LABELS: Record<JournalSource, string> = {
   payment: "Payment",
   visit: "Visit Cost",
   manual: "Manual",
+  depreciation: "Depreciation",
 };
+
+export const DEPRECIATION_JOURNAL_CATEGORIES = new Set([
+  "Mowers",
+  "Trucks/Trailers",
+  "Trailers",
+  "Irrigation tools",
+]);
 
 export const JOURNAL_STATUS_LABELS: Record<JournalStatus, string> = {
   draft: "Draft",
@@ -78,6 +90,66 @@ export function paymentJournalReadyReason(input: {
   if (!(input.amount > 0)) return "Payment amount must be greater than zero";
   if (!input.invoiceId) return "Apply the payment to an invoice first";
   return null;
+}
+
+export function depreciationJournalReadyReason(input: {
+  category: string;
+  hours: number;
+  amount: number;
+}) {
+  if (!DEPRECIATION_JOURNAL_CATEGORIES.has(input.category)) {
+    return "Automated only for mowers, trucks, trailers, and irrigation";
+  }
+  if (!(input.hours > 0)) return "Log equipment hours first";
+  if (!(input.amount > 0)) return "No depreciable amount for these hours";
+  return null;
+}
+
+export function depreciationAmountForHours(input: {
+  cost: number;
+  salvage: number;
+  estimatedHours: number;
+  hours: number;
+}) {
+  if (!(input.estimatedHours > 0) || !(input.hours > 0)) return 0;
+  const rate = Math.max(0, input.cost - input.salvage) / input.estimatedHours;
+  return roundMoney(rate * input.hours);
+}
+
+export function depreciationJournalDraft(input: {
+  usageId: string;
+  usedOn: string;
+  hours: number;
+  amount: number;
+  equipmentName: string;
+  category: string;
+  customerName: string;
+  contractTitle: string | null;
+}): JournalDraft {
+  const amount = roundMoney(input.amount);
+  return {
+    date: input.usedOn.slice(0, 10),
+    source: "depreciation",
+    sourceId: input.usageId,
+    memo: `Unit-of-production depreciation — ${input.equipmentName} (${input.hours.toFixed(1)} hrs)`,
+    reference: input.equipmentName,
+    customerName: input.customerName,
+    contractTitle: input.contractTitle,
+    lines: [
+      {
+        accountCode: "5040",
+        accountName: `Depreciation Expense — ${input.category}`,
+        debit: amount,
+        credit: 0,
+      },
+      {
+        accountCode: "1500",
+        accountName: "Accumulated Depreciation",
+        debit: 0,
+        credit: amount,
+      },
+    ],
+  };
 }
 
 export function accountNameForCode(code: string) {
@@ -176,7 +248,11 @@ export function visitJournalDraft(input: {
         : cost.cost_type === "materials"
           ? { accountCode: "5020", accountName: "Materials" }
           : { accountCode: "5030", accountName: "Equipment" };
-    const label = cost.description?.trim() || cost.cost_type;
+    const label = formatVisitCostDescription(
+      input.visitId,
+      cost.cost_type,
+      cost.description
+    );
     lines.push({
       ...account,
       accountName: `${account.accountName} — ${label}`,

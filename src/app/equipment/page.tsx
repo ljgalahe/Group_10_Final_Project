@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { backfillDepreciationJournals } from "@/app/actions/journal";
 import { AppShell } from "@/components/AppShell";
 import { PageHeader } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
@@ -15,6 +16,8 @@ export default async function EquipmentPage() {
 
   const role = await getViewRole();
   if (!roleCanViewEquipment(role)) redirect("/dashboard");
+
+  await backfillDepreciationJournals();
 
   const [assets, usage, visits] = await Promise.all([
     fetchEquipment(),

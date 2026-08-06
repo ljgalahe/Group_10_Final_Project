@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Card } from "@/components/ui";
 import {
+  addFieldException,
   addManagementExtraRequest,
   DEFAULT_DAILY_ROSTER,
+  getAssignedEmployeesForJob,
   loadDailyRoster,
   loadFieldExceptions,
   loadManagementExtraRequests,
@@ -12,11 +14,64 @@ import {
   type CrewMember,
   type ManagementExtraWorkRequest,
 } from "@/components/crew-lead/crewLeadStorage";
-import type { FieldExceptionReport } from "@/components/crew-lead/schedule-types";
+import type {
+  FieldExceptionReport,
+  ScheduleJob,
+} from "@/components/crew-lead/schedule-types";
 import { formatStatusLabel } from "@/components/crew-lead/visitWorkDefaults";
+import {
+  chatHrefForManager,
+  messageManagerAboutEquipment,
+} from "@/lib/chat-demo";
+import { assignedCrewForJob } from "@/lib/crew-member";
+
+const COMMON_EQUIPMENT = [
+  "Exmark Lazer Z X-Series",
+  "Ferris ISX 3300",
+  "Scag Cheetah II",
+  "Toro Groundsmaster 4000",
+  "Wright Stander ZK",
+  "Ford F-250 Crew Cab",
+  "Ford F-350 Super Duty",
+  "Chevy Silverado 2500",
+  "Ram 2500 Tradesman",
+  "16ft Landscape Trailer",
+  "18ft Equipment Trailer",
+  "14ft Dump Trailer",
+  "Bobcat S570 Skid Steer",
+  "Stihl BR 800 X Backpack Blower",
+  "Billy Goat Force Blower",
+  "Echo / Stihl Trimmer Pack",
+  "Hunter ICC2 Irrigation Kit",
+  "Rain Bird ESP-LXD Kit",
+  "Other",
+] as const;
+
+function jobAssignmentLabel(job: ScheduleJob): string {
+  const site = job.customerName?.trim() || "Site";
+  const work =
+    job.services.length > 0
+      ? job.services.join(", ")
+      : job.contractTitle?.trim() || "Service visit";
+  return `${site} — ${work}`;
+}
+
+function memberAssignedToJob(member: CrewMember, jobId: string): boolean {
+  const assigned =
+    typeof window !== "undefined"
+      ? getAssignedEmployeesForJob(jobId)
+      : assignedCrewForJob(jobId);
+  return assigned.some(
+    (row) => row.id === member.id || row.name === member.name
+  );
+}
 
 /** Links plus Extra Work approval + today's crew roster for Crew Lead dashboard. */
-export function CrewLeadQuickActions() {
+export function CrewLeadQuickActions({
+  todaysJobs = [],
+}: {
+  todaysJobs?: ScheduleJob[];
+}) {
   const [roster, setRoster] = useState<CrewMember[]>(DEFAULT_DAILY_ROSTER);
   const [requests, setRequests] = useState<ManagementExtraWorkRequest[]>([]);
   const [exceptions, setExceptions] = useState<FieldExceptionReport[]>([]);
@@ -27,12 +82,41 @@ export function CrewLeadQuickActions() {
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberRole, setNewMemberRole] = useState("Crew Member");
   const [submittedMessage, setSubmittedMessage] = useState("");
+  const [equipmentName, setEquipmentName] = useState<string>(COMMON_EQUIPMENT[0]);
+  const [equipmentCustom, setEquipmentCustom] = useState("");
+  const [equipmentIssueKind, setEquipmentIssueKind] = useState<
+    "repair" | "maintenance"
+  >("repair");
+  const [equipmentLocation, setEquipmentLocation] = useState("");
+  const [equipmentDetails, setEquipmentDetails] = useState("");
+  const [equipmentChatHref, setEquipmentChatHref] = useState<string | null>(
+    null
+  );
+  const [equipmentMessage, setEquipmentMessage] = useState("");
+  const [assignmentTick, setAssignmentTick] = useState(0);
 
   useEffect(() => {
     setRoster(loadDailyRoster());
     setRequests(loadManagementExtraRequests());
     setExceptions(loadFieldExceptions());
+    setAssignmentTick((n) => n + 1);
   }, []);
+
+  const assignmentsByMemberId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const member of roster) {
+      const labels: string[] = [];
+      for (const job of todaysJobs) {
+        if (memberAssignedToJob(member, job.id)) {
+          labels.push(jobAssignmentLabel(job));
+        }
+      }
+      map.set(member.id, labels);
+    }
+    return map;
+    // assignmentTick forces re-read of localStorage assignment overlays after mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional tick
+  }, [roster, todaysJobs, assignmentTick]);
 
   function submitExtraWork(e: FormEvent) {
     e.preventDefault();
@@ -53,6 +137,43 @@ export function CrewLeadQuickActions() {
     setEstimatedHours("");
     setSubmittedMessage("Extra work request submitted to management.");
     window.setTimeout(() => setSubmittedMessage(""), 3000);
+  }
+
+  function submitEquipmentAlert(e: FormEvent) {
+    e.preventDefault();
+    const name =
+      equipmentName === "Other"
+        ? equipmentCustom.trim()
+        : equipmentName.trim();
+    if (!name || !equipmentDetails.trim()) return;
+
+    messageManagerAboutEquipment({
+      equipmentName: name,
+      issueKind: equipmentIssueKind,
+      details: equipmentDetails.trim(),
+      location: equipmentLocation.trim() || undefined,
+    });
+
+    addFieldException({
+      jobId: "equipment-dashboard",
+      customerName: name,
+      address: equipmentLocation.trim() || "Crew equipment",
+      type: "equipment_failure",
+      details: `${equipmentIssueKind === "repair" ? "Repair" : "Maintenance"} request: ${equipmentDetails.trim()}`,
+    });
+    setExceptions(loadFieldExceptions());
+
+    const href = chatHrefForManager({
+      equipmentName: name,
+      issueKind:
+        equipmentIssueKind === "repair" ? "needs repair" : "needs maintenance",
+    });
+    setEquipmentChatHref(href);
+    setEquipmentMessage("Message sent to the manager in Chat.");
+    setEquipmentDetails("");
+    setEquipmentLocation("");
+    setEquipmentCustom("");
+    window.setTimeout(() => setEquipmentMessage(""), 5000);
   }
 
   function addRosterMember(e: FormEvent) {
@@ -190,30 +311,130 @@ export function CrewLeadQuickActions() {
 
         <Card className="border-green-800/20 bg-stone-50">
           <h3 className="text-base font-semibold text-green-950">
+            Equipment Repair / Maintenance
+          </h3>
+          <p className="mt-1 text-sm text-stone-500">
+            Message the manager when gear needs repair or scheduled
+            maintenance.
+          </p>
+          <form onSubmit={submitEquipmentAlert} className="mt-3 space-y-2">
+            <select
+              value={equipmentName}
+              onChange={(e) => setEquipmentName(e.target.value)}
+              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+            >
+              {COMMON_EQUIPMENT.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+            {equipmentName === "Other" ? (
+              <input
+                value={equipmentCustom}
+                onChange={(e) => setEquipmentCustom(e.target.value)}
+                placeholder="Equipment name"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                required
+              />
+            ) : null}
+            <select
+              value={equipmentIssueKind}
+              onChange={(e) =>
+                setEquipmentIssueKind(
+                  e.target.value as "repair" | "maintenance"
+                )
+              }
+              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+            >
+              <option value="repair">Needs repair</option>
+              <option value="maintenance">Needs maintenance</option>
+            </select>
+            <input
+              value={equipmentLocation}
+              onChange={(e) => setEquipmentLocation(e.target.value)}
+              placeholder="Location / job (optional)"
+              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+            />
+            <textarea
+              value={equipmentDetails}
+              onChange={(e) => setEquipmentDetails(e.target.value)}
+              placeholder="Describe the issue or maintenance needed..."
+              rows={3}
+              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+              required
+            />
+            <button
+              type="submit"
+              className="rounded-md bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Message Manager
+            </button>
+            {equipmentMessage ? (
+              <p className="text-sm text-green-800">
+                {equipmentMessage}{" "}
+                {equipmentChatHref ? (
+                  <a
+                    href={equipmentChatHref}
+                    className="font-semibold underline"
+                  >
+                    Open chat
+                  </a>
+                ) : null}
+              </p>
+            ) : null}
+          </form>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-green-800/20 bg-stone-50">
+          <h3 className="text-base font-semibold text-green-950">
             Today&apos;s Crew
           </h3>
           <p className="mt-1 text-sm text-stone-500">
-            Employees scheduled for your crew today.
+            Who is on your crew today and which jobs/sites they are assigned to.
           </p>
           <ul className="mt-3 space-y-2">
-            {roster.map((member) => (
-              <li
-                key={member.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
-              >
-                <div>
-                  <p className="font-medium text-green-950">{member.name}</p>
-                  <p className="text-xs text-stone-500">{member.role}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeRosterMember(member.id)}
-                  className="text-xs font-medium text-red-700 hover:underline"
+            {roster.map((member) => {
+              const assignments = assignmentsByMemberId.get(member.id) ?? [];
+              return (
+                <li
+                  key={member.id}
+                  className="flex items-start justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
                 >
-                  Remove
-                </button>
-              </li>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-green-950">{member.name}</p>
+                    <p className="text-xs text-stone-500">{member.role}</p>
+                    {assignments.length > 0 ? (
+                      <ul className="mt-1 space-y-0.5">
+                        {assignments.map((label) => (
+                          <li
+                            key={`${member.id}-${label}`}
+                            className="text-xs text-stone-600"
+                          >
+                            {label}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-xs text-stone-400">
+                        {todaysJobs.length === 0
+                          ? "No jobs scheduled today"
+                          : "Not assigned to a visit today"}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeRosterMember(member.id)}
+                    className="shrink-0 text-xs font-medium text-red-700 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           <form
             onSubmit={addRosterMember}
@@ -239,52 +460,52 @@ export function CrewLeadQuickActions() {
             </button>
           </form>
         </Card>
-      </div>
 
-      <Card className="border-amber-200 bg-amber-50/60">
-        <h3 className="text-base font-semibold text-green-950">
-          Field Exceptions Sent to Management
-        </h3>
-        <p className="mt-1 text-sm text-stone-500">
-          Reports from visits (access issues, animals, equipment failures).
-        </p>
-        {exceptions.length === 0 ? (
-          <p className="mt-3 text-sm text-stone-500">
-            No exception reports yet. Submit them from a scheduled visit&apos;s
-            details.
+        <Card className="border-amber-200 bg-amber-50/60">
+          <h3 className="text-base font-semibold text-green-950">
+            Field Exceptions Sent to Management
+          </h3>
+          <p className="mt-1 text-sm text-stone-500">
+            Reports from visits (access issues, animals, equipment failures).
           </p>
-        ) : (
-          <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-            {exceptions.slice(0, 8).map((report) => (
-              <li
-                key={report.id}
-                className="rounded-md border border-amber-200 bg-white p-3 text-sm"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-green-950">
-                      {report.customerName}
-                    </p>
-                    <p className="text-xs font-semibold text-amber-900">
-                      {formatStatusLabel(report.type)}
-                    </p>
-                    <p className="mt-1 text-xs text-stone-600">
-                      {report.details}
-                    </p>
-                    <p className="mt-1 text-[11px] text-stone-500">
-                      {report.address} ·{" "}
-                      {new Date(report.submittedAt).toLocaleString()}
-                    </p>
+          {exceptions.length === 0 ? (
+            <p className="mt-3 text-sm text-stone-500">
+              No exception reports yet. Submit them from a scheduled visit&apos;s
+              details, or use Equipment Repair / Maintenance above.
+            </p>
+          ) : (
+            <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+              {exceptions.slice(0, 8).map((report) => (
+                <li
+                  key={report.id}
+                  className="rounded-md border border-amber-200 bg-white p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-green-950">
+                        {report.customerName}
+                      </p>
+                      <p className="text-xs font-semibold text-amber-900">
+                        {formatStatusLabel(report.type)}
+                      </p>
+                      <p className="mt-1 text-xs text-stone-600">
+                        {report.details}
+                      </p>
+                      <p className="mt-1 text-[11px] text-stone-500">
+                        {report.address} ·{" "}
+                        {new Date(report.submittedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900">
+                      Sent to Manager
+                    </span>
                   </div>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900">
-                    Sent to Manager
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import type {
   FieldExceptionReport,
   VisitWorkState,
 } from "@/components/crew-lead/schedule-types";
+import { DEMO_EMPLOYEES } from "@/lib/demo-org";
 
 export type CrewMember = {
   id: string;
@@ -25,12 +26,21 @@ const VISIT_WORK_PREFIX = "greenscape-crew-visit-work:";
 const ROSTER_KEY = "greenscape-crew-daily-roster";
 const EXTRA_REQUESTS_KEY = "greenscape-crew-extra-approvals";
 
-export const DEFAULT_DAILY_ROSTER: CrewMember[] = [
-  { id: "crew-1", name: "Jordan Miles", role: "Crew Member" },
-  { id: "crew-2", name: "Alex Rivera", role: "Crew Member" },
-  { id: "crew-3", name: "Sam Patel", role: "Crew Member" },
-  { id: "crew-4", name: "Casey Nguyen", role: "Equipment Operator" },
-];
+/** Full-season multi-crew roster (Mar–Nov). Winter UIs still list year-round leads. */
+export const DEFAULT_DAILY_ROSTER: CrewMember[] = DEMO_EMPLOYEES.map((e) => ({
+  id: e.id,
+  name: e.name,
+  role: e.role,
+}));
+
+export const WINTER_DAILY_ROSTER: CrewMember[] = DEMO_EMPLOYEES.filter(
+  (e) => e.yearRound
+).map((e) => ({
+  id: e.id,
+  name: e.name,
+  role: e.role,
+}));
+
 
 export function emptyVisitWorkState(): VisitWorkState {
   return {

@@ -2,8 +2,10 @@
 
 create type equipment_category as enum (
   'Mowers',
-  'Trucks/Trailers',
+  'Trucks',
   'Trailers',
+  'Tractors',
+  'Skid steers',
   'Irrigation tools',
   'Hand/power tools',
   'Other'

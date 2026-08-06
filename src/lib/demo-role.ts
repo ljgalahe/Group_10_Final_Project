@@ -27,8 +27,44 @@ export function roleCanEditContractDetails(role: UserRole) {
   return role === "accountant";
 }
 
+/** Operations drafts contracts; Accountant edits billing details on active contracts. */
+export function roleCanDraftContracts(role: UserRole) {
+  return role === "operations";
+}
+
+export function roleCanApproveContracts(role: UserRole) {
+  return role === "manager" || role === "accountant";
+}
+
+export function roleCanManageQuotes(role: UserRole) {
+  return role === "operations";
+}
+
+/** Prospective customer marketing / inquiry start page. */
+export function roleIsInquiries(role: UserRole) {
+  return role === "inquiries";
+}
+
+/** Operations inbox for reviewing and converting prospect inquiries. */
+export function roleCanViewInquiriesInbox(role: UserRole) {
+  return role === "operations";
+}
+
+export function roleCanManageCompanySchedule(role: UserRole) {
+  return role === "operations";
+}
+
+export function roleCanReviewMemberScheduling(role: UserRole) {
+  return role === "operations";
+}
+
 export function roleCanManageVisits(role: UserRole) {
-  return role === "manager" || role === "crew_lead" || role === "accountant";
+  return (
+    role === "manager" ||
+    role === "crew_lead" ||
+    role === "accountant" ||
+    role === "operations"
+  );
 }
 
 export function roleCanViewReports(role: UserRole) {
@@ -44,7 +80,20 @@ export function roleCanAccessCrewSchedule(role: UserRole) {
   return role === "crew_lead" || role === "crew_member";
 }
 
-/** Crew members are read-only on visits/schedules (except own scheduling requests). */
+/** Company scheduling board (Operations) or field execution schedule. */
+export function roleCanAccessSchedule(role: UserRole) {
+  return roleCanAccessCrewSchedule(role) || roleCanManageCompanySchedule(role);
+}
+
+/**
+ * Crew members are read-only on visits/schedules, with write exceptions for
+ * own scheduling / time-off requests and self clock-in/out labor sync.
+ */
 export function roleIsReadOnlyCrew(role: UserRole) {
   return role === "crew_member";
+}
+
+/** Hourly rates / labor pay totals — managers & accountants only. */
+export function roleCanViewLaborPay(role: UserRole) {
+  return role === "manager" || role === "accountant";
 }

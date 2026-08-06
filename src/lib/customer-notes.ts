@@ -55,10 +55,14 @@ export function parseCustomerNotes(
     .filter(Boolean);
 }
 
-/** For crew UI: customer notes, or generic fallbacks if empty. */
+/** For crew UI: customer notes, or generic fallbacks if empty.
+ *  Strips leftover "Assigned Crew …" lines so notes stay property-access only.
+ */
 export function customerNotesForCrew(
   raw: string | null | undefined
 ): string[] {
-  const parsed = parseCustomerNotes(raw);
+  const parsed = parseCustomerNotes(raw).filter(
+    (line) => !/^assigned\s+crew\b/i.test(line)
+  );
   return parsed.length > 0 ? parsed : DEFAULT_CUSTOMER_NOTES;
 }

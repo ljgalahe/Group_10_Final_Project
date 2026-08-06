@@ -12,6 +12,21 @@ import {
   fetchProfitabilityReport,
   fetchProfitLeakInputs,
 } from "@/lib/queries";
+import { AccountantDirectCostsStatButton } from "@/app/reports/profitability/components/AccountantDirectCostsButton";
+import { AccountantJobCostVariance } from "@/app/reports/profitability/components/AccountantJobCostVariance";
+import { AccountantPerformanceTwinPanel } from "@/app/reports/profitability/components/AccountantPerformanceTwinPanel";
+import { AccountantProfitPerCrewHour } from "@/app/reports/profitability/components/AccountantProfitPerCrewHour";
+import { AccountantTotalRevenueButton } from "@/app/reports/profitability/components/AccountantTotalRevenueButton";
+import { AllContractsTable } from "@/app/reports/profitability/components/AllContractsTable";
+import { CreateFinancialStatementButton } from "@/app/reports/profitability/components/CreateFinancialStatementButton";
+import {
+  fetchDirectCostsBreakdown,
+  fetchFinancialStatementInputs,
+  fetchJobCostVariance,
+  fetchProfitPerCrewHour,
+  fetchRevenueSeasonality,
+  fetchServiceLineGrossMargins,
+} from "@/app/reports/profitability/queries";
 
 export default async function ProfitabilityPage({
   searchParams,
@@ -24,11 +39,29 @@ export default async function ProfitabilityPage({
   if (!roleCanViewReports(role)) redirect("/dashboard");
   const params = await searchParams;
   const lowOnly = params.low === "1";
+  const isAccountant = role === "accountant";
 
-  const [report, leakInputs] = await Promise.all([
+  const [
+    report,
+    leakInputs,
+    financialStatementInputs,
+    directCostsBreakdown,
+    jobCostVariance,
+    profitPerCrewHour,
+  ] = await Promise.all([
     fetchProfitabilityReport(),
     fetchProfitLeakInputs(),
+    isAccountant ? fetchFinancialStatementInputs() : Promise.resolve(null),
+    isAccountant ? fetchDirectCostsBreakdown() : Promise.resolve(null),
+    isAccountant ? fetchJobCostVariance() : Promise.resolve(null),
+    isAccountant ? fetchProfitPerCrewHour() : Promise.resolve(null),
   ]);
+  const serviceLineMargins = isAccountant
+    ? await fetchServiceLineGrossMargins(report)
+    : [];
+  const revenueSeasonality = isAccountant
+    ? await fetchRevenueSeasonality(report.map((r) => r.contractId))
+    : [];
   const profitLeaks = detectProfitLeaks(leakInputs);
   const rankings = buildContractRankings(report, leakInputs);
   const recommendations = buildManagerRecommendations(
@@ -38,9 +71,19 @@ export default async function ProfitabilityPage({
   );
 
   const totalRevenue = report.reduce((s, r) => s + r.revenue, 0);
-  const totalCosts = report.reduce((s, r) => s + r.costs, 0);
+  // Match Total Direct Costs (actual visit_costs), not estimated scheduled costs.
+  const totalCosts =
+    isAccountant && directCostsBreakdown
+      ? directCostsBreakdown.total
+      : report.reduce((s, r) => s + r.costs, 0);
   const totalMargin = totalRevenue - totalCosts;
   const avgMarginPct = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
+  const grossMarginColor =
+    avgMarginPct >= 35
+      ? "text-green-700"
+      : avgMarginPct >= 20
+        ? "text-yellow-600"
+        : "text-red-700";
 
   const tableRows = (
     lowOnly
@@ -52,7 +95,16 @@ export default async function ProfitabilityPage({
     <AppShell>
       <PageHeader
         title="Contract Profitability"
-        description="Revenue billed minus direct visit costs, by active contract."
+        description={
+          isAccountant
+            ? "Revenue billed minus visit costs — scheduled visits use estimated cost; completed visits use actual cost."
+            : "Revenue billed minus direct visit costs, by active contract."
+        }
+        action={
+          isAccountant && financialStatementInputs ? (
+            <CreateFinancialStatementButton inputs={financialStatementInputs} />
+          ) : undefined
+        }
       />
 
       {lowOnly ? (
@@ -72,12 +124,31 @@ export default async function ProfitabilityPage({
       ) : null}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Revenue" value={formatCurrency(totalRevenue)} />
-        <StatCard label="Total Direct Costs" value={formatCurrency(totalCosts)} />
+        {isAccountant ? (
+          <AccountantTotalRevenueButton
+            amount={totalRevenue}
+            serviceLines={serviceLineMargins}
+            seasonality={revenueSeasonality}
+          />
+        ) : (
+          <StatCard label="Total Revenue" value={formatCurrency(totalRevenue)} />
+        )}
+        {isAccountant && directCostsBreakdown ? (
+          <AccountantDirectCostsStatButton
+            amount={directCostsBreakdown.total}
+            breakdown={directCostsBreakdown}
+          />
+        ) : (
+          <StatCard
+            label={isAccountant ? "Total Visit Costs" : "Total Direct Costs"}
+            value={formatCurrency(totalCosts)}
+          />
+        )}
         <StatCard label="Total Margin" value={formatCurrency(totalMargin)} />
         <StatCard
-          label="Average Margin %"
+          label="Gross Margin %"
           value={`${avgMarginPct.toFixed(1)}%`}
+          valueClassName={grossMarginColor}
         />
       </div>
 
@@ -85,86 +156,40 @@ export default async function ProfitabilityPage({
         <EmptyState message="No active contracts to analyze." />
       ) : (
         <>
-          <ContractPerformanceAnalysis
-            report={report}
-            profitLeaks={profitLeaks}
-            recommendations={recommendations}
-          />
+          {isAccountant && jobCostVariance ? (
+            <AccountantJobCostVariance report={jobCostVariance} />
+          ) : null}
 
-          <section className="mt-10 space-y-3">
-            <div>
-              <h2 className="text-base font-semibold text-stone-700">
-                {lowOnly ? "Low profitability contracts" : "All contracts"}
-              </h2>
-              <p className="text-sm text-stone-500">
-                Reference table of billed revenue, direct costs, and margin for
-                {lowOnly
-                  ? " contracts flagged by Manager Alerts."
-                  : " every active contract."}
-              </p>
-            </div>
-            {tableRows.length === 0 ? (
-              <EmptyState message="No low-profitability contracts match this filter." />
-            ) : (
-            <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-              <table className="min-w-full text-sm">
-                <thead className="bg-stone-50 text-left text-stone-600">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Contract</th>
-                    <th className="px-4 py-3 font-medium">Customer</th>
-                    <th className="px-4 py-3 font-medium">Monthly Fee</th>
-                    <th className="px-4 py-3 font-medium">Revenue Billed</th>
-                    <th className="px-4 py-3 font-medium">Direct Costs</th>
-                    <th className="px-4 py-3 font-medium">Margin</th>
-                    <th className="px-4 py-3 font-medium">Margin %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row) => (
-                    <tr
-                      key={row.contractId}
-                      className={`border-t border-stone-100 ${
-                        row.margin < 0 || row.marginPct < 15
-                          ? "bg-amber-50/40"
-                          : ""
-                      }`}
-                    >
-                      <td className="px-4 py-3 font-medium">{row.title}</td>
-                      <td className="px-4 py-3">{row.customerName}</td>
-                      <td className="px-4 py-3">
-                        {formatCurrency(row.monthlyFee)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatCurrency(row.revenue)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatCurrency(row.costs)}
-                      </td>
-                      <td
-                        className={`px-4 py-3 font-medium ${row.margin >= 0 ? "text-green-800" : "text-red-700"}`}
-                      >
-                        {formatCurrency(row.margin)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            row.marginPct >= 25
-                              ? "bg-green-100 text-green-800"
-                              : row.marginPct >= 10
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {row.marginPct.toFixed(1)}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            )}
-          </section>
+          {isAccountant ? (
+            <AccountantPerformanceTwinPanel
+              serviceLines={serviceLineMargins}
+              report={report}
+              profitLeaks={profitLeaks}
+              recommendations={recommendations}
+            />
+          ) : (
+            <ContractPerformanceAnalysis
+              report={report}
+              profitLeaks={profitLeaks}
+              recommendations={recommendations}
+            />
+          )}
+
+          {isAccountant && profitPerCrewHour ? (
+            <AccountantProfitPerCrewHour report={profitPerCrewHour} />
+          ) : null}
+
+          {lowOnly && tableRows.length === 0 ? (
+            <EmptyState message="No low-profitability contracts match this filter." />
+          ) : (
+            <AllContractsTable
+              rows={tableRows}
+              directCostsBreakdown={
+                isAccountant ? directCostsBreakdown : null
+              }
+              costsLabel={isAccountant ? "Visit Costs" : "Direct Costs"}
+            />
+          )}
         </>
       )}
 
@@ -174,10 +199,25 @@ export default async function ProfitabilityPage({
         </h2>
         <p className="mt-2 text-sm text-stone-600">
           <strong>Revenue</strong> comes from invoices billed on each contract.
-          <strong> Direct costs</strong> are labor, materials, and equipment
-          logged on service visits. Use Contract Performance Analysis to select
-          a contract, review estimated profit leaks, and act on manager
-          recommendations before renewal.
+          {isAccountant ? (
+            <>
+              {" "}
+              <strong> Visit costs</strong> match the Visits tab: scheduled
+              visits use estimated cost; completed visits use actual labor,
+              materials, and equipment. Use{" "}
+              <strong>Estimated vs. actual job cost</strong> to spot visits that
+              blew past their quote, then Performance analysis for contract-level
+              leaks and recommendations before renewal.
+            </>
+          ) : (
+            <>
+              {" "}
+              <strong> Direct costs</strong> are labor, materials, and equipment
+              logged on service visits. Use Contract Performance Analysis to
+              select a contract, review estimated profit leaks, and act on
+              manager recommendations before renewal.
+            </>
+          )}
         </p>
       </Card>
     </AppShell>

@@ -4,7 +4,15 @@ import { revalidatePath } from "next/cache";
 import { createDataClient } from "@/lib/auth-access";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 import {
+  ACCOUNT_TYPE_LABELS,
+  inferAccountType,
+  type AccountType,
+} from "@/lib/chart-of-accounts";
+import {
   accountNameForCode,
+  depreciationAmountForHours,
+  depreciationJournalDraft,
+  depreciationJournalReadyReason,
   invoiceJournalDraft,
   invoiceJournalReadyReason,
   paymentJournalDraft,
@@ -29,9 +37,11 @@ async function requireAccountant() {
 
 function revalidateJournalPaths() {
   revalidatePath("/reports/journal-entries");
+  revalidatePath("/reports/general-ledger");
   revalidatePath("/invoices", "layout");
   revalidatePath("/payments", "layout");
   revalidatePath("/visits");
+  revalidatePath("/equipment");
   revalidatePath("/contracts", "layout");
 }
 
@@ -62,7 +72,10 @@ async function nextEntryNumber(supabase: Awaited<ReturnType<typeof createDataCli
   return `JE-${String(max + 1).padStart(4, "0")}`;
 }
 
-async function insertJournalEntry(draft: JournalDraft) {
+async function insertJournalEntry(
+  draft: JournalDraft,
+  options?: { revalidate?: boolean }
+) {
   const check = validateJournalLines(draft.lines);
   if (!check.ok) return { ok: false as const, error: check.error };
 
@@ -118,7 +131,7 @@ async function insertJournalEntry(draft: JournalDraft) {
     return { ok: false as const, error: lineError.message };
   }
 
-  revalidateJournalPaths();
+  if (options?.revalidate !== false) revalidateJournalPaths();
   return { ok: true as const, id: entry.id };
 }
 
@@ -362,7 +375,93 @@ export async function postAutomatedJournalEntry(formData: FormData) {
     return insertJournalEntry({ ...draft, status: "posted" });
   }
 
+  if (source === "depreciation") {
+    return postDepreciationJournalForUsage(sourceId);
+  }
+
   return { ok: false as const, error: "Unsupported journal source." };
+}
+
+export async function backfillDepreciationJournals() {
+  const auth = await requireAccountant();
+  if (!auth.ok) return auth;
+
+  const supabase = await createDataClient();
+  const [{ data: usageRows }, { data: existing }] = await Promise.all([
+    supabase.from("equipment_usage").select("id"),
+    supabase
+      .from("journal_entries")
+      .select("source_id")
+      .eq("source", "depreciation")
+      .not("source_id", "is", null),
+  ]);
+
+  const posted = new Set(
+    (existing ?? []).map((row) => row.source_id).filter(Boolean) as string[]
+  );
+
+  const unposted = (usageRows ?? []).filter((row) => !posted.has(row.id));
+  for (const row of unposted) {
+    await postDepreciationJournalForUsage(row.id, { revalidate: false });
+  }
+
+  return { ok: true as const };
+}
+
+export async function postDepreciationJournalForUsage(
+  usageId: string,
+  options?: { revalidate?: boolean }
+) {
+  const supabase = await createDataClient();
+  const { data: usage } = await supabase
+    .from("equipment_usage")
+    .select(
+      "id, hours, used_on, equipment_id, equipment(name, category, cost, salvage_value, estimated_total_hours), service_visits(contracts(title, customers(name)))"
+    )
+    .eq("id", usageId)
+    .single();
+  if (!usage) return { ok: false as const, error: "Equipment usage not found." };
+
+  const equipment = Array.isArray(usage.equipment) ? usage.equipment[0] : usage.equipment;
+  if (!equipment) return { ok: false as const, error: "Equipment not found." };
+
+  const visit = Array.isArray(usage.service_visits)
+    ? usage.service_visits[0]
+    : usage.service_visits;
+  const contract = Array.isArray(visit?.contracts) ? visit?.contracts[0] : visit?.contracts;
+  const customer = Array.isArray(contract?.customers)
+    ? contract?.customers[0]
+    : contract?.customers;
+
+  const amount = depreciationAmountForHours({
+    cost: Number(equipment.cost),
+    salvage: Number(equipment.salvage_value),
+    estimatedHours: Number(equipment.estimated_total_hours),
+    hours: Number(usage.hours),
+  });
+  const notReady = depreciationJournalReadyReason({
+    category: equipment.category,
+    hours: Number(usage.hours),
+    amount,
+  });
+  if (notReady) return { ok: false as const, error: notReady };
+
+  return insertJournalEntry(
+    {
+      ...depreciationJournalDraft({
+        usageId: usage.id,
+        usedOn: String(usage.used_on),
+        hours: Number(usage.hours),
+        amount,
+        equipmentName: equipment.name,
+        category: equipment.category,
+        customerName: customer?.name ?? "",
+        contractTitle: contract?.title ?? null,
+      }),
+      status: "posted",
+    },
+    options
+  );
 }
 
 export async function deleteJournalEntry(formData: FormData) {
@@ -378,4 +477,53 @@ export async function deleteJournalEntry(formData: FormData) {
 
   revalidateJournalPaths();
   return { ok: true as const };
+}
+
+const VALID_ACCOUNT_TYPES = new Set(Object.keys(ACCOUNT_TYPE_LABELS));
+
+export async function addChartOfAccountAction(
+  _prev: { ok: boolean; error?: string } | null,
+  formData: FormData
+): Promise<{ ok: boolean; error?: string }> {
+  const auth = await requireAccountant();
+  if (!auth.ok) return auth;
+
+  const code = String(formData.get("account_code") || "").trim();
+  const name = String(formData.get("account_name") || "").trim();
+  const accountTypeRaw = String(formData.get("account_type") || "").trim();
+  const accountType = (
+    VALID_ACCOUNT_TYPES.has(accountTypeRaw)
+      ? accountTypeRaw
+      : inferAccountType(code)
+  ) as AccountType;
+
+  if (!/^\d{4}$/.test(code)) {
+    return { ok: false, error: "Account code must be exactly 4 digits." };
+  }
+  if (!name) {
+    return { ok: false, error: "Account name is required." };
+  }
+
+  const supabase = await createDataClient();
+  const { error } = await supabase.from("chart_of_accounts").insert({
+    code,
+    name,
+    account_type: accountType,
+  });
+
+  if (error) {
+    if (error.code === "23505") {
+      return { ok: false, error: "That account code is already in use." };
+    }
+    if (/chart_of_accounts/i.test(error.message)) {
+      return {
+        ok: false,
+        error: "Chart of accounts is not set up yet. Run the latest database migration.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidateJournalPaths();
+  return { ok: true };
 }

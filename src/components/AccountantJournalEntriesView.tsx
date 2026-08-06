@@ -6,6 +6,7 @@ import { JournalEntryForm } from "@/components/JournalEntryForm";
 import { Card, EmptyState, StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { JournalSource } from "@/lib/journal";
+import type { ChartOfAccount } from "@/lib/chart-of-accounts";
 import type { JournalEntry } from "@/lib/queries";
 
 const FILTERS: Array<{ value: "all" | JournalSource; label: string }> = [
@@ -13,6 +14,7 @@ const FILTERS: Array<{ value: "all" | JournalSource; label: string }> = [
   { value: "invoice", label: "Invoices" },
   { value: "payment", label: "Payments" },
   { value: "visit", label: "Visit costs" },
+  { value: "depreciation", label: "Depreciation" },
   { value: "manual", label: "Manual" },
 ];
 
@@ -20,14 +22,17 @@ const sourceBadge: Record<JournalSource, string> = {
   invoice: "bg-blue-100 text-blue-800",
   payment: "bg-green-100 text-green-800",
   visit: "bg-amber-100 text-amber-900",
+  depreciation: "bg-purple-100 text-purple-800",
   manual: "bg-stone-200 text-stone-800",
 };
 
 export function AccountantJournalEntriesView({
   entries,
+  chartAccounts,
   todayIso,
 }: {
   entries: JournalEntry[];
+  chartAccounts: ChartOfAccount[];
   todayIso: string;
 }) {
   const [sourceFilter, setSourceFilter] = useState<"all" | JournalSource>("all");
@@ -226,7 +231,9 @@ export function AccountantJournalEntriesView({
                             Edit
                           </button>
                           <form
-                            action={deleteJournalEntry}
+                            action={async (formData) => {
+                              await deleteJournalEntry(formData);
+                            }}
                             onSubmit={(event) => {
                               if (
                                 !window.confirm(
@@ -309,6 +316,9 @@ export function AccountantJournalEntriesView({
           </li>
           <li>Every journal entry can be edited or deleted if something needs to change.</li>
           <li>Invoices, payments, and visits show Ready to post only when a journal entry can be created.</li>
+          <li>
+            Mower, truck, trailer, and irrigation hours automatically create depreciation entries.
+          </li>
         </ul>
       </Card>
 
@@ -316,6 +326,7 @@ export function AccountantJournalEntriesView({
         <JournalEntryForm
           mode="create"
           todayIso={todayIso}
+          chartAccounts={chartAccounts}
           onClose={() => setCreating(false)}
         />
       ) : null}
@@ -323,6 +334,7 @@ export function AccountantJournalEntriesView({
         <JournalEntryForm
           mode="edit"
           todayIso={todayIso}
+          chartAccounts={chartAccounts}
           entry={editing}
           onClose={() => setEditingId(null)}
         />
