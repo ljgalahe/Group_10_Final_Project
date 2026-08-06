@@ -31,6 +31,11 @@ import {
   fetchVisitLaborEntries,
 } from "@/lib/queries";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
+import {
+  fetchOperationsDashboardData,
+  type OperationsDashboardData,
+} from "@/app/dashboard/operations-dashboard-data";
+import { OperationsDashboardPanel } from "@/app/dashboard/components/OperationsDashboardPanel";
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
@@ -171,6 +176,11 @@ export default async function DashboardPage({
       description:
         "Track billing, outstanding balances, and contract profitability.",
     },
+    operations: {
+      title: "Operations Dashboard",
+      description:
+        "Upcoming visits and site surveys, plus quick links — create quotes from Inquiries, track status on Quotes.",
+    },
     crew_lead: {
       title: "Crew Lead Dashboard",
       description: "See upcoming visits and mark work as completed.",
@@ -299,6 +309,11 @@ export default async function DashboardPage({
   if (role === "crew_lead") {
     const { data } = await fetchCrewApplicableSupportRequests();
     crewSupportRequests = data;
+  }
+
+  let operationsDashboard: OperationsDashboardData | null = null;
+  if (role === "operations") {
+    operationsDashboard = await fetchOperationsDashboardData();
   }
 
   const customerId =
@@ -432,7 +447,7 @@ export default async function DashboardPage({
             <Card className="min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-lg font-semibold text-green-950">
-                  Needs attention
+                  Needs Attention
                 </h2>
                 {needsAttention.length > 0 ? (
                   <span className="text-sm text-stone-400">
@@ -452,7 +467,7 @@ export default async function DashboardPage({
 
           <div className="mt-8 rounded-xl border border-green-800/15 bg-green-50/60 px-5 py-4">
             <p className="text-sm font-semibold text-green-950">
-              Quick actions
+              Quick Actions
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
@@ -496,7 +511,11 @@ export default async function DashboardPage({
         </>
       ) : null}
 
-      {role !== "customer" && role !== "crew_member" ? staffStatsRow : null}
+      {role !== "customer" &&
+      role !== "crew_member" &&
+      role !== "operations"
+        ? staffStatsRow
+        : null}
 
       {role === "manager" ? (
         <div className="mt-8 space-y-6">
@@ -527,6 +546,10 @@ export default async function DashboardPage({
             </div>
           </Card>
         </div>
+      ) : null}
+
+      {role === "operations" && operationsDashboard ? (
+        <OperationsDashboardPanel data={operationsDashboard} />
       ) : null}
 
       {role === "crew_lead" ? (

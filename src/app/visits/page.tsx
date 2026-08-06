@@ -10,7 +10,6 @@ import {
   VisitStatusFilter,
   type VisitStatusFilterValue,
 } from "@/components/VisitStatusFilter";
-import { VisitCostForm } from "@/components/VisitCostForm";
 import {
   CrewLeadVisitsBoard,
   type CrewLeadVisitCardData,
@@ -330,7 +329,9 @@ export default async function VisitsPage({
     );
   }
 
-  if (role === "manager") {
+  // Manager + Operations share the same visit dataset (fetchVisits → buildJobRows),
+  // including active/scheduled demo fill other roles see. Ops owns create/assign on /schedule.
+  if (role === "manager" || role === "operations") {
     const period = parseVisitPeriod(params);
     const organize = parseOrganizeMode(params);
 
@@ -348,12 +349,27 @@ export default async function VisitsPage({
       organize === "jobs" ? groupJobsByTask(jobs) : groupJobsByCompany(jobs);
     const completedHref = `/visits/completed?${buildVisitsQuery(period, organize, { sort: "date" })}`;
     const pendingHref = `/visits/pending?${buildVisitsQuery(period, organize, { sort: "date" })}`;
+    const isOps = role === "operations";
 
     return (
       <AppShell>
         <PageHeader
           title="Service Visits"
-          description={`Summary and job list for ${periodLabel(period)}. Switch the time range or organize by company or job.`}
+          description={
+            isOps
+              ? `Active and completed visits for ${periodLabel(period)} — same work directory as Manager. Create, assign, and reschedule on Scheduling.`
+              : `Work directory and visit outcomes for ${periodLabel(period)}. Company scheduling (create, assign, calendar, reschedule) is owned by Operations.`
+          }
+          action={
+            isOps ? (
+              <a
+                href="/schedule"
+                className="rounded-lg border border-green-800 px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Open Scheduling
+              </a>
+            ) : undefined
+          }
         />
 
         <div className="mb-6">
@@ -368,12 +384,13 @@ export default async function VisitsPage({
           periodLabelText={periodLabel(period)}
           completedHref={completedHref}
           pendingHref={pendingHref}
+          showSchedule={false}
           afterSummary={
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-semibold text-green-950">
-                    Work directory
+                    Work Directory
                   </h3>
                   <p className="mt-1 text-sm text-stone-500">
                     {organize === "company"
@@ -632,12 +649,6 @@ export default async function VisitsPage({
                           </p>
                         )}
                       </div>
-
-                      {role === "manager" ? (
-                        <div className="mt-4 border-t border-stone-100 pt-4">
-                          <VisitCostForm visitId={visit.id} />
-                        </div>
-                      ) : null}
                     </>
                   ) : null}
                 </div>

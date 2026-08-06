@@ -10,10 +10,10 @@ import type { ChartOfAccount } from "@/lib/chart-of-accounts";
 import type { JournalEntry } from "@/lib/queries";
 
 const FILTERS: Array<{ value: "all" | JournalSource; label: string }> = [
-  { value: "all", label: "All entries" },
+  { value: "all", label: "All Entries" },
   { value: "invoice", label: "Invoices" },
   { value: "payment", label: "Payments" },
-  { value: "visit", label: "Visit costs" },
+  { value: "visit", label: "Visit Costs" },
   { value: "depreciation", label: "Depreciation" },
   { value: "manual", label: "Manual" },
 ];
@@ -153,7 +153,7 @@ export function AccountantJournalEntriesView({
             onClick={() => setCreating(true)}
             className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
           >
-            Add journal entry
+            Add Journal Entry
           </button>
         </div>
       </div>
@@ -308,7 +308,7 @@ export function AccountantJournalEntriesView({
       )}
 
       <Card>
-        <h2 className="text-lg font-semibold text-green-950">How journal entries work</h2>
+        <h2 className="text-lg font-semibold text-green-950">How Journal Entries Work</h2>
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-stone-600">
           <li>
             When an invoice, payment, or completed visit is ready, use{" "}

@@ -225,7 +225,7 @@ function SelectedContractPanel({
 
         <div className="space-y-5 overflow-y-auto px-6 py-5">
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold text-green-950">Manager summary</h4>
+        <h4 className="text-sm font-semibold text-green-950">Manager Summary</h4>
         <div className="rounded-lg border border-stone-200 bg-stone-50/80 p-4">
           <StatusBadge status={status} />
           <p className="mt-3 text-sm leading-relaxed text-stone-700">{summary}</p>
@@ -233,12 +233,12 @@ function SelectedContractPanel({
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold text-green-950">Contract details</h4>
+        <h4 className="text-sm font-semibold text-green-950">Contract Details</h4>
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <DetailItem label="Contract" value={row.title} />
           <DetailItem label="Customer" value={row.customerName || "—"} />
           <DetailItem label="Revenue billed" value={formatCurrency(row.revenue)} />
-          <DetailItem label="Direct costs" value={formatCurrency(row.costs)} />
+          <DetailItem label="Direct Costs" value={formatCurrency(row.costs)} />
           <DetailItem
             label="Total profit"
             value={formatCurrency(row.margin)}
@@ -261,7 +261,7 @@ function SelectedContractPanel({
       <div className="space-y-2">
         <div>
           <h4 className="text-sm font-semibold text-green-950">
-            Profit leak detector
+            Profit Leak Detector
           </h4>
           <p className="text-xs text-stone-500">
             Insights below are estimated from visit costs, cadence, and extra
@@ -308,7 +308,7 @@ function SelectedContractPanel({
 
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-green-950">
-              Manager recommendations
+              Manager Recommendations
             </h4>
             {recommendations.length === 0 ? (
               <p className="rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">

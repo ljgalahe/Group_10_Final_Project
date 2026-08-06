@@ -9,8 +9,8 @@ import {
 } from "@/lib/demo-role";
 
 const PROPERTY_LABELS: Record<string, string> = {
-  office_park: "Office park",
-  retail_center: "Retail center",
+  office_park: "Office Park",
+  retail_center: "Retail Center",
   industrial: "Industrial",
   multifamily: "Multifamily",
   other: "Other",
@@ -19,8 +19,8 @@ const PROPERTY_LABELS: Record<string, string> = {
 const SERVICE_LABELS: Record<string, string> = {
   mowing: "Mowing",
   irrigation: "Irrigation",
-  seasonal_color: "Seasonal color",
-  snow_removal: "Snow removal",
+  seasonal_color: "Seasonal Color",
+  snow_removal: "Snow Removal",
   other: "Other",
 };
 
@@ -36,6 +36,7 @@ type InquiryRow = {
   message: string | null;
   status: string;
   quote_id: string | null;
+  converted_customer_id: string | null;
   created_at: string;
 };
 
@@ -65,7 +66,7 @@ export default async function OpsInquiriesPage({
   const { data, error } = await supabase
     .from("inquiries")
     .select(
-      "id, company_name, contact_name, contact_email, contact_phone, property_address, property_type, services_interested, message, status, quote_id, created_at"
+      "id, company_name, contact_name, contact_email, contact_phone, property_address, property_type, services_interested, message, status, quote_id, converted_customer_id, created_at"
     )
     .order("created_at", { ascending: false });
 
@@ -76,7 +77,7 @@ export default async function OpsInquiriesPage({
     <AppShell>
       <PageHeader
         title="Inquiries"
-        description="Prospect requests from the Inquiries start page. Review details, then convert to Quotes when ready — Ops budgets and drafts, Manager / Accountant approve contracts."
+        description="Create quotes from customer inquiries here — new commercial prospects or existing clients requesting new services. After you create a quote, track its status on Quotes (survey, budget, contract draft)."
       />
 
       {params.error ? (
@@ -102,18 +103,18 @@ export default async function OpsInquiriesPage({
           Could not load inquiries. {error.message}
         </div>
       ) : inquiries.length === 0 ? (
-        <EmptyState message="No prospect inquiries yet. Switch to the Inquiries role and submit the start-page form to create one." />
+        <EmptyState message="No inquiries yet. New prospects submit from the Inquiries start page; existing clients use Request a quote — both land here for Ops to create a quote." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+            <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
               <tr>
-                <th className="px-4 py-3 font-medium">Company / contact</th>
+                <th className="px-4 py-3 font-medium">Company / Contact</th>
                 <th className="px-4 py-3 font-medium">Property</th>
                 <th className="px-4 py-3 font-medium">Services</th>
                 <th className="px-4 py-3 font-medium">Message</th>
                 <th className="px-4 py-3 font-medium">Received</th>
-                <th className="px-4 py-3 font-medium">Pipeline</th>
+                <th className="px-4 py-3 font-medium">Create Quote</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -128,6 +129,12 @@ export default async function OpsInquiriesPage({
                     {row.contact_phone ? (
                       <p className="text-xs text-stone-500">
                         {row.contact_phone}
+                      </p>
+                    ) : null}
+                    {row.converted_customer_id &&
+                    row.status !== "Converted to quote" ? (
+                      <p className="mt-1 text-xs font-medium text-amber-800">
+                        Existing client · new service
                       </p>
                     ) : null}
                   </td>

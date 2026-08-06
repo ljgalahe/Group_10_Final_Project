@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
-  assignVisitCrewLead,
   autoGroupVisitsByLocation,
   createServiceVisit,
   rescheduleServiceVisit,
@@ -10,6 +9,11 @@ import {
 import { Card, StatusBadge } from "@/components/ui";
 import { ScheduleCalendar } from "@/components/visits/ScheduleCalendar";
 import { locationKey } from "@/lib/location-group";
+import {
+  filterJobsNeedingReschedule,
+  isPersistedVisitId,
+  missReasonForJob,
+} from "@/lib/needs-reschedule";
 import type { JobRow } from "@/lib/visit-jobs";
 import { DEMO_CREW_LEADS } from "@/lib/types";
 
@@ -30,20 +34,6 @@ export type OpsContractOption = {
   title: string;
   customer_name: string;
 };
-
-function visitNeedsReschedule(v: OpsVisitRow, today: string): boolean {
-  if (v.status === "cancelled") return true;
-  if (v.status === "scheduled" && v.scheduled_date < today) return true;
-  return false;
-}
-
-function missReason(v: OpsVisitRow, today: string): string {
-  if (v.status === "cancelled") return "Cancelled — needs rescheduling";
-  if (v.status === "scheduled" && v.scheduled_date < today) {
-    return "Missed / overdue — past scheduled date";
-  }
-  return "Needs rescheduling";
-}
 
 function opsVisitsToJobRows(visits: OpsVisitRow[]): JobRow[] {
   return visits.map((v) => ({
@@ -74,23 +64,33 @@ export function OperationsScheduleBoard({
   visits,
   contracts,
   today,
+  /** Same JobRow set as Visits / calendar (buildJobRows) — source of truth for Needs Rescheduling. */
+  calendarJobs: calendarJobsProp,
 }: {
   visits: OpsVisitRow[];
   contracts: OpsContractOption[];
   today: string;
+  calendarJobs?: JobRow[];
 }) {
-  const [filterLead, setFilterLead] = useState("all");
+  const calendarJobs = useMemo(
+    () => calendarJobsProp ?? opsVisitsToJobRows(visits),
+    [calendarJobsProp, visits]
+  );
 
+  const visitById = useMemo(() => {
+    const map = new Map<string, OpsVisitRow>();
+    for (const v of visits) map.set(v.id, v);
+    return map;
+  }, [visits]);
+
+  // Same definition + JobRow set as Operations Dashboard needsRescheduleCount.
   const needsReschedule = useMemo(
-    () =>
-      visits
-        .filter((v) => visitNeedsReschedule(v, today))
-        .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)),
-    [visits, today]
+    () => filterJobsNeedingReschedule(calendarJobs, today),
+    [calendarJobs, today]
   );
 
   const needsIds = useMemo(
-    () => new Set(needsReschedule.map((v) => v.id)),
+    () => new Set(needsReschedule.map((j) => j.visitId)),
     [needsReschedule]
   );
 
@@ -107,22 +107,29 @@ export function OperationsScheduleBoard({
     return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
   }, [visits, needsIds]);
 
-  const activeBoard = visits.filter(
-    (v) =>
-      v.status === "scheduled" &&
-      !needsIds.has(v.id) &&
-      (filterLead === "all" || v.crew_lead_name === filterLead)
-  );
-
   const unassigned = visits.filter(
     (v) =>
       v.status === "scheduled" && !needsIds.has(v.id) && !v.crew_lead_name
   );
 
-  const calendarJobs = useMemo(() => opsVisitsToJobRows(visits), [visits]);
-
   return (
     <div className="space-y-6">
+      {/* Same Schedule card Manager Visits used (VisitsSummaryBlocks + ScheduleCalendar). */}
+      <Card>
+        <h3 className="text-lg font-semibold text-green-950">Schedule</h3>
+        <p className="mt-1 text-sm text-stone-500">
+          Filter by company, employee, job, or status (green = completed, orange
+          = pending), then click a day.
+        </p>
+        {calendarJobs.length === 0 ? (
+          <p className="mt-4 text-sm text-stone-400">
+            No jobs in this range to show on the calendar.
+          </p>
+        ) : (
+          <ScheduleCalendar jobs={calendarJobs} />
+        )}
+      </Card>
+
       <Card
         id="needs-rescheduling"
         className="scroll-mt-24 border-amber-300 bg-amber-50/50"
@@ -130,12 +137,12 @@ export function OperationsScheduleBoard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-green-950">
-              Needs rescheduling
+              Needs Rescheduling
             </h2>
             <p className="mt-1 text-sm text-stone-600">
-              Missed or cancelled visits from live{" "}
-              <code className="text-xs">service_visits</code> data — overdue
-              scheduled dates and cancelled status.
+              Same visit set as the Operations Dashboard count — overdue
+              scheduled, cancelled/missed, and weather delays or reschedules from
+              the shared schedule job rows.
             </p>
           </div>
           <span className="rounded-full bg-amber-200 px-3 py-1 text-sm font-semibold text-amber-950">
@@ -149,91 +156,90 @@ export function OperationsScheduleBoard({
           </p>
         ) : (
           <ul className="mt-4 space-y-3">
-            {needsReschedule.map((v) => (
-              <li
-                key={v.id}
-                className="rounded-lg border border-amber-200 bg-white px-4 py-3"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-green-950">
-                      {v.customer_name}
-                    </p>
-                    <p className="text-sm text-stone-600">{v.contract_title}</p>
-                    <p className="mt-1 text-xs text-stone-500">
-                      Original date {v.scheduled_date}
-                      {v.address ? ` · ${v.address}` : ""}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <StatusBadge status={v.status} />
-                      <span className="text-xs font-medium text-amber-900">
-                        {missReason(v, today)}
-                      </span>
+            {needsReschedule.map((job) => {
+              const live = visitById.get(job.visitId);
+              const crewLead =
+                live?.crew_lead_name ??
+                job.crew.find((m) => /lead/i.test(m.role))?.name ??
+                job.crew[0]?.name ??
+                null;
+              const canReschedule = isPersistedVisitId(job.visitId);
+              return (
+                <li
+                  key={job.visitId}
+                  className="rounded-lg border border-amber-200 bg-white px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-green-950">
+                        {job.companyName}
+                      </p>
+                      <p className="text-sm text-stone-600">{job.jobLabel}</p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        Original date {job.date}
+                        {job.location ? ` · ${job.location}` : ""}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <StatusBadge status={job.status} />
+                        <span className="text-xs font-medium text-amber-900">
+                          {missReasonForJob(job, today)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <form
-                    action={rescheduleServiceVisit}
-                    className="flex flex-wrap items-end gap-2"
-                  >
-                    <input type="hidden" name="visit_id" value={v.id} />
-                    <label className="text-xs text-stone-600">
-                      New date
-                      <input
-                        type="date"
-                        name="scheduled_date"
-                        required
-                        defaultValue={today}
-                        className="mt-1 block rounded border border-stone-300 px-2 py-1 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs text-stone-600">
-                      Crew Lead
-                      <select
-                        name="crew_lead_name"
-                        defaultValue={v.crew_lead_name || DEMO_CREW_LEADS[0]}
-                        className="mt-1 block rounded border border-stone-300 px-2 py-1 text-sm"
+                    {canReschedule ? (
+                      <form
+                        action={rescheduleServiceVisit}
+                        className="flex flex-wrap items-end gap-2"
                       >
-                        {DEMO_CREW_LEADS.map((n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      type="submit"
-                      className="rounded bg-amber-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
-                    >
-                      Reschedule
-                    </button>
-                  </form>
-                </div>
-              </li>
-            ))}
+                        <input type="hidden" name="visit_id" value={job.visitId} />
+                        <label className="text-xs text-stone-600">
+                          New date
+                          <input
+                            type="date"
+                            name="scheduled_date"
+                            required
+                            defaultValue={today}
+                            className="mt-1 block rounded border border-stone-300 px-2 py-1 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-stone-600">
+                          Crew Lead
+                          <select
+                            name="crew_lead_name"
+                            defaultValue={crewLead || DEMO_CREW_LEADS[0]}
+                            className="mt-1 block rounded border border-stone-300 px-2 py-1 text-sm"
+                          >
+                            {DEMO_CREW_LEADS.map((n) => (
+                              <option key={n} value={n}>
+                                {n}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          type="submit"
+                          className="rounded bg-amber-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+                        >
+                          Reschedule
+                        </button>
+                      </form>
+                    ) : (
+                      <p className="max-w-xs text-xs text-stone-500">
+                        Sample schedule row — create or assign a live visit above
+                        to place a makeup date on the board.
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>
 
       <Card>
-        <h2 className="text-lg font-semibold text-green-950">Schedule</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Company calendar (moved from Manager Visits). Filter by company,
-          employee, job, or status, then click a day.
-        </p>
-        {calendarJobs.length === 0 ? (
-          <p className="mt-4 text-sm text-stone-400">
-            No visits to show on the calendar.
-          </p>
-        ) : (
-          <div className="mt-4">
-            <ScheduleCalendar jobs={calendarJobs} />
-          </div>
-        )}
-      </Card>
-
-      <Card>
         <h2 className="text-lg font-semibold text-green-950">
-          Efficient same-day routing
+          Efficient Same-Day Routing
         </h2>
         <p className="mt-1 text-sm text-stone-600">
           Groups unassigned visits by location (ZIP / city) onto one day with one
@@ -292,7 +298,7 @@ export function OperationsScheduleBoard({
 
       <Card>
         <h2 className="text-lg font-semibold text-green-950">
-          Create service visit
+          Create Service Visit
         </h2>
         <form
           action={createServiceVisit}
@@ -350,108 +356,6 @@ export function OperationsScheduleBoard({
             </button>
           </div>
         </form>
-      </Card>
-
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-green-950">
-            Visit board
-          </h2>
-          <label className="text-sm">
-            Filter by Crew Lead{" "}
-            <select
-              value={filterLead}
-              onChange={(e) => setFilterLead(e.target.value)}
-              className="ml-2 rounded-md border border-stone-300 px-2 py-1"
-            >
-              <option value="all">All</option>
-              {DEMO_CREW_LEADS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <p className="mt-1 text-sm text-stone-500">
-          Active upcoming visits — assign Crew Lead and adjust dates. Missed
-          items are listed under Needs rescheduling above.
-        </p>
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-stone-200 text-xs uppercase text-stone-500">
-              <tr>
-                <th className="py-2 pr-3">Date</th>
-                <th className="py-2 pr-3">Kind</th>
-                <th className="py-2 pr-3">Customer / job</th>
-                <th className="py-2 pr-3">Location</th>
-                <th className="py-2 pr-3">Crew Lead</th>
-                <th className="py-2">Assign</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {activeBoard.map((v) => (
-                <tr key={v.id}>
-                  <td className="py-3 pr-3 whitespace-nowrap">
-                    {v.scheduled_date}
-                  </td>
-                  <td className="py-3 pr-3 capitalize">
-                    {v.visit_kind || "service"}
-                  </td>
-                  <td className="py-3 pr-3">
-                    <p className="font-medium text-green-950">
-                      {v.customer_name}
-                    </p>
-                    <p className="text-xs text-stone-500">{v.contract_title}</p>
-                  </td>
-                  <td className="max-w-[12rem] py-3 pr-3 text-stone-600">
-                    {v.address || "—"}
-                  </td>
-                  <td className="py-3 pr-3">
-                    {v.crew_lead_name || (
-                      <span className="text-amber-700">Unassigned</span>
-                    )}
-                  </td>
-                  <td className="py-3">
-                    <form
-                      action={assignVisitCrewLead}
-                      className="flex flex-wrap items-center gap-2"
-                    >
-                      <input type="hidden" name="visit_id" value={v.id} />
-                      <input
-                        type="date"
-                        name="scheduled_date"
-                        defaultValue={v.scheduled_date}
-                        className="rounded border border-stone-300 px-2 py-1 text-xs"
-                      />
-                      <select
-                        name="crew_lead_name"
-                        defaultValue={v.crew_lead_name || DEMO_CREW_LEADS[0]}
-                        className="rounded border border-stone-300 px-2 py-1 text-xs"
-                      >
-                        {DEMO_CREW_LEADS.map((n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="submit"
-                        className="rounded bg-green-900 px-2 py-1 text-xs font-medium text-white"
-                      >
-                        Save
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {activeBoard.length === 0 ? (
-            <p className="py-6 text-sm text-stone-500">No active visits to show.</p>
-          ) : null}
-        </div>
       </Card>
     </div>
   );

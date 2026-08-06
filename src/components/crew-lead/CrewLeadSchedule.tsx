@@ -403,7 +403,7 @@ export function CrewLeadSchedule({
 
         <div className="mb-4 rounded-lg border border-stone-200 bg-stone-50 px-4 py-3">
           <h3 className="text-sm font-semibold text-green-950">
-            Crew assigned today
+            Crew Assigned Today
           </h3>
           <p className="mt-0.5 text-xs text-stone-500">
             Full day roster for {leadName}. Working party on each stop typically
@@ -444,7 +444,7 @@ export function CrewLeadSchedule({
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <h3 className="text-lg font-semibold text-green-950">
-              Optimized stops
+              Optimized Stops
             </h3>
             <p className="mt-1 text-xs text-stone-500">
               Jobs clustered near each other and ordered from the yard for the
@@ -543,7 +543,7 @@ export function CrewLeadSchedule({
 
           <Card>
             <h3 className="text-lg font-semibold text-green-950">
-              Road route map
+              Road Route Map
             </h3>
             <p className="mt-1 text-xs text-stone-500">
               Brown pin = yard start. Green numbers = stop order. Line follows

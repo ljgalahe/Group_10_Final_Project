@@ -186,7 +186,7 @@ export default async function ProfilePage({
 
         <Card>
           <h2 className="text-lg font-semibold text-green-950">
-            Contact details
+            Contact Details
           </h2>
           <p className="mt-1 text-sm text-stone-500">
             Who we should reach for billing questions and site coordination.
@@ -251,7 +251,7 @@ export default async function ProfilePage({
 
         <Card>
           <h2 className="text-lg font-semibold text-green-950">
-            Payment methods
+            Payment Methods
           </h2>
           <p className="mt-1 text-sm text-stone-500">
             Cards and bank accounts on file for invoice payments. This is a demo
@@ -264,7 +264,7 @@ export default async function ProfilePage({
 
         <Card>
           <h2 className="text-lg font-semibold text-green-950">
-            Notification preferences
+            Notification Preferences
           </h2>
           <p className="mt-1 text-sm text-stone-500">
             Check a topic to opt in. We&apos;ll ask how to reach you before it

@@ -54,13 +54,13 @@ export function ProfitLeakDetector({ rows }: { rows: ContractProfitLeak[] }) {
                     <thead className="bg-stone-50 text-left text-stone-600">
                       <tr>
                         <th className="px-3 py-2 font-medium">
-                          Top profit leak
+                          Top Profit Leak
                         </th>
                         <th className="px-3 py-2 font-medium">
-                          Est. $ impact
+                          Est. $ Impact
                         </th>
                         <th className="px-3 py-2 font-medium">
-                          Est. % impact
+                          Est. % Impact
                         </th>
                       </tr>
                     </thead>

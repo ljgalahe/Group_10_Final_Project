@@ -283,7 +283,7 @@ export function CrewLeadVisitsBoard({
 
                 <div className="mt-4">
                   <p className="text-sm font-medium text-stone-700">
-                    Visit costs
+                    Visit Costs
                   </p>
                   {visit.costs.length > 0 ? (
                     <ul className="mt-2 space-y-1 text-sm text-stone-600">

@@ -122,13 +122,13 @@ function RevenueInsightModal({
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-              Revenue insight
+              Revenue Insight
             </p>
             <h2
               id="revenue-insight-title"
               className="mt-1 text-lg font-semibold text-green-950"
             >
-              Total revenue — {formatCurrency(totalRevenue)}
+              Total Revenue — {formatCurrency(totalRevenue)}
             </h2>
             <p className="mt-1 text-sm text-stone-500">
               Service-line mix from allocated contract billings, plus trailing
@@ -149,7 +149,7 @@ function RevenueInsightModal({
           <section className="space-y-3">
             <div>
               <h3 className="text-base font-semibold text-green-950">
-                Revenue by service line
+                Revenue by Service Line
               </h3>
               <p className="text-sm text-stone-500">
                 Active-contract revenue shared evenly across each contract’s
@@ -165,7 +165,7 @@ function RevenueInsightModal({
           <section className="space-y-3">
             <div>
               <h3 className="text-base font-semibold text-green-950">
-                Seasonality report
+                Seasonality Report
               </h3>
               <p className="text-sm text-stone-500">
                 Invoice billings and visit costs by month for the last 12
@@ -312,7 +312,7 @@ function SeasonalityRevenueChart({
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-stone-400" />
-          Direct costs
+          Direct Costs
         </span>
       </div>
       <div

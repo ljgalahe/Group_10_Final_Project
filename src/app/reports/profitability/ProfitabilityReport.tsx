@@ -391,7 +391,7 @@ export function ProfitabilityReport({
 
       <Card className="mt-8">
         <h2 className="text-lg font-semibold text-green-950">
-          How to read this report
+          How to Read This Report
         </h2>
         <p className="mt-2 text-sm text-stone-600">
           <strong>Gross revenue</strong> is total invoiced billings.{" "}

@@ -171,8 +171,8 @@ export function PromiseVsActualMap({
               <thead className="sticky top-0 z-10 bg-slate-900 text-left text-white">
                 <tr>
                   <th className="px-4 py-3 font-medium">Job</th>
-                  <th className="px-4 py-3 font-medium">Contract visits</th>
-                  <th className="px-4 py-3 font-medium">Completed visits</th>
+                  <th className="px-4 py-3 font-medium">Contract Visits</th>
+                  <th className="px-4 py-3 font-medium">Completed Visits</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                 </tr>
               </thead>

@@ -52,7 +52,7 @@ export default async function WorkPendingPage({
   return (
     <AppShell>
       <PageHeader
-        title="Work pending"
+        title="Work Pending"
         description={`Scheduled jobs still open for ${periodLabel(period)}. Order by date, company, or job.`}
         action={
           <Link
@@ -80,12 +80,12 @@ export default async function WorkPendingPage({
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2">
         <StatCard
-          label="Jobs pending"
+          label="Jobs Pending"
           value={pending.length}
           hint={`In ${periodLabel(period)}`}
         />
         <StatCard
-          label="Crew pay planned"
+          label="Crew Pay Planned"
           value={formatCurrency(summary.schedulePay)}
           hint="Across pending visits"
         />

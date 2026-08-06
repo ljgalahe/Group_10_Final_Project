@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 const OPTIONS = [
   { value: "scheduled", label: "Scheduled" },
   { value: "completed", label: "Completed" },
-  { value: "all", label: "All visits" },
+  { value: "all", label: "All Visits" },
 ] as const;
 
 export type VisitStatusFilterValue = (typeof OPTIONS)[number]["value"];

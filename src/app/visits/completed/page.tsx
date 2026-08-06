@@ -52,7 +52,7 @@ export default async function WorkCompletedPage({
   return (
     <AppShell>
       <PageHeader
-        title="Work completed"
+        title="Work Completed"
         description={`Finished jobs for ${periodLabel(period)}. Order by date, company, or job.`}
         action={
           <Link
@@ -76,12 +76,12 @@ export default async function WorkCompletedPage({
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2">
         <StatCard
-          label="Jobs completed"
+          label="Jobs Completed"
           value={completed.length}
           hint={`In ${periodLabel(period)}`}
         />
         <StatCard
-          label="Crew pay logged"
+          label="Crew Pay Logged"
           value={formatCurrency(summary.completedPay)}
           hint="Across completed visits"
         />

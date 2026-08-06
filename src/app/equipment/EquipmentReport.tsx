@@ -396,17 +396,17 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
   }
 
   const costLabel =
-    category === "All" ? "Total acquisition cost" : `${category} acquisition cost`;
+    category === "All" ? "Total Acquisition Cost" : `${category} Acquisition Cost`;
   const accumLabel =
     category === "All"
-      ? "Accumulated depreciation"
-      : `${category} accumulated depreciation`;
+      ? "Accumulated Depreciation"
+      : `${category} Accumulated Depreciation`;
   const bookLabel =
-    category === "All" ? "Net book value" : `${category} net book value`;
+    category === "All" ? "Net Book Value" : `${category} Net Book Value`;
   const revenueLabel =
     category === "All"
-      ? "Total revenue produced"
-      : `${category} revenue produced`;
+      ? "Total Revenue Produced"
+      : `${category} Revenue Produced`;
   const showDepreciationStats =
     category === "All" || categoryIsDepreciable(category);
 
@@ -596,12 +596,12 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
               <EmptyState message="No contract usage logged for this equipment yet." />
             ) : (
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-stone-200 text-xs uppercase tracking-wide text-stone-500">
+                <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
                   <tr>
                     <th className="px-2 py-2 font-medium">Contract</th>
                     <th className="px-2 py-2 font-medium">Customer</th>
                     <th className="px-2 py-2 font-medium">Hours</th>
-                    <th className="px-2 py-2 font-medium">Revenue produced</th>
+                    <th className="px-2 py-2 font-medium">Revenue Produced</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -648,7 +648,7 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
 
       <Card className="mb-8 overflow-x-auto">
         <h2 className="mb-1 text-lg font-semibold text-green-950">
-          Equipment register
+          Equipment Register
         </h2>
         <p className="mb-4 text-sm text-stone-500">
           Unit-of-production book values for the current filters. Click a row to
@@ -658,14 +658,14 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
           <EmptyState message="No equipment matches these filters." />
         ) : (
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-stone-200 text-xs uppercase tracking-wide text-stone-500">
+            <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
               <tr>
                 <th className="px-2 py-2 font-medium">Name</th>
                 <th className="px-2 py-2 font-medium">Cost</th>
                 <th className="px-2 py-2 font-medium">Acc. Dep.</th>
-                <th className="px-2 py-2 font-medium">Book value</th>
-                <th className="px-2 py-2 font-medium">Revenue produced</th>
-                <th className="px-2 py-2 font-medium">Life left</th>
+                <th className="px-2 py-2 font-medium">Book Value</th>
+                <th className="px-2 py-2 font-medium">Revenue Produced</th>
+                <th className="px-2 py-2 font-medium">Life Left</th>
                 <th className="px-2 py-2 font-medium">Status</th>
                 <th className="px-2 py-2 font-medium">Actions</th>
               </tr>
@@ -754,7 +754,7 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-green-950">
-              Hours used during visits
+              Hours Used During Visits
             </h2>
             <p className="mt-0.5 text-sm text-stone-500">
               Logged equipment hours on completed visits drive unit-of-production
@@ -881,10 +881,10 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-stone-200 text-xs uppercase tracking-wide text-stone-500">
+              <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
                 <tr>
                   <th className="px-2 py-2 font-medium">Date</th>
-                  <th className="px-2 py-2 font-medium">Visit / contract</th>
+                  <th className="px-2 py-2 font-medium">Visit / Contract</th>
                   <th className="px-2 py-2 font-medium">Equipment</th>
                   <th className="px-2 py-2 font-medium">Hours</th>
                   <th className="px-2 py-2 font-medium">Notes</th>

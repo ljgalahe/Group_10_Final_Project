@@ -91,7 +91,7 @@ function AccountantDirectCostsButton({
         equipment: breakdown.equipment,
         total: breakdown.total,
         contracts: breakdown.byContract.filter((c) => c.total > 0),
-        heading: "Direct costs",
+        heading: "Direct Costs",
         subheading:
           "Labor, materials, and equipment charged to active-contract visits.",
       };
@@ -106,7 +106,7 @@ function AccountantDirectCostsButton({
       equipment: row?.equipment ?? 0,
       total: row?.total ?? amount,
       contracts: row ? [row] : [],
-      heading: `Direct costs — ${scope.title}`,
+      heading: `Direct Costs — ${scope.title}`,
       subheading: "Cost types logged on this contract’s service visits.",
     };
   }, [amount, breakdown, scope]);
@@ -159,7 +159,7 @@ function AccountantDirectCostsButton({
             setOpen(true);
           }}
           className="rounded-md text-left font-medium text-green-900 underline decoration-green-700/40 underline-offset-2 hover:text-green-800 hover:decoration-green-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30"
-          title="View direct cost breakdown"
+          title="View Direct Cost Breakdown"
         >
           {formatCurrency(amount)}
         </button>

@@ -45,7 +45,7 @@ export function roleIsInquiries(role: UserRole) {
   return role === "inquiries";
 }
 
-/** Operations inbox for reviewing and converting prospect inquiries. */
+/** Operations inbox: create quotes from new-client or existing-client inquiries. */
 export function roleCanViewInquiriesInbox(role: UserRole) {
   return role === "operations";
 }

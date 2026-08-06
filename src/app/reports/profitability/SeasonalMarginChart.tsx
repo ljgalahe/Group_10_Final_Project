@@ -101,14 +101,14 @@ export function SeasonalMarginChart({ months }: Props) {
               className="inline-block h-2.5 w-2.5 rounded-sm bg-stone-400"
               aria-hidden
             />
-            Direct costs
+            Direct Costs
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span
               className="inline-block h-0.5 w-3 rounded-full bg-emerald-800"
               aria-hidden
             />
-            Gross margin %
+            Gross Margin %
           </span>
         </div>
       </div>
@@ -273,7 +273,7 @@ export function SeasonalMarginChart({ months }: Props) {
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt>Direct costs</dt>
+                  <dt>Direct Costs</dt>
                   <dd className="font-medium text-stone-800">
                     {formatCurrency(hovered.costs)}
                   </dd>
@@ -289,7 +289,7 @@ export function SeasonalMarginChart({ months }: Props) {
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4 border-t border-stone-100 pt-1">
-                  <dt>Gross margin %</dt>
+                  <dt>Gross Margin %</dt>
                   <dd className="font-semibold text-emerald-900">
                     {hovered.marginPct.toFixed(1)}%
                   </dd>

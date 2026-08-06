@@ -23,7 +23,7 @@ function healthForAvg(avg: number): { label: string; className: string } {
   }
   if (avg >= 13) {
     return {
-      label: "Needs attention",
+      label: "Needs Attention",
       className: "bg-yellow-100 text-yellow-900",
     };
   }
@@ -108,7 +108,7 @@ export function AccountantProfitPerCrewHour({
       <section className="mb-10 space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-green-950">
-            Profit per crew-hour
+            Profit per Crew-Hour
           </h2>
           <p className="text-sm text-stone-500">
             No jobs with billed labor hours yet — this view appears once crew
@@ -124,7 +124,7 @@ export function AccountantProfitPerCrewHour({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-green-950">
-            Profit per crew-hour
+            Profit per Crew-Hour
           </h2>
           <p className="text-sm text-stone-500">
             (Revenue − labor − materials − equipment) ÷ labor hours, averaged by
@@ -241,7 +241,7 @@ function ServiceLineDetailModal({
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-              Profit per crew-hour
+              Profit per Crew-Hour
             </p>
             <h3
               id="ppc-detail-title"
@@ -263,7 +263,7 @@ function ServiceLineDetailModal({
         <div className="space-y-5 overflow-y-auto px-6 py-5">
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-green-950">
-              Accountant summary
+              Accountant Summary
             </h4>
             <div className="rounded-lg border border-stone-200 bg-stone-50/80 p-4">
               <span
@@ -278,7 +278,7 @@ function ServiceLineDetailModal({
           </div>
 
           <div className="space-y-2">
-            <h4 className="text-sm font-semibold text-green-950">Line totals</h4>
+            <h4 className="text-sm font-semibold text-green-950">Line Totals</h4>
             <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <DetailItem
                 label="Avg $/crew-hr"
@@ -307,7 +307,7 @@ function ServiceLineDetailModal({
           <div className="space-y-2">
             <div>
               <h4 className="text-sm font-semibold text-green-950">
-                Jobs on this line
+                Jobs on This Line
               </h4>
               <p className="text-xs text-stone-500">
                 Sorted by profit per crew-hour, highest to lowest — best and

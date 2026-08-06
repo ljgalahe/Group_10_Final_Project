@@ -276,7 +276,7 @@ export const DEMO_ROLES: { role: UserRole; label: string; description: string }[
   {
     role: "operations",
     label: "Operations",
-    description: "Quotes, scheduling, and crew availability",
+    description: "Site surveys, quotes, inquiries, and scheduling",
   },
   {
     role: "inquiries",

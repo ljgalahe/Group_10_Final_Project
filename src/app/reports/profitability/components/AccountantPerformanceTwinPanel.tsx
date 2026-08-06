@@ -139,7 +139,7 @@ export function AccountantPerformanceTwinPanel({
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-green-950">
-              Performance analysis
+              Performance Analysis
             </span>
             <span className="mt-0.5 block text-xs text-green-800/80">
               {open

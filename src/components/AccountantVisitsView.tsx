@@ -196,7 +196,7 @@ export function AccountantVisitsView({
 
           <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-semibold text-green-950">
-              Completion schedule
+              Completion Schedule
             </h3>
             <p className="mt-1 text-xs text-stone-500">
               Dates remaining visits are scheduled to be completed.
@@ -488,7 +488,7 @@ export function AccountantVisitsView({
 
                 <section className="rounded-lg bg-stone-100 p-4">
                   <h3 className="mb-3 text-sm font-semibold text-green-950">
-                    Crew hours &amp; hourly billing
+                    Crew Hours &amp; Hourly Billing
                   </h3>
                   <p className="mb-3 text-xs text-stone-500">
                     Crew Leader: {crew.leader}

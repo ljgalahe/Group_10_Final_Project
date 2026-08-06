@@ -87,7 +87,7 @@ export function CrewMemberHoursWorked({
 
   return (
     <Card className="border-green-800/20 bg-stone-50">
-      <h2 className="text-lg font-semibold text-green-950">Hours worked</h2>
+      <h2 className="text-lg font-semibold text-green-950">Hours Worked</h2>
       <p className="mt-1 text-sm text-stone-500">
         Your logged hours by visit, with running totals for today and this week.
         Hours are recorded by your crew lead and sync to accountant billing.
@@ -102,13 +102,13 @@ export function CrewMemberHoursWorked({
         />
         <StatCard
           compact
-          label="This week"
+          label="This Week"
           value={`${weekHours.toFixed(1)} hrs`}
           hint="Sunday–Saturday running total"
         />
         <StatCard
           compact
-          label="Visits with hours"
+          label="Visits with Hours"
           value={visitCountWithHours}
           hint="Across your assigned jobs"
         />

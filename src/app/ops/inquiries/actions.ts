@@ -17,20 +17,25 @@ const INQUIRY_STATUSES = new Set([
 ]);
 
 const PROPERTY_LABELS: Record<string, string> = {
-  office_park: "Office park",
-  retail_center: "Retail center",
+  office_park: "Office Park",
+  retail_center: "Retail Center",
   industrial: "Industrial",
   multifamily: "Multifamily",
   other: "Other",
 };
 
 const SERVICE_LABELS: Record<string, string> = {
-  mowing: "Mowing & grounds care",
+  mowing: "Mowing & Grounds Care",
   irrigation: "Irrigation",
-  seasonal_color: "Seasonal color",
-  snow_removal: "Snow removal",
-  other: "Other services",
+  seasonal_color: "Seasonal Color",
+  snow_removal: "Snow Removal",
+  other: "Other Services",
 };
+
+const RELATED_CONTRACT_RE =
+  /Related contract:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+const EXISTING_SERVICE_RE =
+  /^Existing client new service request:\s*(.+)$/im;
 
 export async function updateInquiryStatus(formData: FormData) {
   await requireAppAccess();
@@ -83,48 +88,64 @@ export async function convertInquiryToQuote(formData: FormData) {
     .map((s) => SERVICE_LABELS[s] ?? s)
     .join(", ");
 
-  const serviceDescription = [
-    `New commercial prospect: ${inquiry.company_name}`,
-    `Property type: ${propertyLabel}`,
-    services ? `Services: ${services}` : null,
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const message = (inquiry.message as string | null) ?? "";
+  const existingServiceMatch = message.match(EXISTING_SERVICE_RE);
+  const relatedContractMatch = message.match(RELATED_CONTRACT_RE);
+  const relatedContractId = relatedContractMatch?.[1] ?? null;
+  const linkedCustomerId =
+    (inquiry.converted_customer_id as string | null) ?? null;
+
+  const serviceDescription = existingServiceMatch
+    ? existingServiceMatch[1].trim()
+    : [
+        `New commercial prospect: ${inquiry.company_name}`,
+        `Property type: ${propertyLabel}`,
+        services ? `Services: ${services}` : null,
+      ]
+        .filter(Boolean)
+        .join(". ");
 
   const notes = [
     `Contact: ${inquiry.contact_name} · ${inquiry.contact_email}`,
     inquiry.contact_phone ? `Phone: ${inquiry.contact_phone}` : null,
-    inquiry.message ? `Message: ${inquiry.message}` : null,
+    message ? `Message: ${message}` : null,
     `Source: Inquiries pipeline (${inquiry.id})`,
+    linkedCustomerId ? "Type: Existing client new service inquiry" : null,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const { data: customer, error: customerError } = await supabase
-    .from("customers")
-    .insert({
-      name: inquiry.company_name,
-      property_type: propertyLabel,
-      address: inquiry.property_address,
-      contact_name: inquiry.contact_name,
-      contact_email: inquiry.contact_email,
-    })
-    .select("id")
-    .single();
+  let customerId = linkedCustomerId;
 
-  if (customerError || !customer) {
-    redirect(
-      `/ops/inquiries?error=${encodeURIComponent(customerError?.message ?? "customer")}`
-    );
+  if (!customerId) {
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .insert({
+        name: inquiry.company_name,
+        property_type: propertyLabel,
+        address: inquiry.property_address,
+        contact_name: inquiry.contact_name,
+        contact_email: inquiry.contact_email,
+      })
+      .select("id")
+      .single();
+
+    if (customerError || !customer) {
+      redirect(
+        `/ops/inquiries?error=${encodeURIComponent(customerError?.message ?? "customer")}`
+      );
+    }
+    customerId = customer.id;
   }
 
   const { data: quote, error: quoteError } = await supabase
     .from("quote_requests")
     .insert({
-      customer_id: customer.id,
+      customer_id: customerId,
       service_description: serviceDescription,
       notes,
       property_address: inquiry.property_address,
+      related_contract_id: relatedContractId,
       status: "new",
     })
     .select("id")
@@ -141,7 +162,7 @@ export async function convertInquiryToQuote(formData: FormData) {
     .update({
       status: "Converted to quote",
       quote_id: quote.id,
-      converted_customer_id: customer.id,
+      converted_customer_id: customerId,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

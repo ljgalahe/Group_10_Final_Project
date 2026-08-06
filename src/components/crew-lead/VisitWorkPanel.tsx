@@ -42,7 +42,7 @@ function persistLaborToBilling(
 
 const EXTRA_STATUSES = [
   { value: "needed", label: "Needed" },
-  { value: "pending_approval", label: "Pending approval" },
+  { value: "pending_approval", label: "Pending Approval" },
   { value: "approved", label: "Approved" },
   { value: "declined", label: "Declined" },
 ] as const;
@@ -70,6 +70,7 @@ export function VisitWorkPanel({
   contractExtraWork,
   variant = "full",
   readOnly = false,
+  showCustomerNotes = true,
 }: {
   job: ScheduleJob;
   contractExtraWork: ExtraWorkItem[];
@@ -77,6 +78,8 @@ export function VisitWorkPanel({
   variant?: "full" | "planning";
   /** When true, hide all edit/save/status-change controls (crew member portal). */
   readOnly?: boolean;
+  /** When false, hide customer notes (caller already shows them outside the panel). */
+  showCustomerNotes?: boolean;
 }) {
   const materials = useMemo(
     () => materialsForServices(job.services),
@@ -290,7 +293,7 @@ export function VisitWorkPanel({
 
   const crewSection = (
     <Section
-      title="Crew & hours"
+      title="Crew & Hours"
       hint={
         totalHours > 0
           ? `${state.assignedEmployees.length} assigned · ${totalHours.toFixed(1)} hrs logged`
@@ -417,7 +420,7 @@ export function VisitWorkPanel({
           Plan crew and hours · {job.address}
         </p>
         {crewSection}
-        <Section title="Supplies needed">
+        <Section title="Supplies Needed">
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             <div>
               <p className="text-xs font-medium text-stone-500">Materials</p>
@@ -442,10 +445,11 @@ export function VisitWorkPanel({
       <CrewSiteNotes
         notes={job.customerNotes}
         status={job.status}
+        showCustomerNotes={showCustomerNotes}
         showAdditionalNotes={false}
       />
 
-      <Section title="1. Time clock" hint={`Planned ${plannedHours.toFixed(1)} hrs`}>
+      <Section title="1. Time Clock" hint={`Planned ${plannedHours.toFixed(1)} hrs`}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
@@ -536,7 +540,7 @@ export function VisitWorkPanel({
         </div>
       </Section>
 
-      <Section title="5. Extra work">
+      <Section title="5. Extra Work">
         {contractExtraWork.length > 0 ? (
           <ul className="space-y-2">
             {contractExtraWork.map((item) => (
@@ -628,7 +632,7 @@ export function VisitWorkPanel({
         ) : null}
       </Section>
 
-      <Section title="6. Report a problem">
+      <Section title="6. Report a Problem">
         {canEditCrew ? (
           <form onSubmit={submitException} className="space-y-2">
             <select

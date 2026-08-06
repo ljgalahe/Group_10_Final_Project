@@ -142,7 +142,7 @@ export function ProfilePaymentMethods({
         onClick={openModal}
         className="mt-4 rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
       >
-        Add payment method
+        Add Payment Method
       </button>
 
       {open ? (
@@ -157,7 +157,7 @@ export function ProfilePaymentMethods({
               id="profile-add-payment-title"
               className="text-xl font-semibold text-green-950"
             >
-              Add payment method
+              Add Payment Method
             </h2>
             <p className="mt-2 text-sm text-stone-600">
               Save a card or bank account for invoice payments.
