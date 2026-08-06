@@ -10,6 +10,7 @@ type ApprovedQuote = {
   season_start?: string | null;
   season_end?: string | null;
   draft_contract_id?: string | null;
+  draft_approval_state?: string | null;
   customers?: { name?: string | null } | null;
 };
 
@@ -18,24 +19,25 @@ export function DraftContractsSection({
 }: {
   quotes: ApprovedQuote[];
 }) {
-  const ready = quotes.filter((q) => !q.draft_contract_id);
-
   return (
     <section className="mb-6 rounded-xl border border-green-200 bg-green-50/60 px-4 py-4 shadow-sm">
       <h2 className="text-lg font-semibold text-green-950">Draft Contracts</h2>
-      <p className="mt-1 text-sm text-stone-600">
-        Approved Quotes Ready To Become Contracts.
+      <p className="mt-1 text-sm text-stone-500">
+        Quotes approved by management and ready to contract
       </p>
 
-      {ready.length === 0 ? (
+      {quotes.length === 0 ? (
         <p className="mt-3 text-sm text-stone-500">
           No Approved Quotes Waiting For A Contract Draft.
         </p>
       ) : (
         <ul className="mt-4 divide-y divide-green-100 overflow-hidden rounded-lg border border-green-200 bg-white">
-          {ready.map((quote) => {
+          {quotes.map((quote) => {
             const customerName =
               (quote.customers as { name?: string } | null)?.name ?? null;
+            // Fetch already limits to unsent drafts; draft_contract_id means Continue Editing.
+            const hasDraft = !!quote.draft_contract_id;
+
             return (
               <li
                 key={quote.id}
@@ -56,16 +58,25 @@ export function DraftContractsSection({
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <StatusBadge status="approved" />
-                  <form action={createContractFromApprovedQuote}>
-                    <input type="hidden" name="quote_id" value={quote.id} />
-                    <button
-                      type="submit"
+                  {hasDraft ? <StatusBadge status="draft" /> : null}
+                  {hasDraft ? (
+                    <Link
+                      href={`/contracts/${quote.draft_contract_id}`}
                       className="rounded-md bg-green-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-800"
                     >
-                      Create Contract
-                    </button>
-                  </form>
+                      Continue Editing
+                    </Link>
+                  ) : (
+                    <form action={createContractFromApprovedQuote}>
+                      <input type="hidden" name="quote_id" value={quote.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md bg-green-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-800"
+                      >
+                        Create Contract
+                      </button>
+                    </form>
+                  )}
                 </div>
               </li>
             );

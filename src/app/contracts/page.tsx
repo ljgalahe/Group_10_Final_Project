@@ -198,6 +198,27 @@ export default async function ContractsPage({
 
   if (role === "operations") {
     const { data: approvedQuotes } = await fetchApprovedQuotesForDraft();
+    // Unsent drafts stay in Draft Contracts; main table starts at sent-to-customer.
+    // Pending customer signature sorts to the top for Ops follow-up.
+    const opsContracts = contracts
+      .filter(
+        (c) =>
+          (c as { approval_state?: string | null }).approval_state !== "draft"
+      )
+      .sort((a, b) => {
+        const aPending =
+          (a as { approval_state?: string | null }).approval_state ===
+            "pending_customer" &&
+          !(a as { customer_signed_at?: string | null }).customer_signed_at;
+        const bPending =
+          (b as { approval_state?: string | null }).approval_state ===
+            "pending_customer" &&
+          !(b as { customer_signed_at?: string | null }).customer_signed_at;
+        if (aPending !== bPending) return aPending ? -1 : 1;
+        const aCreated = (a as { created_at?: string }).created_at ?? "";
+        const bCreated = (b as { created_at?: string }).created_at ?? "";
+        return bCreated.localeCompare(aCreated);
+      });
     return (
       <AppShell>
         <PageHeader
@@ -208,15 +229,15 @@ export default async function ContractsPage({
               href="/quotes"
               className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
             >
-              Quotes inbox
+              Quotes Inbox
             </Link>
           }
         />
         <DraftContractsSection quotes={approvedQuotes} />
-        {contracts.length === 0 ? (
+        {opsContracts.length === 0 ? (
           <EmptyState message="No Contracts Yet. Create One From An Approved Quote Above." />
         ) : (
-          <SimpleContractsTable contracts={contracts} showCustomerColumn />
+          <SimpleContractsTable contracts={opsContracts} showCustomerColumn />
         )}
       </AppShell>
     );

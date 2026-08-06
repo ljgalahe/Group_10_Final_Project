@@ -139,6 +139,7 @@ export function StatusBadge({ status }: { status: string }) {
     pending_manager_approval: "border-amber-800/40 text-amber-950",
     pending_customer: "border-amber-800/40 text-amber-950",
     needs_review_and_signature: "border-amber-800/40 text-amber-950",
+    sent_to_customer_awaiting_approval: "border-amber-800/40 text-amber-950",
     needs_scheduling: "border-amber-800/40 text-amber-950",
     survey_scheduled: "border-sky-700/40 text-sky-950",
     budgeted: "border-stone-500 text-stone-800",

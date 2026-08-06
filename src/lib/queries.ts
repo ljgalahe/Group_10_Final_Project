@@ -1910,16 +1910,48 @@ export async function fetchQuotesPendingApproval() {
 
 export async function fetchApprovedQuotesForDraft() {
   const supabase = await createDataClient();
+  // Stay in Draft Contracts until Ops sends the contract to the customer
+  // (approval_state → pending_customer), not merely when a draft row exists.
   const { data, error } = await supabase
     .from("quote_requests")
     .select("*, customers(name, address)")
-    .eq("status", "approved")
-    .is("draft_contract_id", null)
+    .in("status", ["approved", "contract_drafted"])
     .order("created_at", { ascending: false });
   if (error) {
     return { data: [] as never[], error };
   }
-  return { data: data ?? [], error };
+
+  const rows = data ?? [];
+  const draftIds = rows
+    .map((q) => q.draft_contract_id as string | null)
+    .filter((id): id is string => !!id);
+
+  const draftStateById = new Map<string, string | null>();
+  if (draftIds.length > 0) {
+    const { data: drafts } = await supabase
+      .from("contracts")
+      .select("id, approval_state")
+      .in("id", draftIds);
+    for (const c of drafts ?? []) {
+      draftStateById.set(c.id, c.approval_state ?? null);
+    }
+  }
+
+  const filtered = rows.filter((q) => {
+    const draftId = q.draft_contract_id as string | null;
+    if (!draftId) return true;
+    return draftStateById.get(draftId) === "draft";
+  });
+
+  return {
+    data: filtered.map((q) => ({
+      ...q,
+      draft_approval_state: q.draft_contract_id
+        ? (draftStateById.get(q.draft_contract_id as string) ?? null)
+        : null,
+    })),
+    error,
+  };
 }
 
 export async function fetchProposedContractsForCustomer() {

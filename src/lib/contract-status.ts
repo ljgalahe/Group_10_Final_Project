@@ -55,7 +55,7 @@ export function getContractDisplayStatus(
   if (state === "changes_requested") return "changes_requested";
   if (state === "draft") return "draft";
   if (state === "pending_customer" && !contract.customer_signed_at) {
-    return "needs_review_and_signature";
+    return "sent_to_customer_awaiting_approval";
   }
   if (contract.customer_signed_at || state === "approved") {
     if (contract.status === "completed") return "completed";

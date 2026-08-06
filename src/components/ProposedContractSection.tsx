@@ -6,7 +6,6 @@ import {
   declineCustomerContract,
   signCustomerContract,
 } from "@/app/actions/customer-contract-sign";
-import { StatusBadge } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 
 type ProposedContract = {
@@ -37,6 +36,11 @@ export function ProposedContractSection({
       <h2 className="text-lg font-semibold text-green-950">
         Proposed Contract
       </h2>
+      {proposed.length > 0 ? (
+        <p className="mt-1 text-sm text-amber-900/80">
+          Needs Review And Signature
+        </p>
+      ) : null}
 
       {proposed.length === 0 ? (
         <p className="mt-3 text-sm text-stone-500">
@@ -66,7 +70,6 @@ export function ProposedContractSection({
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge status="needs_review_and_signature" />
                     <button
                       type="button"
                       onClick={() =>
