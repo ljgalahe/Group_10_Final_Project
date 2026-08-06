@@ -1,11 +1,13 @@
 import { createDataClient } from "@/lib/auth-access";
-import { allocatedVisitRevenue } from "@/lib/visit-accounting";
 import type {
   CompletedVisitOption,
   EquipmentCategory,
+  EquipmentJobRevenue,
+  EquipmentReportData,
   EquipmentRow,
   EquipmentUsageRow,
 } from "./equipment-types";
+import { roundMoney, splitJobRevenue } from "./equipment-types";
 
 type RawEquipment = {
   id: string;
@@ -29,152 +31,208 @@ function normalizeCategory(raw: string): EquipmentCategory {
   return raw as EquipmentCategory;
 }
 
-export async function fetchEquipment(): Promise<EquipmentRow[]> {
-  const supabase = await createDataClient();
+async function pageAll<T>(
+  fetchPage: (
+    from: number,
+    to: number
+  ) => Promise<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const pageSize = 1000;
+  const rows: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await fetchPage(from, from + pageSize - 1);
+    if (error) {
+      console.error(error.message);
+      break;
+    }
+    if (!data?.length) break;
+    rows.push(...data);
+    if (data.length < pageSize) break;
+  }
+  return rows;
+}
 
-  const [{ data: assets, error }, { data: usage }, { data: visits }] =
-    await Promise.all([
-      supabase.from("equipment").select("*").order("name", { ascending: true }),
-      supabase
-        .from("equipment_usage")
-        .select("equipment_id, visit_id, hours"),
-      supabase
-        .from("service_visits")
-        .select(
-          "id, contracts(id, title, monthly_fee, visits_per_week, customers(name))"
-        ),
-    ]);
+/**
+ * Load equipment register plus per-job revenue splits.
+ * Each job gets a share of its contract's billed invoices; that job revenue is
+ * split across equipment by hours (or evenly if no hours). Allocations never
+ * exceed company invoice revenue.
+ */
+export async function fetchEquipment(): Promise<EquipmentReportData> {
+  const supabase = await createDataClient();
+  const empty: EquipmentReportData = {
+    assets: [],
+    jobs: [],
+    companyRevenue: 0,
+  };
+
+  const { data: assets, error } = await supabase
+    .from("equipment")
+    .select("*")
+    .order("name", { ascending: true });
 
   if (error) {
     console.error("fetchEquipment", error);
-    return [];
+    return empty;
   }
 
-  type ContractInfo = {
-    id: string;
-    title: string;
-    monthly_fee: number | null;
-    visits_per_week: number | null;
-    customer_name: string;
+  type UsageRow = {
+    equipment_id: string;
+    visit_id: string;
+    hours: number | null;
   };
+  const usage = await pageAll<UsageRow>(async (from, to) => {
+    const result = await supabase
+      .from("equipment_usage")
+      .select("equipment_id, visit_id, hours")
+      .range(from, to);
+    return result;
+  });
 
-  const visitMeta = new Map<
-    string,
-    { revenue: number; contract: ContractInfo | null }
-  >();
-
-  for (const visit of visits ?? []) {
-    const contracts = visit.contracts as
+  type VisitRow = {
+    id: string;
+    scheduled_date: string;
+    contracts:
       | {
           id: string;
           title: string;
-          monthly_fee: number | null;
-          visits_per_week: number | null;
           customers: { name: string } | { name: string }[] | null;
         }
       | {
           id: string;
           title: string;
-          monthly_fee: number | null;
-          visits_per_week: number | null;
           customers: { name: string } | { name: string }[] | null;
         }[]
       | null;
+  };
+  const visits = await pageAll<VisitRow>(async (from, to) => {
+    const result = await supabase
+      .from("service_visits")
+      .select("id, scheduled_date, contracts(id, title, customers(name))")
+      .range(from, to);
+    return result;
+  });
+
+  type InvoiceRow = { contract_id: string; total: number };
+  const invoices = await pageAll<InvoiceRow>(async (from, to) => {
+    const result = await supabase
+      .from("invoices")
+      .select("contract_id, total")
+      .range(from, to);
+    return result;
+  });
+
+  let companyRevenue = 0;
+  const billedByContract = new Map<string, number>();
+  for (const invoice of invoices) {
+    const contractId = invoice.contract_id;
+    if (!contractId) continue;
+    const total = Number(invoice.total);
+    companyRevenue += total;
+    billedByContract.set(
+      contractId,
+      (billedByContract.get(contractId) ?? 0) + total
+    );
+  }
+  companyRevenue = roundMoney(companyRevenue);
+
+  type ContractInfo = {
+    id: string;
+    title: string;
+    customer_name: string;
+  };
+
+  const visitMeta = new Map<
+    string,
+    { date: string; contract: ContractInfo | null }
+  >();
+  const visitsPerContract = new Map<string, number>();
+
+  for (const visit of visits) {
+    const contracts = visit.contracts;
     const contract = Array.isArray(contracts) ? contracts[0] : contracts;
     const cust = contract?.customers;
     const customerName = Array.isArray(cust)
       ? (cust[0]?.name ?? "—")
       : (cust?.name ?? "—");
-    visitMeta.set(visit.id as string, {
-      revenue: allocatedVisitRevenue(
-        contract?.monthly_fee,
-        contract?.visits_per_week
-      ),
-      contract: contract
-        ? {
-            id: contract.id,
-            title: contract.title,
-            monthly_fee: contract.monthly_fee,
-            visits_per_week: contract.visits_per_week,
-            customer_name: customerName,
-          }
-        : null,
+    const info = contract
+      ? {
+          id: contract.id,
+          title: contract.title,
+          customer_name: customerName,
+        }
+      : null;
+    visitMeta.set(visit.id, {
+      date: visit.scheduled_date,
+      contract: info,
     });
-  }
-
-  const hoursByVisit = new Map<string, number>();
-  for (const row of usage ?? []) {
-    const visitId = row.visit_id as string;
-    hoursByVisit.set(
-      visitId,
-      (hoursByVisit.get(visitId) ?? 0) + Number(row.hours)
-    );
+    if (info) {
+      visitsPerContract.set(
+        info.id,
+        (visitsPerContract.get(info.id) ?? 0) + 1
+      );
+    }
   }
 
   const hoursById = new Map<string, number>();
-  const revenueById = new Map<string, number>();
-  const contractsByEquipment = new Map<
+  const piecesByVisit = new Map<
     string,
-    Map<
-      string,
-      {
-        contract_id: string;
-        contract_title: string;
-        customer_name: string;
-        hours: number;
-        revenue: number;
-      }
-    >
+    Array<{ equipment_id: string; hours: number }>
   >();
 
-  for (const row of usage ?? []) {
-    const equipmentId = row.equipment_id as string;
-    const visitId = row.visit_id as string;
+  for (const row of usage) {
     const hours = Number(row.hours);
-    hoursById.set(equipmentId, (hoursById.get(equipmentId) ?? 0) + hours);
-
-    const meta = visitMeta.get(visitId);
-    const visitHours = hoursByVisit.get(visitId) ?? 0;
-    const visitRevenue = meta?.revenue ?? 0;
-    const share =
-      visitHours > 0 && visitRevenue > 0
-        ? visitRevenue * (hours / visitHours)
-        : 0;
-
-    revenueById.set(
-      equipmentId,
-      (revenueById.get(equipmentId) ?? 0) + share
+    const safeHours = Number.isFinite(hours) ? hours : 0;
+    hoursById.set(
+      row.equipment_id,
+      (hoursById.get(row.equipment_id) ?? 0) + Math.max(0, safeHours)
     );
 
-    const contract = meta?.contract;
-    if (!contract) continue;
+    const list = piecesByVisit.get(row.visit_id) ?? [];
+    list.push({ equipment_id: row.equipment_id, hours: Math.max(0, safeHours) });
+    piecesByVisit.set(row.visit_id, list);
+  }
 
-    let byContract = contractsByEquipment.get(equipmentId);
-    if (!byContract) {
-      byContract = new Map();
-      contractsByEquipment.set(equipmentId, byContract);
-    }
-    const existing = byContract.get(contract.id);
-    if (existing) {
-      existing.hours += hours;
-      existing.revenue += share;
-    } else {
-      byContract.set(contract.id, {
-        contract_id: contract.id,
-        contract_title: contract.title,
-        customer_name: contract.customer_name,
-        hours,
-        revenue: share,
-      });
+  const jobs: EquipmentJobRevenue[] = [];
+  let allocatedTotal = 0;
+
+  for (const [visitId, pieces] of piecesByVisit) {
+    const meta = visitMeta.get(visitId);
+    if (!meta?.contract) continue;
+
+    const visitCount = visitsPerContract.get(meta.contract.id) ?? 0;
+    const billed = billedByContract.get(meta.contract.id) ?? 0;
+    const jobRevenue =
+      visitCount > 0 && billed > 0 ? roundMoney(billed / visitCount) : 0;
+    if (!(jobRevenue > 0) || pieces.length === 0) continue;
+
+    const split = splitJobRevenue(jobRevenue, pieces);
+    allocatedTotal += split.reduce((s, p) => s + p.allocated_revenue, 0);
+
+    jobs.push({
+      visit_id: visitId,
+      visit_date: meta.date,
+      job_revenue: jobRevenue,
+      contract_id: meta.contract.id,
+      contract_title: meta.contract.title,
+      customer_name: meta.contract.customer_name,
+      pieces: split,
+    });
+  }
+
+  // Guard: never attribute more than company billed revenue (penny drift).
+  if (allocatedTotal > companyRevenue && allocatedTotal > 0 && companyRevenue > 0) {
+    const scale = companyRevenue / allocatedTotal;
+    for (const job of jobs) {
+      job.job_revenue = roundMoney(job.job_revenue * scale);
+      for (const piece of job.pieces) {
+        piece.allocated_revenue = roundMoney(piece.allocated_revenue * scale);
+      }
     }
   }
 
-  return ((assets ?? []) as RawEquipment[]).map((a) => {
-    const contracts = Array.from(
-      contractsByEquipment.get(a.id)?.values() ?? []
-    ).sort((x, y) => y.revenue - x.revenue);
-
-    return {
+  const assetRows: EquipmentRow[] = ((assets ?? []) as RawEquipment[]).map(
+    (a) => ({
       id: a.id,
       name: a.name,
       category: normalizeCategory(a.category),
@@ -188,11 +246,21 @@ export async function fetchEquipment(): Promise<EquipmentRow[]> {
       retired_at: a.retired_at,
       notes: a.notes,
       hours_used: hoursById.get(a.id) ?? 0,
-      revenue_produced: revenueById.get(a.id) ?? 0,
-      contracts_worked: contracts,
-    };
-  });
+      revenue_produced: 0,
+      jobs_count: 0,
+      avg_revenue_per_job: 0,
+      revenue_per_cost: 0,
+      contracts_worked: [],
+    })
+  );
+
+  return {
+    assets: assetRows,
+    jobs,
+    companyRevenue,
+  };
 }
+
 
 export async function fetchEquipmentUsage(): Promise<EquipmentUsageRow[]> {
   const supabase = await createDataClient();

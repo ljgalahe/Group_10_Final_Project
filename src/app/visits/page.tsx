@@ -112,10 +112,11 @@ export default async function VisitsPage({
     const visitJournalStates = Object.fromEntries(
       (await fetchJournalSourceStates()).visit
     );
-    const [equipmentRows, usageRows] = await Promise.all([
+    const [equipmentReport, usageRows] = await Promise.all([
       fetchEquipment(),
       fetchEquipmentUsage(),
     ]);
+    const equipmentRows = equipmentReport.assets;
 
     return (
       <AppShell>

@@ -274,7 +274,7 @@ export default async function DashboardPage({
       fetchContracts(),
       fetchVisits(),
       fetchAllVisitCosts(),
-      fetchEquipment(),
+      fetchEquipment().then((data) => data.assets),
       fetchEquipmentUsage(),
       fetchInvoices(),
       fetchPayments(),
