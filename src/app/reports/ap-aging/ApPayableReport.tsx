@@ -11,6 +11,7 @@ import {
   discountsAvailableThisMonth,
   filterByCategory,
   openApByCategory,
+  openApByVendor,
   openApInvoices,
   openDiscountWindow,
   upcomingPayments,
@@ -73,11 +74,41 @@ function SummaryKpi({
   title,
   value,
   hint,
+  selected,
+  onSelect,
 }: {
   title: string;
   value: string;
   hint: string;
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
+  if (onSelect) {
+    return (
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        className={`rounded-xl border border-green-200 bg-green-50/70 p-4 text-left shadow-sm transition ${
+          selected
+            ? "ring-2 ring-green-800 ring-offset-2"
+            : "hover:brightness-[0.98]"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
+          <span className="text-xs text-stone-500">
+            {selected ? "Hide" : "View"}
+          </span>
+        </div>
+        <p className="mt-3 text-2xl font-bold tracking-tight text-green-950">
+          {value}
+        </p>
+        <p className="mt-1 text-sm text-stone-600">{hint}</p>
+      </button>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-green-200 bg-green-50/70 p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
@@ -101,6 +132,7 @@ export function ApPayableReport({
   const [category, setCategory] = useState<ApCategory | "All">("All");
   const [openBucket, setOpenBucket] = useState<ApAgingBucketKey | null>(null);
   const [categoryDetail, setCategoryDetail] = useState<ApCategory | null>(null);
+  const [vendorDetailOpen, setVendorDetailOpen] = useState(false);
 
   const dpoResult = useMemo(() => computeDpo(invoices, asOf), [invoices, asOf]);
   const ccc = useMemo(
@@ -198,6 +230,8 @@ export function ApPayableReport({
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [invoices, categoryDetail]);
 
+  const vendorTotals = useMemo(() => openApByVendor(invoices), [invoices]);
+
   return (
     <div className="space-y-8">
       {/* 1. Summary KPIs */}
@@ -205,7 +239,9 @@ export function ApPayableReport({
         <SummaryKpi
           title="Total Open AP"
           value={formatCurrency(dpoResult.openAp)}
-          hint="Sum of unpaid vendor invoices"
+          hint="Sum of unpaid vendor invoices — click for vendor breakdown"
+          selected={vendorDetailOpen}
+          onSelect={() => setVendorDetailOpen((open) => !open)}
         />
         <SummaryKpi
           title="DPO"
@@ -218,6 +254,53 @@ export function ApPayableReport({
           hint={`DSO (${dso.toFixed(1)}) − DPO (${dpoResult.dpo.toFixed(1)})`}
         />
       </div>
+
+      {vendorDetailOpen ? (
+        <Card>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-green-950">
+                Open AP by Vendor
+              </h3>
+              <p className="mt-0.5 text-sm text-stone-600">
+                How much is owed to each vendor
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setVendorDetailOpen(false)}
+              className="text-sm text-stone-600 hover:text-green-900"
+            >
+              Close
+            </button>
+          </div>
+          {vendorTotals.length === 0 ? (
+            <p className="mt-3 text-sm text-stone-600">No open vendor balances.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-stone-100">
+              {vendorTotals.map((row) => (
+                <li
+                  key={row.vendorName}
+                  className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-sm"
+                >
+                  <div>
+                    <span className="font-medium text-stone-900">
+                      {row.vendorName}
+                    </span>
+                    <p className="text-stone-500">
+                      {row.invoices} open invoice
+                      {row.invoices === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <span className="font-semibold tabular-nums text-green-950">
+                    {formatCurrency(row.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      ) : null}
 
       {/* 2. AP Aging */}
       <section>

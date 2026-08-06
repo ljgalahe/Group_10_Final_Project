@@ -67,6 +67,27 @@ export function openApByCategory(invoices: ApInvoice[]) {
   return totals;
 }
 
+/** Open AP totals grouped by vendor, highest balance first. */
+export function openApByVendor(invoices: ApInvoice[]) {
+  const totals = new Map<string, { vendorName: string; amount: number; invoices: number }>();
+
+  for (const inv of openApInvoices(invoices)) {
+    const existing = totals.get(inv.vendorName);
+    if (existing) {
+      existing.amount += inv.amount;
+      existing.invoices += 1;
+    } else {
+      totals.set(inv.vendorName, {
+        vendorName: inv.vendorName,
+        amount: inv.amount,
+        invoices: 1,
+      });
+    }
+  }
+
+  return Array.from(totals.values()).sort((a, b) => b.amount - a.amount);
+}
+
 export function discountSavings(invoice: ApInvoice) {
   if (invoice.discountPercent == null || invoice.discountPercent <= 0) {
     return 0;
