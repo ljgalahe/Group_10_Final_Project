@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { AddChartOfAccountModal } from "@/components/AddChartOfAccountModal";
 import { ChartOfAccountsBrowse } from "@/components/ChartOfAccountsBrowse";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { ChartOfAccount } from "@/lib/chart-of-accounts";
 import {
@@ -25,10 +25,19 @@ export function AccountantGeneralLedgerView({
   const [addingAccount, setAddingAccount] = useState(false);
 
   const accounts = useMemo(
-    () => buildGeneralLedgerAccounts(entries, chartAccounts),
+    () =>
+      buildGeneralLedgerAccounts(
+        entries.filter((entry) => entry.status === "posted"),
+        chartAccounts
+      ),
     [chartAccounts, entries]
   );
   const summary = useMemo(() => summarizeGeneralLedger(accounts), [accounts]);
+
+  const postedEntries = useMemo(
+    () => entries.filter((entry) => entry.status === "posted"),
+    [entries]
+  );
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -45,7 +54,7 @@ export function AccountantGeneralLedgerView({
 
   const register =
     expandedAccount != null
-      ? buildAccountRegister(entries, expandedAccount)
+      ? buildAccountRegister(postedEntries, expandedAccount)
       : [];
 
   function handleSelectAccount(account: ChartOfAccount) {
@@ -54,6 +63,32 @@ export function AccountantGeneralLedgerView({
 
   return (
     <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Posted Entries"
+          value={postedEntries.length.toLocaleString("en-US")}
+        />
+        <StatCard
+          label="Total Debits"
+          value={formatCurrency(summary.totalActivityDebit)}
+          hint="Same as Journal Entries"
+        />
+        <StatCard
+          label="Total Credits"
+          value={formatCurrency(summary.totalActivityCredit)}
+          hint="Same as Journal Entries"
+        />
+        <StatCard
+          label="Trial Balance"
+          value={summary.balanced ? "Balanced" : "Out of balance"}
+          hint={
+            summary.balanced
+              ? `${formatCurrency(summary.totalTrialDebit)} each side`
+              : "Review net account balances"
+          }
+        />
+      </div>
+
       <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
           <ChartOfAccountsBrowse
@@ -208,7 +243,30 @@ export function AccountantGeneralLedgerView({
             </tbody>
             <tfoot className="border-t border-stone-200 bg-stone-50 font-medium text-green-950">
               <tr>
-                <td className="px-4 py-3">Trial balance totals</td>
+                <td className="px-4 py-3">
+                  Posted journal activity
+                  <span className="mt-0.5 block text-xs font-normal text-stone-500">
+                    Matches Journal Entries totals
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {formatCurrency(summary.totalActivityDebit)}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {formatCurrency(summary.totalActivityCredit)}
+                </td>
+                <td className="px-4 py-3 text-right"> </td>
+                <td className="px-4 py-3 text-right"> </td>
+              </tr>
+              <tr className="border-t border-stone-200">
+                <td className="px-4 py-3">
+                  Trial balance
+                  <span className="mt-0.5 block text-xs font-normal text-stone-500">
+                    {summary.balanced
+                      ? "Net account balances — books balanced"
+                      : "Net account balances — out of balance"}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-right"> </td>
                 <td className="px-4 py-3 text-right"> </td>
                 <td className="px-4 py-3 text-right">
