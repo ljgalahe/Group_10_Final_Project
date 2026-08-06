@@ -1,4 +1,4 @@
-﻿import { daysBetween, isOpenInvoiceStatus } from "@/lib/payment-utils";
+import { daysBetween, isOpenInvoiceStatus } from "@/lib/payment-utils";
 import type { Payment } from "@/lib/types";
 
 export type CollectionRiskLevel = "high" | "medium" | "low";

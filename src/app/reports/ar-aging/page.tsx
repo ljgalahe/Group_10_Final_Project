@@ -35,10 +35,7 @@ export default async function ArAgingPage({
 
     return (
       <AppShell>
-        <PageHeader
-          title="AR Aging Report"
-          description="Outstanding receivables from Contracts, Invoices, and Payments, grouped by how long they've been past due."
-        />
+        <PageHeader title="AR Aging Report" />
         <ArAgingReport
           buckets={buckets}
           invoices={invoices}
@@ -56,10 +53,7 @@ export default async function ArAgingPage({
 
   return (
     <AppShell>
-      <PageHeader
-        title="AR Aging Report"
-        description="Outstanding receivables from Contracts, Invoices, and Payments, grouped by how long they've been past due. Customers with invoices 30+ days overdue are on automatic Service Hold."
-      />
+      <PageHeader title="AR Aging Report" />
       <ArAgingManagerClient
         buckets={buckets}
         payments={payments}

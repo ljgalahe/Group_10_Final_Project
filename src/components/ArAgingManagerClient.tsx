@@ -371,9 +371,6 @@ export function ArAgingManagerClient({
           <h2 className="text-lg font-semibold text-green-950">
             AR Management Dashboard
           </h2>
-          <p className="text-sm text-stone-500">
-            Snapshot of outstanding receivables and collection risk.
-          </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -531,10 +528,6 @@ function CollectionActionCenter({ rows }: { rows: CustomerCollectionRow[] }) {
         <h2 className="text-lg font-semibold text-green-950">
           Collection Action Center
         </h2>
-        <p className="text-sm text-stone-500">
-          Recommended next steps based on each customer&apos;s oldest aging
-          bucket, prioritized for manager follow-up.
-        </p>
       </div>
 
       {actionRows.length === 0 ? (
@@ -727,10 +720,6 @@ function CustomerCollectionCenter({
         <h2 className="text-lg font-semibold text-green-950">
           Customer Collection Center
         </h2>
-        <p className="text-sm text-stone-500">
-          Expand a customer to review all outstanding invoices and prioritize
-          follow-up. Accounts with invoices 30+ days overdue show Service Hold.
-        </p>
         {filterNote ? (
           <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
             {filterNote}{" "}
