@@ -601,9 +601,12 @@ for (const year of years) {
     }
   });
 }
-const storyInv2 = invoiceId(invN++);
+const storyInv2 = invoiceId(invN);
+// Same INV-#### format as every other invoice (extra work is line_type, not number).
+const storyInv2Num = `INV-${String(invN).padStart(4, "0")}`;
+invN += 1;
 invRows.push(
-  `  (${sqlStr(storyInv2)}, ${sqlStr(contractId(0, 2026))}, '11111111-1111-1111-1111-111111111101', 'INV-EW01', '2026-06-01', '2026-07-01', 'sent', 2850.00, 2850.00, 0.00)`
+  `  (${sqlStr(storyInv2)}, ${sqlStr(contractId(0, 2026))}, '11111111-1111-1111-1111-111111111101', ${sqlStr(storyInv2Num)}, '2026-06-01', '2026-07-01', 'sent', 2850.00, 2850.00, 0.00)`
 );
 lineRows.push(
   `  (${sqlStr(storyInv2)}, 'Extra work: Mulch Installation — Entrance Beds', 2850.00, 'extra_work')`
@@ -612,7 +615,7 @@ invoiceObjs.push({
   id: storyInv2,
   contract_id: contractId(0, 2026),
   customer_id: "11111111-1111-1111-1111-111111111101",
-  invoice_number: "INV-EW01",
+  invoice_number: storyInv2Num,
   issue_date: "2026-06-01",
   due_date: "2026-07-01",
   status: "sent",
@@ -639,7 +642,7 @@ w(``);
 
 w(`insert into support_requests (customer_id, category, message, linked_type, linked_id, status, resolution_notes, created_at) values`);
 w(`  ('11111111-1111-1111-1111-111111111101', 'question', 'Confirm July irrigation schedule?', 'contract', '22222222-2222-2222-2222-222222222205', 'Resolved', 'Confirmed Tuesday checks.', '2026-06-15 14:00:00+00'),`);
-w(`  ('11111111-1111-1111-1111-111111111101', 'billing_dispute', 'Review mulch line on INV-EW01.', 'invoice', ${sqlStr(storyInv2)}, 'Open', null, '2026-07-02 10:30:00+00'),`);
+w(`  ('11111111-1111-1111-1111-111111111101', 'billing_dispute', 'Review mulch line on ${storyInv2Num}.', 'invoice', ${sqlStr(storyInv2)}, 'Open', null, '2026-07-02 10:30:00+00'),`);
 w(`  ('11111111-1111-1111-1111-111111111102', 'concern', 'North gate code changed.', 'contract', ${sqlStr(contractId(1, 2026))}, 'Open', null, '2026-08-01 15:20:00+00'),`);
 w(`  ('11111111-1111-1111-1111-111111111103', 'complaint', 'Front walk edging missed.', 'contract', ${sqlStr(contractId(2, 2026))}, 'In Progress', null, '2026-08-03 11:05:00+00'),`);
 w(`  ('11111111-1111-1111-1111-111111111107', 'concern', 'Building 3 controller fault after storms.', 'contract', ${sqlStr(contractId(6, 2026))}, 'Open', null, '2026-08-02 16:40:00+00'),`);
@@ -991,7 +994,7 @@ if (process.argv.includes("--apply")) {
     "support_requests",
     [
       { customer_id: "11111111-1111-1111-1111-111111111101", category: "question", message: "Confirm July irrigation schedule?", linked_type: "contract", linked_id: "22222222-2222-2222-2222-222222222205", status: "Resolved", resolution_notes: "Confirmed Tuesday checks.", created_at: "2026-06-15 14:00:00+00" },
-      { customer_id: "11111111-1111-1111-1111-111111111101", category: "billing_dispute", message: "Review mulch line on INV-EW01.", linked_type: "invoice", linked_id: storyInv2, status: "Open", resolution_notes: null, created_at: "2026-07-02 10:30:00+00" },
+      { customer_id: "11111111-1111-1111-1111-111111111101", category: "billing_dispute", message: `Review mulch line on ${storyInv2Num}.`, linked_type: "invoice", linked_id: storyInv2, status: "Open", resolution_notes: null, created_at: "2026-07-02 10:30:00+00" },
       { customer_id: "11111111-1111-1111-1111-111111111102", category: "concern", message: "North gate code changed.", linked_type: "contract", linked_id: contractId(1, 2026), status: "Open", resolution_notes: null, created_at: "2026-08-01 15:20:00+00" },
       { customer_id: "11111111-1111-1111-1111-111111111103", category: "complaint", message: "Front walk edging missed.", linked_type: "contract", linked_id: contractId(2, 2026), status: "In Progress", resolution_notes: null, created_at: "2026-08-03 11:05:00+00" },
       { customer_id: "11111111-1111-1111-1111-111111111107", category: "concern", message: "Building 3 controller fault after storms.", linked_type: "contract", linked_id: contractId(6, 2026), status: "Open", resolution_notes: null, created_at: "2026-08-02 16:40:00+00" },

@@ -101,7 +101,10 @@ export async function AppNav() {
     <header className="border-b border-green-800/20 bg-green-900 text-white">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4">
         <div>
-          <Link href="/dashboard" className="text-lg font-bold tracking-tight">
+          <Link
+            href={role === "inquiries" ? "/inquiries" : "/dashboard"}
+            className="text-lg font-bold tracking-tight"
+          >
             GreenScape Commercial
           </Link>
           <p className="text-xs text-green-200">Contract-to-Cash Management</p>
