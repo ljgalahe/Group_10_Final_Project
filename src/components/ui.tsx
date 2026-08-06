@@ -3,11 +3,13 @@ export function StatCard({
   value,
   hint,
   compact = false,
+  valueClassName,
 }: {
   label: string;
   value: string | number;
   hint?: string;
   compact?: boolean;
+  valueClassName?: string;
 }) {
   return (
     <div
@@ -17,7 +19,7 @@ export function StatCard({
     >
       <p className="text-sm font-medium text-stone-500">{label}</p>
       <p
-        className={`mt-1 font-bold text-green-900 ${
+        className={`mt-1 font-bold ${valueClassName ?? "text-green-900"} ${
           compact ? "text-xl leading-snug" : "mt-2 text-3xl"
         }`}
       >

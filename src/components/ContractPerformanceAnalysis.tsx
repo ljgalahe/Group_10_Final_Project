@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/format";
 import {
   analyzeContractLeaks,
@@ -22,14 +22,16 @@ export function ContractPerformanceAnalysis({
   report,
   profitLeaks,
   recommendations,
+  embedded = false,
 }: {
   report: ProfitabilityAnalysisRow[];
   profitLeaks: ContractProfitLeak[];
   recommendations: ContractRecommendations[];
+  /** When true, omit page-level section chrome (used inside twin panel). */
+  embedded?: boolean;
 }) {
   const ranked = useMemo(() => sortByMarginPctDesc(report), [report]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   const maxAbsMargin = useMemo(() => {
     const peak = Math.max(...ranked.map((row) => Math.abs(row.marginPct)), 1);
@@ -43,11 +45,18 @@ export function ContractPerformanceAnalysis({
   );
 
   useEffect(() => {
-    if (!selectedId || !panelRef.current) return;
-    panelRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [selectedId]);
+    if (selectedId && !ranked.some((r) => r.contractId === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [ranked, selectedId]);
 
-  if (ranked.length === 0) return null;
+  if (ranked.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-8 text-center text-sm text-stone-500">
+        No contracts match the current filters.
+      </div>
+    );
+  }
 
   const selectedLeaks = selected
     ? analyzeContractLeaks(selected, leakById.get(selected.contractId))
@@ -58,19 +67,38 @@ export function ContractPerformanceAnalysis({
     : [];
 
   return (
-    <section className="mt-2 space-y-4">
+    <section className={embedded ? "space-y-3" : "mt-2 space-y-4"}>
       <div>
-        <h2 className="text-lg font-semibold text-green-950">
+        <h2
+          className={
+            embedded
+              ? "text-base font-semibold text-green-950"
+              : "text-lg font-semibold text-green-950"
+          }
+        >
           Contract Performance Analysis
         </h2>
-        <p className="text-sm text-stone-500">
-          Click a contract bar to review status, profit leaks, and recommended
-          actions. Sorted highest margin % to lowest.
-        </p>
+        {!embedded ? (
+          <p className="text-sm text-stone-500">
+            Click a contract bar to open status, profit leaks, and recommended
+            actions. Sorted highest margin % to lowest.
+          </p>
+        ) : (
+          <p className="text-xs text-stone-500">
+            Click a bar to open contract details. Sorted by margin %.
+          </p>
+        )}
       </div>
 
-      <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-6">
-        <ul className="space-y-3" role="list">
+      <div
+        className={`rounded-xl border border-stone-200 bg-white shadow-sm ${
+          embedded ? "p-3 sm:p-4" : "p-4 sm:p-6"
+        }`}
+      >
+        <ul
+          className={`space-y-3 ${embedded ? "max-h-[28rem] overflow-y-auto pr-1" : ""}`}
+          role="list"
+        >
           {ranked.map((row) => {
             const isSelected = row.contractId === selectedId;
             const widthPct = Math.min(
@@ -83,11 +111,7 @@ export function ContractPerformanceAnalysis({
               <li key={row.contractId}>
                 <button
                   type="button"
-                  onClick={() =>
-                    setSelectedId((current) =>
-                      current === row.contractId ? null : row.contractId
-                    )
-                  }
+                  onClick={() => setSelectedId(row.contractId)}
                   aria-pressed={isSelected}
                   className={`group w-full rounded-lg border px-3 py-2.5 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 ${
                     isSelected
@@ -132,31 +156,20 @@ export function ContractPerformanceAnalysis({
         </ul>
       </div>
 
-      <div
-        ref={panelRef}
-        className={`grid transition-all duration-300 ease-out ${
-          selected
-            ? "grid-rows-[1fr] opacity-100"
-            : "pointer-events-none grid-rows-[0fr] opacity-0"
-        }`}
-      >
-        <div className="overflow-hidden">
-          {selected && selectedStatus ? (
-            <SelectedContractPanel
-              row={selected}
-              status={selectedStatus}
-              summary={managerSummarySentence(
-                selected,
-                selectedLeaks,
-                selectedStatus
-              )}
-              leaks={selectedLeaks}
-              recommendations={selectedRecs}
-              onClose={() => setSelectedId(null)}
-            />
-          ) : null}
-        </div>
-      </div>
+      {selected && selectedStatus ? (
+        <SelectedContractPanel
+          row={selected}
+          status={selectedStatus}
+          summary={managerSummarySentence(
+            selected,
+            selectedLeaks,
+            selectedStatus
+          )}
+          leaks={selectedLeaks}
+          recommendations={selectedRecs}
+          onClose={() => setSelectedId(null)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -177,25 +190,40 @@ function SelectedContractPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="mt-1 space-y-5 rounded-xl border border-green-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-            Selected contract
-          </p>
-          <h3 className="mt-1 text-lg font-semibold text-green-950">
-            {row.title}
-          </h3>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="contract-performance-detail-title"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+              Contract performance detail
+            </p>
+            <h3
+              id="contract-performance-detail-title"
+              className="mt-1 text-lg font-semibold text-green-950"
+            >
+              {row.title}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-2 py-1 text-stone-400 hover:bg-stone-50 hover:text-stone-600"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
-        >
-          Clear selection
-        </button>
-      </div>
 
+        <div className="space-y-5 overflow-y-auto px-6 py-5">
       <div className="space-y-2">
         <h4 className="text-sm font-semibold text-green-950">Manager summary</h4>
         <div className="rounded-lg border border-stone-200 bg-stone-50/80 p-4">
@@ -278,45 +306,57 @@ function SelectedContractPanel({
         )}
       </div>
 
-      <div className="space-y-2">
-        <h4 className="text-sm font-semibold text-green-950">
-          Manager recommendations
-        </h4>
-        {recommendations.length === 0 ? (
-          <p className="rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
-            No specific recommendations for this contract right now.
-          </p>
-        ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
-            {recommendations.map((rec) => (
-              <li
-                key={rec.id}
-                className={`rounded-lg border p-4 ${prioritySurfaceClass(rec.priority)}`}
-              >
-                <div className="flex gap-3">
-                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-green-900 shadow-sm">
-                    <RecommendationIconGlyph icon={rec.icon} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-stone-900">
-                        {rec.title}
-                      </p>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${priorityBadgeClass(rec.priority)}`}
-                      >
-                        {rec.priority}
-                      </span>
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-green-950">
+              Manager recommendations
+            </h4>
+            {recommendations.length === 0 ? (
+              <p className="rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+                No specific recommendations for this contract right now.
+              </p>
+            ) : (
+              <ul className="grid gap-3 md:grid-cols-2">
+                {recommendations.map((rec) => (
+                  <li
+                    key={rec.id}
+                    className={`rounded-lg border p-4 ${prioritySurfaceClass(rec.priority)}`}
+                  >
+                    <div className="flex gap-3">
+                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-green-900 shadow-sm">
+                        <RecommendationIconGlyph icon={rec.icon} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-stone-900">
+                            {rec.title}
+                          </p>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${priorityBadgeClass(rec.priority)}`}
+                          >
+                            {rec.priority}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm leading-relaxed text-stone-600">
+                          {rec.detail}
+                        </p>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm leading-relaxed text-stone-600">
-                      {rec.detail}
-                    </p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="flex justify-end border-t border-stone-100 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
