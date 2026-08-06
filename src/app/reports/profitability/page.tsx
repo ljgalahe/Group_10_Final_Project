@@ -43,7 +43,7 @@ export default async function ProfitabilityPage() {
     jobCostVariance,
     profitPerCrewHour,
   ] = await Promise.all([
-    fetchProfitabilityReport({ useAccountantVisitCosts: isAccountant }),
+    fetchProfitabilityReport(),
     fetchProfitLeakInputs(),
     isAccountant ? fetchFinancialStatementInputs() : Promise.resolve(null),
     isAccountant ? fetchDirectCostsBreakdown() : Promise.resolve(null),

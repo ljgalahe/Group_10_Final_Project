@@ -291,52 +291,36 @@ export async function ensureCompletedVisitLaborSynced(
   if (ids.length === 0) return { synced: 0 };
 
   const supabase = await createDataClient();
-  const chunkSize = 200;
-  const visits: Array<{ id: string; status: string }> = [];
-  const costs: Array<{
-    visit_id: string;
-    cost_type: string;
-    description: string | null;
-    quantity: number | string | null;
-  }> = [];
-  const laborRows: Array<{ visit_id: string }> = [];
-
-  for (let i = 0; i < ids.length; i += chunkSize) {
-    const chunk = ids.slice(i, i + chunkSize);
-    const [visitResult, costResult, laborResult] = await Promise.all([
-      supabase
-        .from("service_visits")
-        .select("id, status")
-        .in("id", chunk)
-        .eq("status", "completed"),
-      supabase
-        .from("visit_costs")
-        .select("visit_id, cost_type, description, quantity")
-        .in("visit_id", chunk)
-        .eq("cost_type", "labor"),
-      (async () => {
-        const { data, error } = await supabase
-          .from("visit_labor_entries")
-          .select("visit_id")
-          .in("visit_id", chunk);
-        if (error && isMissingLaborTable(error)) {
-          return { data: [] as Array<{ visit_id: string }> };
-        }
-        return { data: data ?? [] };
-      })(),
-    ]);
-    visits.push(...(visitResult.data ?? []));
-    costs.push(...(costResult.data ?? []));
-    laborRows.push(...(laborResult.data ?? []));
-  }
+  const [{ data: visits }, { data: costs }, laborResult] = await Promise.all([
+    supabase
+      .from("service_visits")
+      .select("id, status")
+      .in("id", ids)
+      .eq("status", "completed"),
+    supabase
+      .from("visit_costs")
+      .select("visit_id, cost_type, description, quantity")
+      .in("visit_id", ids)
+      .eq("cost_type", "labor"),
+    (async () => {
+      const { data, error } = await supabase
+        .from("visit_labor_entries")
+        .select("visit_id")
+        .in("visit_id", ids);
+      if (error && isMissingLaborTable(error)) {
+        return { data: [] as Array<{ visit_id: string }> };
+      }
+      return { data: data ?? [] };
+    })(),
+  ]);
 
   const costsByVisit = new Map(
-    costs.map((row) => [row.visit_id, row] as const)
+    (costs ?? []).map((row) => [row.visit_id, row] as const)
   );
-  const laborVisitIds = new Set(laborRows.map((row) => row.visit_id));
+  const laborVisitIds = new Set((laborResult.data ?? []).map((row) => row.visit_id));
   let synced = 0;
 
-  for (const visit of visits) {
+  for (const visit of visits ?? []) {
     const cost = costsByVisit.get(visit.id);
     const hasEncoded =
       typeof cost?.description === "string" &&
