@@ -165,7 +165,7 @@ export function ProspectInquiryForm({
         </div>
         <div className="sm:col-span-2">
           <label htmlFor="property_address" className={labelClass}>
-            Property address <span className="text-red-600">*</span>
+            Property Address <span className="text-red-600">*</span>
           </label>
           <input
             id="property_address"
@@ -175,9 +175,23 @@ export function ProspectInquiryForm({
             className={inputClass}
           />
         </div>
+        <div>
+          <label htmlFor="acres" className={labelClass}>
+            Acres
+          </label>
+          <input
+            id="acres"
+            name="acres"
+            type="number"
+            step="0.1"
+            min="0.1"
+            className={inputClass}
+            placeholder="e.g. 4.5"
+          />
+        </div>
         <fieldset className="sm:col-span-2">
           <legend className={labelClass}>
-            Services interested <span className="text-red-600">*</span>
+            Services Interested <span className="text-red-600">*</span>
           </legend>
           <div
             className={

@@ -111,7 +111,7 @@ export async function createServiceVisit(formData: FormData): Promise<void> {
   }
 
   const supabase = await createDataClient();
-  await supabase.from("service_visits").insert({
+  const { error } = await supabase.from("service_visits").insert({
     contract_id: contractId,
     scheduled_date: scheduledDate,
     status: "scheduled",
@@ -119,8 +119,22 @@ export async function createServiceVisit(formData: FormData): Promise<void> {
     crew_lead_name: crewLead,
   });
 
+  if (error) {
+    redirect("/schedule?error=create");
+  }
+
+  // Pipeline: first service visit marks signed contract as actively scheduled.
+  if (visitKind !== "survey") {
+    await supabase
+      .from("contracts")
+      .update({ status: "active" })
+      .eq("id", contractId)
+      .not("customer_signed_at", "is", null);
+  }
+
   revalidatePath("/schedule");
   revalidatePath("/visits");
+  revalidatePath("/contracts");
   redirect("/schedule?created=1");
 }
 

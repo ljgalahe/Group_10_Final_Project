@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { approveExtraWork, generateInvoice } from "@/app/actions/business";
+import {
+  declineCustomerContract,
+  sendContractToCustomer,
+  signCustomerContract,
+} from "@/app/actions/customer-contract-sign";
 import { AccountantContractDetail } from "@/components/AccountantContractDetail";
 import { AppShell } from "@/components/AppShell";
-import { ContractDualApprovalPanel } from "@/components/ContractDualApprovalPanel";
+import { CustomerContractSelfService } from "@/components/CustomerContractSelfService";
 import {
   ContractProgressChart,
   ContractPromiseSummary,
@@ -19,11 +24,14 @@ import {
 import {
   getContractDisplayStatus,
   isContractFullyApproved,
+  isContractPendingCustomer,
 } from "@/lib/contract-status";
 import {
   getViewRole,
+  roleCanDraftContracts,
   roleCanEditContractDetails,
   roleCanManageBilling,
+  roleCanSignContracts,
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { fetchContract, fetchVisits } from "@/lib/queries";
@@ -38,6 +46,12 @@ export default async function ContractDetailPage({
     edit?: string;
     invoiceError?: string;
     openVisits?: string;
+    sent?: string;
+    signed?: string;
+    paused?: string;
+    inquiry?: string;
+    cancelled?: string;
+    error?: string;
   }>;
 }) {
   const { id } = await params;
@@ -56,6 +70,7 @@ export default async function ContractDetailPage({
   }
 
   const showManagerDashboard = role === "manager";
+  const flash = searchParams ? await searchParams : {};
 
   const [{ data: contract }, visitsResult] = await Promise.all([
     fetchContract(id),
@@ -65,10 +80,22 @@ export default async function ContractDetailPage({
   ]);
   if (!contract) notFound();
 
+  const approvalState = (contract as { approval_state?: string | null })
+    .approval_state;
+  const customerSignedAt = (
+    contract as { customer_signed_at?: string | null }
+  ).customer_signed_at;
+  const servicePausedUntil = (
+    contract as { service_paused_until?: string | null }
+  ).service_paused_until;
+
   if (role === "customer") {
     if (
       !isContractFullyApproved(
-        contract as { approval_state?: string | null }
+        contract as {
+          approval_state?: string | null;
+          customer_signed_at?: string | null;
+        }
       )
     ) {
       redirect("/contracts");
@@ -104,11 +131,28 @@ export default async function ContractDetailPage({
     ? buildScopeCreepAlerts([contract]).filter((a) => a.contractId === id)
     : [];
 
+  const pendingCustomer = isContractPendingCustomer(
+    contract as {
+      approval_state?: string | null;
+      customer_signed_at?: string | null;
+    }
+  );
+  const opsCanSend =
+    roleCanDraftContracts(role) &&
+    approvalState === "draft" &&
+    !customerSignedAt;
+  const customerCanSign = roleCanSignContracts(role) && pendingCustomer;
+  const readyToSchedule = roleCanDraftContracts(role) && !!customerSignedAt;
+  const customerSelfService =
+    role === "customer" &&
+    contract.status === "active" &&
+    !pendingCustomer;
+
   return (
     <AppShell>
       <PageHeader
         title={contract.title}
-        description={`${customer.name} · ${customer.property_type ?? "Commercial property"}`}
+        description={`${customer.name} · ${customer.property_type ?? "Commercial Property"}`}
         action={
           roleCanManageBilling(role) ? (
             <form action={generateInvoice}>
@@ -124,23 +168,139 @@ export default async function ContractDetailPage({
         }
       />
 
-      <div className="mb-6">
-        <ContractDualApprovalPanel
+      {flash.sent === "1" ? (
+        <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+          Contract Sent To Customer As Proposed Contract.
+        </p>
+      ) : null}
+      {flash.signed === "1" ? (
+        <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+          Contract Signed. Ops Can Schedule Service Visits.
+        </p>
+      ) : null}
+      {flash.paused === "1" ? (
+        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Service Paused For One Month. You Can Extend Pause Again If Needed.
+        </p>
+      ) : null}
+      {flash.inquiry === "1" ? (
+        <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+          Your Contract Inquiry Was Submitted. We Will Follow Up Soon.
+        </p>
+      ) : null}
+      {flash.cancelled === "1" ? (
+        <p className="mb-4 rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-800">
+          Your Contract Has Been Cancelled.
+        </p>
+      ) : null}
+
+      {opsCanSend ? (
+        <Card className="mb-6">
+          <h2 className="text-lg font-semibold text-green-950">
+            Draft Contract
+          </h2>
+          <p className="mt-1 text-sm text-stone-600">
+            Send This Draft To The Customer For Review And Signature. Manager
+            Already Approved The Quote.
+          </p>
+          <form action={sendContractToCustomer} className="mt-4">
+            <input type="hidden" name="contract_id" value={id} />
+            <button
+              type="submit"
+              className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+            >
+              Send To Customer
+            </button>
+          </form>
+        </Card>
+      ) : null}
+
+      {customerCanSign ? (
+        <Card className="mb-6 border-amber-200 bg-amber-50/50">
+          <h2 className="text-lg font-semibold text-green-950">
+            Proposed Contract
+          </h2>
+          <p className="mt-1 text-sm text-stone-600">
+            Status: Needs Review And Signature
+          </p>
+          <form action={signCustomerContract} className="mt-4 space-y-3">
+            <input type="hidden" name="contract_id" value={id} />
+            <label className="block text-sm">
+              <span className="text-stone-600">Full Name (Signature)</span>
+              <input
+                name="signature_name"
+                required
+                className="mt-1 w-full max-w-md rounded-md border border-stone-300 px-3 py-2"
+                placeholder="Type Your Full Name"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+            >
+              Approve &amp; Sign
+            </button>
+          </form>
+
+          <form
+            action={declineCustomerContract}
+            className="mt-6 space-y-3 border-t border-amber-200 pt-4"
+          >
+            <input type="hidden" name="contract_id" value={id} />
+            <h3 className="text-sm font-semibold text-green-950">Decline</h3>
+            <label className="block text-sm">
+              <span className="font-medium text-stone-700">
+                Questions Or Concerns
+              </span>
+              <textarea
+                name="decline_notes"
+                required
+                rows={3}
+                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
+                placeholder="Share Your Questions Or Concerns"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-50"
+            >
+              Decline Proposed Contract
+            </button>
+          </form>
+        </Card>
+      ) : null}
+
+      {customerSelfService ? (
+        <CustomerContractSelfService
           contractId={id}
-          approvalState={
-            (contract as { approval_state?: string | null }).approval_state
-          }
-          managerApprovedAt={
-            (contract as { manager_approved_at?: string | null })
-              .manager_approved_at
-          }
-          accountantApprovedAt={
-            (contract as { accountant_approved_at?: string | null })
-              .accountant_approved_at
-          }
-          role={role}
+          servicePausedUntil={servicePausedUntil}
+          isActive={contract.status === "active"}
         />
-      </div>
+      ) : null}
+
+      {customerSignedAt ? (
+        <Card className="mb-6">
+          <h2 className="text-lg font-semibold text-green-950">
+            Customer Signature
+          </h2>
+          <p className="mt-2 text-sm text-stone-700">
+            Signed By{" "}
+            <span className="font-medium">
+              {(contract as { customer_signature_name?: string | null })
+                .customer_signature_name ?? "Customer"}
+            </span>{" "}
+            On {formatDate(customerSignedAt.slice(0, 10))}
+          </p>
+          {readyToSchedule ? (
+            <Link
+              href={`/schedule?contract_id=${id}`}
+              className="mt-4 inline-block rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+            >
+              Schedule Service Visits
+            </Link>
+          ) : null}
+        </Card>
+      ) : null}
 
       <div className="space-y-6">
         {showManagerDashboard && progress ? (
@@ -149,10 +309,6 @@ export default async function ContractDetailPage({
               <h3 className="text-lg font-semibold text-green-950">
                 Contract Completion
               </h3>
-              <p className="mt-1 text-sm text-stone-500">
-                Percent complete, on-track status, and agreement status for this
-                property.
-              </p>
               <div className="mt-6">
                 <ContractProgressChart
                   percentComplete={progress.percentComplete}
@@ -167,24 +323,16 @@ export default async function ContractDetailPage({
 
             <Card>
               <h3 className="text-lg font-semibold text-green-950">
-                Contract Promise vs Actual Work Map
+                Contract Promise Vs Actual Work Map
               </h3>
-              <p className="mt-1 text-sm text-stone-500">
-                What the contract promised, what was scheduled/completed/skipped,
-                and extras not included in the agreement.
-              </p>
               <ContractPromiseSummary progress={progress} />
               <PromiseVsActualTable rows={progress.rows} />
             </Card>
 
             <Card>
               <h3 className="text-lg font-semibold text-green-950">
-                Out-of-Scope Work Watch
+                Out-Of-Scope Work Watch
               </h3>
-              <p className="mt-1 text-sm text-stone-500">
-                Detects repeated uncontracted work and offers change-order,
-                renewal, or goodwill actions. Filter by company or task.
-              </p>
               <OutOfScopeWorkWatch alerts={scopeAlerts} />
             </Card>
           </>
@@ -202,6 +350,12 @@ export default async function ContractDetailPage({
                   <StatusBadge status={getContractDisplayStatus(contract)} />
                 </dd>
               </div>
+              {servicePausedUntil ? (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-stone-500">Service Paused Until</dt>
+                  <dd>{formatDate(servicePausedUntil)}</dd>
+                </div>
+              ) : null}
               <div className="flex justify-between gap-4">
                 <dt className="text-stone-500">Season</dt>
                 <dd>
@@ -215,7 +369,7 @@ export default async function ContractDetailPage({
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-stone-500">Visit Frequency</dt>
-                <dd>{contract.visits_per_week} visits per week</dd>
+                <dd>{contract.visits_per_week} Visits Per Week</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-stone-500">Billing Method</dt>
@@ -251,7 +405,7 @@ export default async function ContractDetailPage({
                 >
                   <span>{service.service_name}</span>
                   <span className="text-green-700">
-                    {service.included ? "Included" : "Add-on"}
+                    {service.included ? "Included" : "Add-On"}
                   </span>
                 </li>
               ))}
@@ -263,13 +417,9 @@ export default async function ContractDetailPage({
           <h2 className="text-lg font-semibold text-green-950">
             Extra Work Orders
           </h2>
-          <p className="mt-1 text-sm text-stone-500">
-            Work requested outside the original agreement — quoted, approved,
-            then billed separately.
-          </p>
           {extraWork.length === 0 ? (
             <p className="mt-4 text-sm text-stone-500">
-              No extra work on this contract.
+              No Extra Work On This Contract.
             </p>
           ) : (
             <div className="mt-4 space-y-3">
@@ -314,7 +464,7 @@ export default async function ContractDetailPage({
             href="/contracts"
             className="text-sm text-green-800 hover:underline"
           >
-            ← Back to contracts
+            ← Back To Contracts
           </Link>
         </div>
       </div>

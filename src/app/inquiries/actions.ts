@@ -34,6 +34,9 @@ export async function submitProspectInquiry(
   const property_address = String(formData.get("property_address") ?? "").trim();
   const property_type = String(formData.get("property_type") ?? "").trim();
   const message = String(formData.get("message") ?? "").trim();
+  const acresRaw = String(formData.get("acres") ?? "").trim();
+  const acres =
+    acresRaw && Number.isFinite(Number(acresRaw)) ? Number(acresRaw) : null;
   const services_interested = formData
     .getAll("services_interested")
     .map((v) => String(v))
@@ -66,6 +69,8 @@ export async function submitProspectInquiry(
     services_interested,
     message: message || null,
     status: "New",
+    acres,
+    survey_status: "needs_scheduling",
   });
 
   if (error) {

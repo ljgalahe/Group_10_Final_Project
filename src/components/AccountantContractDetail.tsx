@@ -6,6 +6,7 @@ import { BillableStatusCard } from "@/components/BillingCards";
 import { ContractDetailsForm } from "@/components/ContractDetailsForm";
 import { ContractDualApprovalPanel } from "@/components/ContractDualApprovalPanel";
 import { ContractInternalControls } from "@/components/ContractInternalControls";
+import { DownloadContractPdfButton } from "@/components/DownloadContractPdfButton";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { contractBillableStatus } from "@/lib/billing-status";
 import { getContractDisplayStatus } from "@/lib/contract-status";
@@ -76,6 +77,32 @@ export async function AccountantContractDetail({
         description={`${customer.name} · ${customer.property_type ?? "Commercial property"}`}
         action={
           <div className="flex flex-col items-end gap-1">
+            <DownloadContractPdfButton
+              data={{
+                id: contract.id,
+                title: contract.title,
+                customerName: customer.name,
+                propertyAddress: customer.address,
+                contactName: customer.contact_name,
+                statusLabel: getContractDisplayStatus(contract),
+                seasonStart: contract.season_start,
+                seasonEnd: contract.season_end,
+                monthlyFee:
+                  contract.monthly_fee != null
+                    ? Number(contract.monthly_fee)
+                    : null,
+                visitsPerWeek: contract.visits_per_week,
+                billingMethod: contract.billing_method,
+                notes: contract.notes,
+                services: services.map((s) => ({
+                  service_name: s.service_name,
+                  included: s.included,
+                })),
+                customerSignedAt: contract.customer_signed_at ?? null,
+                customerSignatureName: contract.customer_signature_name ?? null,
+              }}
+              className="mb-1 rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+            />
             <form action={generateInvoice}>
               <input type="hidden" name="contract_id" value={id} />
               <button

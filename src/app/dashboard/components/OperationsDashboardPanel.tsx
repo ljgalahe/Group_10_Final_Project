@@ -10,7 +10,7 @@ export function OperationsDashboardPanel({
 }) {
   return (
     <div className="mt-8 space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-5">
         <StatCard
           label="Open Quotes"
           value={data.openQuotesCount}
@@ -19,7 +19,7 @@ export function OperationsDashboardPanel({
         <StatCard
           label="Contract Drafts"
           value={data.pendingApprovalsCount}
-          hint="Awaiting Manager + Accountant approval"
+          hint="Approved Quotes Ready Or Awaiting Customer Signature"
         />
         <StatCard
           label="Upcoming Service Visits"
@@ -107,10 +107,10 @@ export function OperationsDashboardPanel({
               </p>
             </div>
             <Link
-              href="/quotes"
+              href="/ops/site-surveys"
               className="text-sm font-medium text-green-800 hover:underline"
             >
-              Quotes →
+              Site Survey →
             </Link>
           </div>
           {data.upcomingSurveyVisits.length === 0 ? (

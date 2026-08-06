@@ -1,17 +1,22 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
-  draftContractFromQuote,
-  saveQuoteBudget,
-  scheduleSurveyVisit,
-} from "@/app/actions/quotes";
+  approveQuote,
+  requestQuoteChanges,
+  saveQuoteDraft,
+  submitQuoteForApproval,
+} from "@/app/actions/quote-approvals";
 import { requireAppAccess } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
+import { DownloadQuotePdfButton } from "@/components/DownloadQuotePdfButton";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
-import { getViewRole, roleCanManageQuotes } from "@/lib/demo-role";
-import { formatDate } from "@/lib/format";
+import { getViewRole, roleCanApproveQuotes, roleCanManageQuotes } from "@/lib/demo-role";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { fetchQuoteRequestById } from "@/lib/queries";
-import { DEMO_CREW_LEADS } from "@/lib/types";
+import {
+  estimateMonthlyFee,
+  type QuoteLineItem,
+} from "@/lib/service-pricing";
 
 export default async function QuoteDetailPage({
   params,
@@ -19,14 +24,16 @@ export default async function QuoteDetailPage({
 }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{
-    budget?: string;
-    survey?: string;
+    saved?: string;
+    submitted?: string;
     error?: string;
   }>;
 }) {
   await requireAppAccess();
   const role = await getViewRole();
-  if (!roleCanManageQuotes(role)) {
+  const canManage = roleCanManageQuotes(role);
+  const canApprove = roleCanApproveQuotes(role);
+  if (!canManage && !canApprove) {
     redirect("/dashboard");
   }
 
@@ -44,41 +51,98 @@ export default async function QuoteDetailPage({
   seasonEnd.setMonth(seasonEnd.getMonth() + 6);
   const seasonEndStr = seasonEnd.toISOString().slice(0, 10);
 
+  const lineItems = (quote.line_items as QuoteLineItem[]) ?? [];
+  const acres =
+    lineItems.reduce((max, li) => Math.max(max, Number(li.acres) || 0), 0) || 1;
+  const visitsDefault = Number(quote.visits_per_week ?? 1) || 1;
+  const estimated =
+    quote.monthly_fee != null
+      ? Number(quote.monthly_fee)
+      : estimateMonthlyFee(lineItems, acres, visitsDefault);
+
+  const editable =
+    canManage &&
+    (quote.status === "budgeted" ||
+      quote.status === "changes_requested" ||
+      quote.status === "new" ||
+      quote.status === "survey_scheduled");
+
+  const quotePdfData = {
+    id: quote.id,
+    customerName: customer?.name ?? "Customer",
+    propertyAddress:
+      quote.property_address || customer?.address || "—",
+    serviceDescription: quote.service_description,
+    status: String(quote.status),
+    lineItems,
+    visitsPerWeek: visitsDefault,
+    visitFrequencyNotes: quote.visit_frequency_notes ?? null,
+    seasonStart: quote.season_start ?? today,
+    seasonEnd: quote.season_end ?? seasonEndStr,
+    monthlyFee: estimated || null,
+    notes: quote.notes ?? null,
+    submittedAt: quote.submitted_for_approval_at ?? null,
+    createdAt: quote.created_at,
+  };
+
   return (
     <AppShell>
       <PageHeader
-        title="Quote Request"
-        description={`${customer?.name ?? "Customer"} · received ${formatDate(quote.created_at.slice(0, 10))}`}
+        title="Quote Builder"
+        description={`${customer?.name ?? "Customer"} · Received ${formatDate(quote.created_at.slice(0, 10))}`}
+        action={
+          <DownloadQuotePdfButton
+            data={quotePdfData}
+            className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+          />
+        }
       />
 
-      {flash.budget === "1" ? (
+      {flash.saved === "1" ? (
         <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-          Budget saved.
+          Quote Draft Saved.
         </p>
       ) : null}
-      {flash.survey === "1" ? (
+      {flash.submitted === "1" ? (
         <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-          Site survey visit scheduled. Assign routes on Scheduling if needed.
+          Submitted For Management Approval.
         </p>
       ) : null}
       {flash.error ? (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Could not complete that action. Check that the Operations migration is applied.
+          Could Not Complete That Action.
         </p>
       ) : null}
 
-      <div className="mb-4">
-        <Link href="/quotes" className="text-sm font-medium text-green-800 hover:underline">
-          ← Back to Quotes
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Link
+          href="/quotes"
+          className="text-sm font-medium text-green-800 hover:underline"
+        >
+          ← Back To Quotes
         </Link>
+        <StatusBadge status={String(quote.status)} />
+        {quote.survey_id ? (
+          <Link
+            href={`/ops/site-surveys/${quote.survey_id}`}
+            className="text-sm font-medium text-green-800 hover:underline"
+          >
+            View Site Survey
+          </Link>
+        ) : null}
+        {quote.draft_contract_id ? (
+          <Link
+            href={`/contracts/${quote.draft_contract_id}`}
+            className="text-sm font-medium text-green-800 hover:underline"
+          >
+            Open Contract
+          </Link>
+        ) : null}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="text-lg font-semibold text-green-950">Request</h2>
-            <StatusBadge status={String(quote.status)} />
-          </div>
+          <h2 className="text-lg font-semibold text-green-950">Request</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <div>
               <dt className="text-stone-500">Customer</dt>
@@ -94,210 +158,172 @@ export default async function QuoteDetailPage({
               <dt className="text-stone-500">Services Requested</dt>
               <dd className="text-stone-800">{quote.service_description}</dd>
             </div>
-            {quote.notes ? (
-              <div>
-                <dt className="text-stone-500">Notes</dt>
-                <dd className="text-stone-800">{quote.notes}</dd>
-              </div>
-            ) : null}
           </dl>
         </Card>
 
         <Card>
-          <h2 className="text-lg font-semibold text-green-950">
-            1. Site Survey (Operations)
-          </h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Operations goes to the client site first to observe the property and
-            gather information, then returns to budget hours/supplies and draft
-            the quote. Manager does not own this step.
-          </p>
-          <form action={scheduleSurveyVisit} className="mt-4 space-y-3">
-            <input type="hidden" name="quote_id" value={quote.id} />
-            <input type="hidden" name="crew_lead_name" value="Operations" />
-            <label className="block text-sm">
-              <span className="text-stone-600">Survey date</span>
-              <input
-                type="date"
-                name="scheduled_date"
-                required
-                defaultValue={today}
-                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="text-stone-600">
-                Property observations (optional)
-              </span>
-              <textarea
-                name="site_observations"
-                rows={3}
-                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                placeholder="Site conditions, access notes, scope observations…"
-                defaultValue={quote.notes ?? ""}
-              />
-            </label>
-            <button
-              type="submit"
-              className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
-            >
-              Schedule Ops site survey
-            </button>
-          </form>
-          {quote.survey_visit_id ? (
-            <p className="mt-3 text-xs text-stone-500">
-              Survey visit scheduled (id: {quote.survey_visit_id}). Status:{" "}
-              <StatusBadge status={String(quote.status)} />
+          <h2 className="text-lg font-semibold text-green-950">Line Items</h2>
+          {lineItems.length === 0 ? (
+            <p className="mt-3 text-sm text-stone-500">
+              No Line Items Yet. Complete A Site Survey To Populate Pricing.
             </p>
-          ) : null}
+          ) : (
+            <table className="mt-3 w-full text-sm">
+              <thead className="text-left text-stone-500">
+                <tr>
+                  <th className="py-1 font-medium">Service</th>
+                  <th className="py-1 font-medium">Acres</th>
+                  <th className="py-1 font-medium">Unit</th>
+                  <th className="py-1 font-medium">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lineItems.map((li, idx) => (
+                  <tr key={`${li.serviceKey}-${idx}`} className="border-t">
+                    <td className="py-2">{li.label}</td>
+                    <td className="py-2">{li.acres}</td>
+                    <td className="py-2">{formatCurrency(li.unitPrice)}</td>
+                    <td className="py-2">{formatCurrency(li.lineTotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-2">
           <h2 className="text-lg font-semibold text-green-950">
-            2. Budget Hours &amp; Supplies
+            Quote Terms
           </h2>
-          <p className="mt-1 text-sm text-stone-600">
-            After the site survey, turn observations into planned hours and
-            materials for the customer quote.
-          </p>
-          <form action={saveQuoteBudget} className="mt-4 space-y-3">
+          <form className="mt-4 grid gap-4 sm:grid-cols-2">
             <input type="hidden" name="quote_id" value={quote.id} />
+            <input
+              type="hidden"
+              name="line_items_json"
+              value={JSON.stringify(lineItems)}
+            />
             <label className="block text-sm">
-              <span className="text-stone-600">Planned hours</span>
+              <span className="text-stone-600">Visits Per Week</span>
               <input
                 type="number"
                 step="0.5"
                 min="0"
-                name="budget_hours"
-                defaultValue={quote.budget_hours ?? ""}
-                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
+                name="visits_per_week"
+                defaultValue={visitsDefault}
+                disabled={!editable}
+                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 disabled:bg-stone-50"
               />
             </label>
             <label className="block text-sm">
-              <span className="text-stone-600">Supplies / materials</span>
-              <textarea
-                name="budget_supplies"
-                rows={3}
-                defaultValue={quote.budget_supplies ?? ""}
-                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                placeholder="Mulch, irrigation parts, etc."
+              <span className="text-stone-600">Monthly Fee</span>
+              <input
+                type="number"
+                step="0.01"
+                name="monthly_fee"
+                defaultValue={estimated || ""}
+                disabled={!editable}
+                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 disabled:bg-stone-50"
               />
             </label>
-            <button
-              type="submit"
-              className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
-            >
-              Save budget
-            </button>
-          </form>
-        </Card>
+            <label className="block text-sm">
+              <span className="text-stone-600">Season Start</span>
+              <input
+                type="date"
+                name="season_start"
+                defaultValue={quote.season_start ?? today}
+                disabled={!editable}
+                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 disabled:bg-stone-50"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-stone-600">Season End</span>
+              <input
+                type="date"
+                name="season_end"
+                defaultValue={quote.season_end ?? seasonEndStr}
+                disabled={!editable}
+                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 disabled:bg-stone-50"
+              />
+            </label>
+            <label className="block text-sm sm:col-span-2">
+              <span className="text-stone-600">Visit Frequency Notes</span>
+              <input
+                name="visit_frequency_notes"
+                defaultValue={quote.visit_frequency_notes ?? ""}
+                disabled={!editable}
+                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 disabled:bg-stone-50"
+                placeholder="e.g. Twice weekly during peak season"
+              />
+            </label>
+            <label className="block text-sm sm:col-span-2">
+              <span className="text-stone-600">Notes</span>
+              <textarea
+                name="notes"
+                rows={3}
+                defaultValue={quote.notes ?? ""}
+                disabled={!editable}
+                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 disabled:bg-stone-50"
+              />
+            </label>
 
-        <Card>
-          <h2 className="text-lg font-semibold text-green-950">
-            3. Draft Contract (Quote)
-          </h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Operations creates the draft quote/contract; Manager and Accountant
-            approve before the customer sees it.
-          </p>
-          {quote.draft_contract_id ? (
-            <p className="mt-4 text-sm">
-              Draft already created.{" "}
-              <Link
-                href={`/contracts/${quote.draft_contract_id}`}
-                className="font-medium text-green-800 hover:underline"
-              >
-                Open contract
-              </Link>
-            </p>
-          ) : (
-            <form action={draftContractFromQuote} className="mt-4 space-y-3">
-              <input type="hidden" name="quote_id" value={quote.id} />
-              <label className="block text-sm">
-                <span className="text-stone-600">Title</span>
-                <input
-                  name="title"
-                  required
-                  defaultValue={`${customer?.name ?? "Customer"} — ${quote.service_description.slice(0, 48)}`}
-                  className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="text-stone-600">Monthly fee</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="monthly_fee"
-                  defaultValue={
-                    quote.budget_hours != null
-                      ? String(Math.round(Number(quote.budget_hours) * 85))
-                      : ""
-                  }
-                  className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block text-sm">
-                  <span className="text-stone-600">Season start</span>
-                  <input
-                    type="date"
-                    name="season_start"
-                    required
-                    defaultValue={today}
-                    className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className="text-stone-600">Season end</span>
-                  <input
-                    type="date"
-                    name="season_end"
-                    required
-                    defaultValue={seasonEndStr}
-                    className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                  />
-                </label>
-              </div>
-              <label className="block text-sm">
-                <span className="text-stone-600">Visits per week</span>
-                <input
-                  type="number"
-                  min="0"
-                  name="visits_per_week"
-                  defaultValue={1}
-                  className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="text-stone-600">Assigned crew lead</span>
-                <select
-                  name="assigned_crew"
-                  className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                  defaultValue={DEMO_CREW_LEADS[0]}
+            {editable ? (
+              <div className="flex flex-wrap gap-3 sm:col-span-2">
+                <button
+                  type="submit"
+                  formAction={saveQuoteDraft}
+                  className="rounded-md border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
                 >
-                  {DEMO_CREW_LEADS.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="text-stone-600">Notes (optional)</span>
-                <textarea
-                  name="notes"
-                  rows={2}
-                  className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                />
-              </label>
-              <button
-                type="submit"
-                className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+                  Save Draft
+                </button>
+                <button
+                  type="submit"
+                  formAction={submitQuoteForApproval}
+                  className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+                >
+                  Submit For Management Approval
+                </button>
+              </div>
+            ) : quote.status === "pending_manager_approval" && !canApprove ? (
+              <p className="text-sm text-amber-800 sm:col-span-2">
+                Waiting For Manager Approval.
+              </p>
+            ) : quote.status === "approved" ? (
+              <p className="text-sm text-green-800 sm:col-span-2">
+                Approved. Create The Contract From Ops Contracts → Draft
+                Contracts.
+              </p>
+            ) : null}
+          </form>
+          {quote.status === "pending_manager_approval" && canApprove ? (
+            <div className="mt-4 flex flex-wrap gap-3">
+              <form action={approveQuote}>
+                <input type="hidden" name="quote_id" value={quote.id} />
+                <button
+                  type="submit"
+                  className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+                >
+                  Approve Quote
+                </button>
+              </form>
+              <form
+                action={requestQuoteChanges}
+                className="flex flex-wrap items-end gap-2"
               >
-                Create draft for approval
-              </button>
-            </form>
-          )}
+                <input type="hidden" name="quote_id" value={quote.id} />
+                <input
+                  name="change_notes"
+                  placeholder="Request Changes…"
+                  className="rounded-md border border-stone-300 px-3 py-2 text-sm"
+                />
+                <button
+                  type="submit"
+                  className="rounded-md border border-amber-700 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-50"
+                >
+                  Request Changes
+                </button>
+              </form>
+            </div>
+          ) : null}
         </Card>
       </div>
     </AppShell>

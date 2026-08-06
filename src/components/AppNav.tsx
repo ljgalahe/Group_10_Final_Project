@@ -21,11 +21,15 @@ const navItems = [
     label: "Home",
     roles: ["inquiries"],
   },
-  // Ops primary order: Dashboard → Inquiries → Quotes → Contracts → Scheduling → Visits
-  // (Inquiries before Quotes so Operations creates quotes from inquiries first.)
+  // Ops: Dashboard → Inquiries → Site Survey → Quotes → Contracts → Scheduling → Visits
   {
     href: "/ops/inquiries",
     label: "Inquiries",
+    roles: ["operations"],
+  },
+  {
+    href: "/ops/site-surveys",
+    label: "Site Survey",
     roles: ["operations"],
   },
   {
@@ -76,6 +80,7 @@ const navItems = [
 const OPERATIONS_NAV_HREF_ORDER = [
   "/dashboard",
   "/ops/inquiries",
+  "/ops/site-surveys",
   "/quotes",
   "/contracts",
   "/schedule",

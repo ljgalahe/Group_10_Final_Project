@@ -43,6 +43,7 @@ export default async function SchedulePage({
     created?: string;
     rescheduled?: string;
     error?: string;
+    contract_id?: string;
   }>;
 }) {
   await requireAppAccess();
@@ -70,7 +71,9 @@ export default async function SchedulePage({
         .order("scheduled_date", { ascending: true }),
       supabase
         .from("contracts")
-        .select("id, title, status, customers(name)")
+        .select(
+          "id, title, status, customer_signed_at, customers(name)"
+        )
         .in("status", ["active", "draft"])
         .order("title"),
       fetchVisits(),
@@ -101,6 +104,9 @@ export default async function SchedulePage({
         id: c.id,
         title: c.title,
         customer_name: customer?.name ?? "Customer",
+        ready_to_schedule: Boolean(
+          (c as { customer_signed_at?: string | null }).customer_signed_at
+        ),
       };
     });
 
@@ -121,31 +127,31 @@ export default async function SchedulePage({
       <AppShell>
         <PageHeader
           title="Scheduling"
-          description="Company scheduling hub - calendar, create/assign visits, location routing, missed-visit reschedule, and crew time-off."
+          description="Company Scheduling Hub — Calendar, Create/Assign Visits, And Crew Time-Off. After A Customer Signs, Schedule Service Visits Here."
         />
         {params.assigned === "1" ? (
           <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-            Visit assignment saved.
+            Visit Assignment Saved.
           </p>
         ) : null}
         {params.created === "1" ? (
           <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-            Visit created.
+            Visit Created. It Will Appear On Manager Visits And Crew Schedule.
           </p>
         ) : null}
         {params.rescheduled === "1" ? (
           <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-            Visit rescheduled and restored to the active board.
+            Visit Rescheduled And Restored To The Active Board.
           </p>
         ) : null}
         {params.grouped ? (
           <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-            Grouped {params.grouped} nearby visit(s) onto the target day.
+            Grouped {params.grouped} Nearby Visit(s) Onto The Target Day.
           </p>
         ) : null}
         {params.error ? (
           <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            Could not complete scheduling action.
+            Could Not Complete Scheduling Action.
           </p>
         ) : null}
         <div className="space-y-6">
@@ -154,6 +160,7 @@ export default async function SchedulePage({
             contracts={contracts}
             today={todayDateOnly()}
             calendarJobs={calendarJobs}
+            preferredContractId={params.contract_id}
           />
           <div id="crew-availability" className="scroll-mt-24">
             <OperationsMemberSchedulingPanel />

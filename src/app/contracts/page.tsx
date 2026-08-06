@@ -4,7 +4,9 @@ import { AppShell } from "@/components/AppShell";
 import { ContractCompletionChart } from "@/components/contracts/ContractCompletionChart";
 import { OutOfScopeWorkWatch } from "@/components/contracts/OutOfScopeWorkWatch";
 import { PromiseVsActualMap } from "@/components/contracts/PromiseVsActualMap";
-import { PendingContractApprovalsSection } from "@/components/PendingContractApprovalsSection";
+import { DraftContractsSection } from "@/components/DraftContractsSection";
+import { ProposedContractSection } from "@/components/ProposedContractSection";
+import { QuotesPendingApprovalSection } from "@/components/QuotesPendingApprovalSection";
 import { Card, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
 import {
@@ -16,12 +18,14 @@ import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   fetchAccountantContractBilling,
+  fetchApprovedQuotesForDraft,
   fetchContractAuditLogs,
   fetchContractProfitabilityMap,
   fetchContracts,
   fetchContractsDetailed,
-  fetchPendingContractApprovals,
   fetchPendingContractChangeRequests,
+  fetchProposedContractsForCustomer,
+  fetchQuotesPendingApproval,
   fetchVisits,
 } from "@/lib/queries";
 import type { ServiceVisit } from "@/lib/types";
@@ -87,9 +91,14 @@ function SimpleContractsTable({
   );
 }
 
-export default async function ContractsPage() {
+export default async function ContractsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ declined?: string }>;
+}) {
   await requireAppAccess();
 
+  const flash = searchParams ? await searchParams : {};
   const role = await getViewRole();
 
   if (roleCanEditContractDetails(role)) {
@@ -99,35 +108,22 @@ export default async function ContractsPage() {
       { data: pendingRequests },
       { data: auditLogs },
       billing,
-      { data: pendingApprovals },
     ] = await Promise.all([
       fetchContractsDetailed(),
       fetchContractProfitabilityMap(),
       fetchPendingContractChangeRequests(),
       fetchContractAuditLogs(),
       fetchAccountantContractBilling(),
-      fetchPendingContractApprovals(),
     ]);
     const unprofitableIds = [...profitMap.entries()]
       .filter(([, info]) => info.unprofitable)
       .map(([id]) => id);
 
-    const awaitingAccountant = pendingApprovals.filter(
-      (c) =>
-        !(c as { accountant_approved_at?: string | null }).accountant_approved_at
-    );
-
     return (
       <AppShell>
         <PageHeader
           title="Contracts"
-          description="Review Operations drafts for dual approval, then manage billing, renewals, and audit controls."
-        />
-        <PendingContractApprovalsSection
-          title="Contracts Awaiting Accountant Approval"
-          description="New contracts drafted by Operations. Approve here after reviewing terms — both Manager and Accountant must approve before the Customer can see the contract."
-          contracts={awaitingAccountant}
-          emptyMessage="No Operations drafts are waiting for Accountant approval."
+          description="Manage Billing, Renewals, And Audit Controls."
         />
         <AccountantContractsView
           contracts={contracts}
@@ -142,50 +138,66 @@ export default async function ContractsPage() {
   }
 
   const { data: contracts } = await fetchContracts();
-  const pendingApprovals =
-    role === "manager" || role === "operations"
-      ? (await fetchPendingContractApprovals()).data
-      : [];
 
-  // Customer (and crew) see the simple agreement list — not manager ops dashboards.
   if (role === "customer" || role === "crew_lead" || role === "crew_member") {
     const isCustomer = role === "customer";
+    const proposed = isCustomer
+      ? (await fetchProposedContractsForCustomer()).data
+      : [];
+    const activeList = isCustomer
+      ? contracts.filter(
+          (c) =>
+            (c as { approval_state?: string | null }).approval_state !==
+              "pending_customer" ||
+            (c as { customer_signed_at?: string | null }).customer_signed_at
+        )
+      : contracts;
+
     return (
       <AppShell>
         <PageHeader
           title="Contracts"
           description={
             isCustomer
-              ? "Your seasonal service agreements, terms, and included services."
-              : "Structured seasonal agreements with service terms, billing rules, and included services."
+              ? "Review Proposed Contracts And Your Signed Agreements."
+              : "Structured Seasonal Agreements With Service Terms And Billing Rules."
           }
         />
 
-        {contracts.length === 0 ? (
+        {isCustomer && flash.declined === "1" ? (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            Proposed Contract Declined. Ops Will Review Your Questions Or
+            Concerns.
+          </p>
+        ) : null}
+
+        {isCustomer ? <ProposedContractSection contracts={proposed} /> : null}
+
+        {activeList.length === 0 && (!isCustomer || proposed.length === 0) ? (
           <EmptyState
             message={
               isCustomer
-                ? "No contracts on file for this property."
-                : "No contracts yet. Run the seed script in Supabase to load demo data."
+                ? "No Contracts On File For This Property."
+                : "No Contracts Yet."
             }
           />
-        ) : (
+        ) : activeList.length > 0 ? (
           <SimpleContractsTable
-            contracts={contracts}
+            contracts={activeList}
             showCustomerColumn={!isCustomer}
           />
-        )}
+        ) : null}
       </AppShell>
     );
   }
 
-  // Operations: drafts list + pending dual-approval (no manager analytics charts).
   if (role === "operations") {
+    const { data: approvedQuotes } = await fetchApprovedQuotesForDraft();
     return (
       <AppShell>
         <PageHeader
           title="Contracts"
-          description="Draft contracts from Quotes. Manager and Accountant must both approve before customers see them."
+          description="Create Draft Contracts From Approved Quotes, Then Send To The Customer For Signature."
           action={
             <Link
               href="/quotes"
@@ -195,14 +207,9 @@ export default async function ContractsPage() {
             </Link>
           }
         />
-        <PendingContractApprovalsSection
-          title="Contracts Awaiting Dual Approval"
-          description="Sent to Management and Accounting. Status stays Waiting For Approval until both approve."
-          contracts={pendingApprovals}
-          emptyMessage="No contracts are waiting for dual approval."
-        />
+        <DraftContractsSection quotes={approvedQuotes} />
         {contracts.length === 0 ? (
-          <EmptyState message="No contracts yet. Draft one from a quote in the Quotes inbox." />
+          <EmptyState message="No Contracts Yet. Create One From An Approved Quote Above." />
         ) : (
           <SimpleContractsTable contracts={contracts} showCustomerColumn />
         )}
@@ -210,7 +217,10 @@ export default async function ContractsPage() {
     );
   }
 
-  const { data: visits } = await fetchVisits();
+  const [{ data: pendingQuotes }, { data: visits }] = await Promise.all([
+    fetchQuotesPendingApproval(),
+    fetchVisits(),
+  ]);
 
   const visitsByContract = new Map<string, ServiceVisit[]>();
   for (const visit of visits as ServiceVisit[]) {
@@ -224,26 +234,17 @@ export default async function ContractsPage() {
   );
   const outOfScopeAlerts = buildScopeCreepAlerts(contracts);
 
-  const awaitingManager = pendingApprovals.filter(
-    (c) => !(c as { manager_approved_at?: string | null }).manager_approved_at
-  );
-
   return (
     <AppShell>
       <PageHeader
         title="Contracts"
-        description="Approve Operations drafts, then track completion, promise vs actual work, and out-of-scope items."
+        description="Approve Ops Quotes, Then Track Completion And Promise Vs Actual Work."
       />
 
-      <PendingContractApprovalsSection
-        title="Contracts Awaiting Management Approval"
-        description="New contracts received from Operations. Review and approve — both Manager and Accountant must approve before the Customer can see the contract."
-        contracts={awaitingManager}
-        emptyMessage="No Operations drafts are waiting for Management approval."
-      />
+      <QuotesPendingApprovalSection quotes={pendingQuotes} />
 
       {contracts.length === 0 ? (
-        <EmptyState message="No contracts yet. Run the seed script in Supabase to load demo data." />
+        <EmptyState message="No Contracts Yet." />
       ) : (
         <div className="space-y-6">
           <Card>
@@ -251,8 +252,7 @@ export default async function ContractsPage() {
               Contract Completion
             </h3>
             <p className="mt-1 text-sm text-stone-500">
-              Percent complete, on-track status, and contract status. Filter by
-              company or view overall.
+              Percent Complete, On-Track Status, And Contract Status.
             </p>
             <div className="mt-4">
               <ContractCompletionChart progressList={progressList} />
@@ -261,22 +261,20 @@ export default async function ContractsPage() {
 
           <Card>
             <h3 className="text-lg font-semibold text-green-950">
-              Contract Promise vs Actual
+              Contract Promise Vs Actual
             </h3>
             <p className="mt-1 text-sm text-stone-500">
-              Job, contracted visits, completed visits, and status. Filter by
-              one company or overall across all companies.
+              Job, Contracted Visits, Completed Visits, And Status.
             </p>
             <PromiseVsActualMap progressList={progressList} />
           </Card>
 
           <Card>
             <h3 className="text-lg font-semibold text-green-950">
-              Out-of-Scope Work Watch
+              Out-Of-Scope Work Watch
             </h3>
             <p className="mt-1 text-sm text-stone-500">
-              Filter by company or task. Each row shows company, job, and amount
-              — click for details and actions.
+              Filter By Company Or Task.
             </p>
             <OutOfScopeWorkWatch alerts={outOfScopeAlerts} />
           </Card>

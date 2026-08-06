@@ -71,6 +71,8 @@ import { OperationsDashboardPanel } from "@/app/dashboard/components/OperationsD
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
+    case "proposed_contract":
+      return "Approve & Sign";
     case "overdue_invoice":
     case "open_invoice":
       return "Pay";

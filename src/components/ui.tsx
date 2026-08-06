@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export function StatCard({
   label,
   value,
@@ -107,7 +109,11 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export function EmptyState({ message }: { message: string }) {
+export function EmptyState({
+  message,
+}: {
+  message: ReactNode;
+}) {
   return (
     <div className="rounded-xl border border-dashed border-stone-300 bg-white p-10 text-center text-stone-500">
       {message}

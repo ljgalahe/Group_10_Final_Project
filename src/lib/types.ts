@@ -11,14 +11,21 @@ export type ContractStatus = "draft" | "active" | "completed" | "cancelled";
 export type ContractApprovalState =
   | "draft"
   | "pending_approvals"
+  | "pending_customer"
   | "approved"
   | "changes_requested";
 export type QuoteStatus =
   | "new"
   | "survey_scheduled"
   | "budgeted"
+  | "pending_manager_approval"
+  | "approved"
+  | "rejected"
+  | "changes_requested"
   | "contract_drafted"
   | "closed";
+export type SurveyStatus = "needs_scheduling" | "scheduled" | "completed";
+export type SiteSurveyFormStatus = "draft" | "in_progress" | "completed";
 export type VisitKind = "service" | "survey";
 export type BillingMethod = "monthly" | "per_visit" | "seasonal";
 export type VisitStatus =
@@ -96,9 +103,24 @@ export interface Contract {
   approval_state?: ContractApprovalState | string | null;
   manager_approved_at?: string | null;
   accountant_approved_at?: string | null;
+  customer_signed_at?: string | null;
+  customer_signature_name?: string | null;
+  /** When set and on/after today, service is paused until this date. */
+  service_paused_until?: string | null;
+  customer_declined_at?: string | null;
+  customer_decline_notes?: string | null;
   quote_id?: string | null;
   drafted_by_role?: string | null;
   customers?: Customer;
+}
+
+export interface QuoteLineItemRow {
+  serviceKey: string;
+  label: string;
+  acres: number;
+  unitPrice: number;
+  lineTotal: number;
+  quantity?: number;
 }
 
 export interface QuoteRequest {
@@ -113,9 +135,57 @@ export interface QuoteRequest {
   budget_supplies: string | null;
   survey_visit_id: string | null;
   draft_contract_id: string | null;
+  survey_id?: string | null;
+  line_items?: QuoteLineItemRow[] | null;
+  visits_per_week?: number | null;
+  visit_frequency_notes?: string | null;
+  season_start?: string | null;
+  season_end?: string | null;
+  monthly_fee?: number | null;
+  manager_approved_at?: string | null;
+  submitted_for_approval_at?: string | null;
   created_at: string;
   updated_at?: string;
   customers?: Customer;
+}
+
+export interface SiteSurvey {
+  id: string;
+  inquiry_id: string;
+  customer_id: string | null;
+  property_address: string;
+  acres: number | null;
+  interested_services: string[];
+  proposed_services: QuoteLineItemRow[] | null;
+  catalog_snapshot: unknown;
+  initial_notes: string | null;
+  property_concerns: string | null;
+  photo_urls: string[];
+  status: SiteSurveyFormStatus | string;
+  scheduled_visit_id: string | null;
+  quote_id: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface Inquiry {
+  id: string;
+  company_name: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string | null;
+  property_address: string;
+  property_type: string;
+  services_interested: string[] | null;
+  message: string | null;
+  status: string;
+  quote_id: string | null;
+  converted_customer_id: string | null;
+  acres?: number | null;
+  survey_status?: SurveyStatus | string | null;
+  survey_id?: string | null;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface ContractService {

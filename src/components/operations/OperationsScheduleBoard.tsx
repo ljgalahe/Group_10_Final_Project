@@ -12,6 +12,7 @@ import { locationKey } from "@/lib/location-group";
 import {
   filterJobsNeedingReschedule,
   isPersistedVisitId,
+  jobNeedsReschedule,
   missReasonForJob,
 } from "@/lib/needs-reschedule";
 import type { JobRow } from "@/lib/visit-jobs";
@@ -33,7 +34,11 @@ export type OpsContractOption = {
   id: string;
   title: string;
   customer_name: string;
+  ready_to_schedule?: boolean;
 };
+
+/** List buckets for Rescheduled Visits (sort order). */
+type RescheduleListBucket = "needs" | "rescheduled" | "completed";
 
 function opsVisitsToJobRows(visits: OpsVisitRow[]): JobRow[] {
   return visits.map((v) => ({
@@ -60,18 +65,56 @@ function opsVisitsToJobRows(visits: OpsVisitRow[]): JobRow[] {
   }));
 }
 
+function isMarkedRescheduled(job: JobRow): boolean {
+  const status = (job.status || "").toLowerCase();
+  const sev = (job.weather?.severity || "").toLowerCase();
+  return status === "rescheduled" || sev === "rescheduled";
+}
+
+function isCompletedJob(job: JobRow): boolean {
+  return (job.status || "").toLowerCase() === "completed";
+}
+
+/**
+ * Needs Rescheduling pill = conflict / still needs a new slot,
+ * excluding visits already marked Rescheduled (those sort next).
+ */
+function showsNeedsReschedulingPill(job: JobRow, today: string): boolean {
+  return jobNeedsReschedule(job, today) && !isMarkedRescheduled(job);
+}
+
+function rescheduleListBucket(
+  job: JobRow,
+  today: string
+): RescheduleListBucket {
+  if (isCompletedJob(job)) return "completed";
+  if (showsNeedsReschedulingPill(job, today)) return "needs";
+  if (isMarkedRescheduled(job)) return "rescheduled";
+  if (jobNeedsReschedule(job, today)) return "needs";
+  return "completed";
+}
+
+const BUCKET_RANK: Record<RescheduleListBucket, number> = {
+  needs: 0,
+  rescheduled: 1,
+  completed: 2,
+};
+
 export function OperationsScheduleBoard({
   visits,
   contracts,
   today,
   /** Same JobRow set as Visits / calendar (buildJobRows) — source of truth for Needs Rescheduling. */
   calendarJobs: calendarJobsProp,
+  preferredContractId,
 }: {
   visits: OpsVisitRow[];
   contracts: OpsContractOption[];
   today: string;
   calendarJobs?: JobRow[];
+  preferredContractId?: string;
 }) {
+  const readyContracts = contracts.filter((c) => c.ready_to_schedule);
   const calendarJobs = useMemo(
     () => calendarJobsProp ?? opsVisitsToJobRows(visits),
     [calendarJobsProp, visits]
@@ -88,6 +131,31 @@ export function OperationsScheduleBoard({
     () => filterJobsNeedingReschedule(calendarJobs, today),
     [calendarJobs, today]
   );
+
+  /** One list: Needs Rescheduling → Rescheduled → Completed (weather makeups). */
+  const rescheduledVisitsList = useMemo(() => {
+    const byId = new Map<string, JobRow>();
+    for (const job of needsReschedule) byId.set(job.visitId, job);
+    for (const job of calendarJobs) {
+      if (!isCompletedJob(job)) continue;
+      const sev = (job.weather?.severity || "").toLowerCase();
+      if (
+        sev === "delayed" ||
+        sev === "rescheduled" ||
+        sev === "completed_response" ||
+        isMarkedRescheduled(job)
+      ) {
+        byId.set(job.visitId, job);
+      }
+    }
+    return [...byId.values()].sort((a, b) => {
+      const rankDiff =
+        BUCKET_RANK[rescheduleListBucket(a, today)] -
+        BUCKET_RANK[rescheduleListBucket(b, today)];
+      if (rankDiff !== 0) return rankDiff;
+      return a.date.localeCompare(b.date);
+    });
+  }, [calendarJobs, needsReschedule, today]);
 
   const needsIds = useMemo(
     () => new Set(needsReschedule.map((j) => j.visitId)),
@@ -137,12 +205,11 @@ export function OperationsScheduleBoard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-green-950">
-              Needs Rescheduling
+              Rescheduled Visits
             </h2>
             <p className="mt-1 text-sm text-stone-600">
-              Same visit set as the Operations Dashboard count — overdue
-              scheduled, cancelled/missed, and weather delays or reschedules from
-              the shared schedule job rows.
+              Conflicts first (Needs Rescheduling), then Rescheduled, then
+              Completed — same missed/weather queue as the Operations Dashboard.
             </p>
           </div>
           <span className="rounded-full bg-amber-200 px-3 py-1 text-sm font-semibold text-amber-950">
@@ -150,30 +217,47 @@ export function OperationsScheduleBoard({
           </span>
         </div>
 
-        {needsReschedule.length === 0 ? (
+        {rescheduledVisitsList.length === 0 ? (
           <p className="mt-4 text-sm text-stone-500">
             No missed or cancelled visits waiting to be rescheduled.
           </p>
         ) : (
           <ul className="mt-4 space-y-3">
-            {needsReschedule.map((job) => {
+            {rescheduledVisitsList.map((job) => {
               const live = visitById.get(job.visitId);
               const crewLead =
                 live?.crew_lead_name ??
                 job.crew.find((m) => /lead/i.test(m.role))?.name ??
                 job.crew[0]?.name ??
                 null;
-              const canReschedule = isPersistedVisitId(job.visitId);
+              const needsPill = showsNeedsReschedulingPill(job, today);
+              const canReschedule =
+                isPersistedVisitId(job.visitId) &&
+                jobNeedsReschedule(job, today);
+              const bucket = rescheduleListBucket(job, today);
               return (
                 <li
                   key={job.visitId}
-                  className="rounded-lg border border-amber-200 bg-white px-4 py-3"
+                  className={`rounded-lg border bg-white px-4 py-3 ${
+                    needsPill
+                      ? "border-red-300"
+                      : bucket === "rescheduled"
+                        ? "border-orange-200"
+                        : "border-green-200"
+                  }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium text-green-950">
-                        {job.companyName}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-green-950">
+                          {job.companyName}
+                        </p>
+                        {needsPill ? (
+                          <span className="inline-flex rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
+                            Needs Rescheduling
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="text-sm text-stone-600">{job.jobLabel}</p>
                       <p className="mt-1 text-xs text-stone-500">
                         Original date {job.date}
@@ -181,9 +265,11 @@ export function OperationsScheduleBoard({
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <StatusBadge status={job.status} />
-                        <span className="text-xs font-medium text-amber-900">
-                          {missReasonForJob(job, today)}
-                        </span>
+                        {jobNeedsReschedule(job, today) ? (
+                          <span className="text-xs font-medium text-amber-900">
+                            {missReasonForJob(job, today)}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     {canReschedule ? (
@@ -193,7 +279,7 @@ export function OperationsScheduleBoard({
                       >
                         <input type="hidden" name="visit_id" value={job.visitId} />
                         <label className="text-xs text-stone-600">
-                          New date
+                          New Date
                           <input
                             type="date"
                             name="scheduled_date"
@@ -223,7 +309,7 @@ export function OperationsScheduleBoard({
                           Reschedule
                         </button>
                       </form>
-                    ) : (
+                    ) : isCompletedJob(job) ? null : (
                       <p className="max-w-xs text-xs text-stone-500">
                         Sample schedule row — create or assign a live visit above
                         to place a makeup date on the board.
@@ -300,6 +386,12 @@ export function OperationsScheduleBoard({
         <h2 className="text-lg font-semibold text-green-950">
           Create Service Visit
         </h2>
+        {readyContracts.length > 0 ? (
+          <p className="mt-1 text-sm text-stone-600">
+            {readyContracts.length} Customer-Signed Contract
+            {readyContracts.length === 1 ? "" : "s"} Ready To Schedule.
+          </p>
+        ) : null}
         <form
           action={createServiceVisit}
           className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
@@ -310,13 +402,14 @@ export function OperationsScheduleBoard({
               name="contract_id"
               required
               className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-              defaultValue=""
+              defaultValue={preferredContractId ?? ""}
             >
               <option value="" disabled>
-                Select contract
+                Select Contract
               </option>
               {contracts.map((c) => (
                 <option key={c.id} value={c.id}>
+                  {c.ready_to_schedule ? "Ready · " : ""}
                   {c.customer_name} — {c.title}
                 </option>
               ))}
@@ -352,7 +445,7 @@ export function OperationsScheduleBoard({
               type="submit"
               className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
             >
-              Schedule visit
+              Schedule Visit
             </button>
           </div>
         </form>
