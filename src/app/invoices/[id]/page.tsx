@@ -210,7 +210,8 @@ export default async function InvoiceDetailPage({
                         invoice.status,
                         invoice.due_date,
                         balance,
-                        amountPaid
+                        amountPaid,
+                        role === "customer"
                       )}
                     />
                   </dd>

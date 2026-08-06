@@ -274,7 +274,8 @@ export default async function InvoicesPage({
                             invoice.status,
                             invoice.due_date,
                             balance,
-                            amountPaid
+                            amountPaid,
+                            isCustomer
                           )}
                         />
                       )}
