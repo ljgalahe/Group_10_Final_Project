@@ -8,6 +8,7 @@ import {
   getViewRole,
   roleCanViewInquiriesInbox,
 } from "@/lib/demo-role";
+import { isExistingCustomerInquiry } from "@/lib/inquiry-customer";
 
 const PROPERTY_LABELS: Record<string, string> = {
   office_park: "Office Park",
@@ -160,11 +161,7 @@ export default async function OpsInquiriesPage({
                           {row.contact_phone}
                         </p>
                       ) : null}
-                      {row.converted_customer_id ||
-                      /Existing client new service request:/i.test(
-                        row.message ?? ""
-                      ) ||
-                      /Related contract:/i.test(row.message ?? "") ? (
+                      {isExistingCustomerInquiry(row) ? (
                         <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
                           Existing Customer
                         </span>

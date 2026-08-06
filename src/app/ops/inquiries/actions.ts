@@ -8,6 +8,7 @@ import {
   getViewRole,
   roleCanViewInquiriesInbox,
 } from "@/lib/demo-role";
+import { relatedContractIdFromMessage } from "@/lib/inquiry-customer";
 import { catalogSnapshotForAcres } from "@/lib/service-pricing";
 
 const INQUIRY_STATUSES = new Set([
@@ -27,21 +28,6 @@ const PROPERTY_LABELS: Record<string, string> = {
   multifamily: "Residential Community",
   other: "Other",
 };
-
-/** Parse existing-client inquiry messages (from customer "Request a quote"). */
-const RELATED_CONTRACT_RE =
-  /Related contract:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
-const EXISTING_SERVICE_RE =
-  /^Existing client new service request:\s*(.+)$/im;
-
-export function isExistingCustomerInquiry(inquiry: {
-  converted_customer_id?: string | null;
-  message?: string | null;
-}) {
-  if (inquiry.converted_customer_id) return true;
-  const message = inquiry.message ?? "";
-  return EXISTING_SERVICE_RE.test(message) || RELATED_CONTRACT_RE.test(message);
-}
 
 export async function updateInquiryStatus(formData: FormData) {
   await requireAppAccess();
@@ -108,6 +94,20 @@ export async function scheduleInquirySiteSurvey(formData: FormData) {
     String(inquiry.company_name).includes("Lakeside")
   ) {
     customerId = "11111111-1111-1111-1111-111111111101";
+  }
+  // Existing-client inquiry message may reference a related contract.
+  if (!customerId) {
+    const relatedId = relatedContractIdFromMessage(
+      inquiry.message as string | null
+    );
+    if (relatedId) {
+      const { data: related } = await supabase
+        .from("contracts")
+        .select("customer_id")
+        .eq("id", relatedId)
+        .maybeSingle();
+      customerId = related?.customer_id ?? null;
+    }
   }
   if (!customerId) {
     const propertyLabel =
