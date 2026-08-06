@@ -10,6 +10,7 @@ import type {
   ScheduleJob,
 } from "@/components/crew-lead/schedule-types";
 import { VisitWorkPanel } from "@/components/crew-lead/VisitWorkPanel";
+import { ServiceHoldBadge } from "@/components/ServiceHoldBanner";
 import { Card, EmptyState, StatusBadge } from "@/components/ui";
 import { ScheduleCalendar } from "@/components/visits/ScheduleCalendar";
 import {
@@ -487,9 +488,14 @@ export function CrewLeadSchedule({
                           {index + 1}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium text-green-950">
-                            {primary.customerName}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-green-950">
+                              {primary.customerName}
+                            </p>
+                            {primary.serviceHold ? (
+                              <ServiceHoldBadge onHold />
+                            ) : null}
+                          </div>
                           <p className="text-sm text-stone-600">
                             {primary.address}
                           </p>
@@ -620,6 +626,7 @@ export function CrewLeadSchedule({
                           {job.customerName}
                         </p>
                         <StatusBadge status={job.status} />
+                        {job.serviceHold ? <ServiceHoldBadge onHold /> : null}
                         {jobCrew ? (
                           <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-green-900">
                             {CREW_LEADS[jobCrew]} · {crewLabel(jobCrew)}

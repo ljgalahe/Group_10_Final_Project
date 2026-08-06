@@ -58,17 +58,6 @@ export function estimatedVisitCost(actualCost: number, visitId: string) {
   return Math.round(actualCost * factor);
 }
 
-/** Match accountant Visits: estimate while scheduled, actual after completed. */
-export function visitProfitabilityCost(
-  visitId: string,
-  status: string,
-  actualCost: number
-) {
-  if (status === "completed") return actualCost;
-  if (status === "cancelled") return 0;
-  return estimatedVisitCost(actualCost, visitId);
-}
-
 export function crewDetailsForVisit(
   visitId: string,
   assignedCrew: string | null | undefined,
@@ -175,15 +164,16 @@ export function gpsTimes(scheduledDate: string, completedAt: string | null) {
 
   if (completedAt) {
     const completed = new Date(completedAt);
-    const timeOpts: Intl.DateTimeFormatOptions = {
+    const departed = completed.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
-      timeZone: "UTC",
-    };
-    const departed = completed.toLocaleTimeString("en-US", timeOpts);
+    });
     const arrivedDate = new Date(completed.getTime() - 3 * 60 * 60 * 1000);
     return {
-      arrived: arrivedDate.toLocaleTimeString("en-US", timeOpts),
+      arrived: arrivedDate.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
       departed,
     };
   }

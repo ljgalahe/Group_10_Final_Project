@@ -22,6 +22,7 @@ import {
   materialsForServices,
   tasksForServices,
 } from "@/components/crew-lead/visitWorkDefaults";
+import { ServiceHoldBanner } from "@/components/ServiceHoldBanner";
 
 function persistLaborToBilling(
   job: ScheduleJob,
@@ -125,7 +126,10 @@ export function VisitWorkPanel({
   }, [job.id, job.status, job.source, tasks, contractExtraWork.length, readOnly]);
 
   const isCompleted = job.status === "completed";
-  const canEditCrew = job.status === "scheduled" && !readOnly;
+  const onServiceHold =
+    Boolean(job.serviceHold) || job.status === "on_hold";
+  const canEditCrew =
+    job.status === "scheduled" && !readOnly && !onServiceHold;
 
   function update(next: VisitWorkState) {
     if (!canEditCrew) return;
@@ -341,6 +345,21 @@ export function VisitWorkPanel({
         </ul>
       )}
 
+      {onServiceHold ? (
+        <div
+          role="alert"
+          className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900"
+        >
+          <p className="font-semibold">Crew assignment blocked</p>
+          <p className="mt-1 text-red-800">
+            This customer is on Service Hold because of invoices 30 or more days
+            overdue. New crew assignments are not allowed until the past-due
+            balance is cleared. Existing visit records are preserved and can be
+            rescheduled after the account returns to Active.
+          </p>
+        </div>
+      ) : null}
+
       {canEditCrew ? (
         <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
           {availableToAssign.length > 0 ? (
@@ -416,6 +435,9 @@ export function VisitWorkPanel({
         <p className="text-xs text-stone-500">
           Plan crew and hours · {job.address}
         </p>
+        {onServiceHold ? (
+          <ServiceHoldBanner customerName={job.customerName} />
+        ) : null}
         {crewSection}
         <Section title="Supplies needed">
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
@@ -437,6 +459,9 @@ export function VisitWorkPanel({
     <div className="mt-4 space-y-3">
       {isCompleted ? (
         <p className="text-xs text-stone-500">Completed visit — view only.</p>
+      ) : null}
+      {onServiceHold ? (
+        <ServiceHoldBanner customerName={job.customerName} />
       ) : null}
 
       <CrewSiteNotes

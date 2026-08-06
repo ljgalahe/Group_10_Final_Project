@@ -809,6 +809,9 @@ export async function recordPayment(
   revalidatePath("/reports/ar-aging");
   revalidatePath("/reports/profitability");
   revalidatePath("/dashboard");
+  revalidatePath("/schedule");
+  revalidatePath("/visits");
+  revalidatePath("/profile");
 
   return {
     success: true,

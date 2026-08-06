@@ -12,13 +12,21 @@ import {
   getOpenInvoicesForCustomer,
   recordPayment,
 } from "@/app/actions/business";
+import {
+  ServiceHoldBadge,
+  ServiceHoldBanner,
+} from "@/components/ServiceHoldBanner";
+import { ServiceHoldAuditSync } from "@/components/ServiceHoldDashboardCard";
 import { EmptyState, StatusBadge } from "@/components/ui";
 import type {
   CollectionRiskLevel,
   CustomerCollectionRisk,
+  PaymentBehavior,
 } from "@/lib/collection-risk";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/payment-utils";
+import type { CustomerServiceHold } from "@/lib/service-hold";
+import { heldCustomerIdSet } from "@/lib/service-hold";
 import type { Payment, PaymentsSummary } from "@/lib/types";
 import { PAYMENT_METHODS } from "@/lib/types";
 
@@ -55,12 +63,20 @@ export function PaymentsManagerClient({
   customers,
   summary,
   collectionRisk,
+  serviceHolds = [],
+  highRiskOnly = false,
 }: {
   payments: Payment[];
   customers: CustomerOption[];
   summary: PaymentsSummary;
   collectionRisk: CustomerCollectionRisk[];
+  serviceHolds?: CustomerServiceHold[];
+  highRiskOnly?: boolean;
 }) {
+  const heldIds = useMemo(
+    () => heldCustomerIdSet(serviceHolds),
+    [serviceHolds]
+  );
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -176,6 +192,12 @@ export function PaymentsManagerClient({
 
   return (
     <div className="space-y-6">
+      <ServiceHoldAuditSync holds={serviceHolds} />
+      {serviceHolds.length > 0 ? (
+        <ServiceHoldBanner
+          reason={`${serviceHolds.length} customer${serviceHolds.length === 1 ? "" : "s"} on Service Hold. Recording payment that clears all 30+ day overdue invoices automatically restores Active status and allows held visits to be rescheduled.`}
+        />
+      ) : null}
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-green-950">
@@ -222,7 +244,11 @@ export function PaymentsManagerClient({
         </div>
       </section>
 
-      <CollectionRiskSection rows={collectionRisk} />
+      <CollectionRiskSection
+        rows={collectionRisk}
+        heldCustomerIds={heldIds}
+        highRiskOnly={highRiskOnly}
+      />
 
       {successMessage ? (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
@@ -411,6 +437,7 @@ export function PaymentsManagerClient({
         <RecordPaymentModal
           customers={customers}
           busy={isPending}
+          heldCustomerIds={heldIds}
           onClose={() => setModalOpen(false)}
           onComplete={handleRecorded}
         />
@@ -596,39 +623,80 @@ function DetailRow({
   );
 }
 
-function CollectionRiskSection({ rows }: { rows: CustomerCollectionRisk[] }) {
+function CollectionRiskSection({
+  rows,
+  heldCustomerIds,
+  highRiskOnly = false,
+}: {
+  rows: CustomerCollectionRisk[];
+  heldCustomerIds: Set<string>;
+  highRiskOnly?: boolean;
+}) {
+  const visibleRows = highRiskOnly
+    ? rows.filter((row) => row.risk === "high")
+    : rows;
+
   return (
-    <section className="space-y-3">
+    <section id="collection-risk" className="scroll-mt-24 space-y-3">
       <div>
         <h2 className="text-lg font-semibold text-green-950">Collection Risk</h2>
         <p className="text-sm text-stone-500">
-          Customers ranked by overdue exposure, outstanding balance, and payment
-          speed.
+          Customers ranked by overdue exposure, outstanding balance, and each
+          account&apos;s own Average Days to Pay from invoice and payment
+          history. Service Hold appears when any invoice is 30+ days overdue.
         </p>
+        {highRiskOnly ? (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Showing{" "}
+            {visibleRows.length === 1
+              ? "1 high collection risk customer"
+              : `${visibleRows.length} high collection risk customers`}
+            .{" "}
+            <a
+              href="/payments"
+              className="font-medium text-green-800 underline hover:text-green-950"
+            >
+              Clear filter
+            </a>
+          </p>
+        ) : null}
       </div>
 
-      {rows.length === 0 ? (
-        <EmptyState message="No customer collection risk data available yet." />
+      {visibleRows.length === 0 ? (
+        <EmptyState
+          message={
+            highRiskOnly
+              ? "No high collection risk customers right now."
+              : "No customer collection risk data available yet."
+          }
+        />
       ) : (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-sm">
             <thead className="bg-stone-50 text-left text-stone-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Customer</th>
+                <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Risk</th>
                 <th className="px-4 py-3 font-medium">Outstanding balance</th>
                 <th className="px-4 py-3 font-medium">Overdue invoices</th>
-                <th className="px-4 py-3 font-medium">Avg. payment speed</th>
+                <th className="px-4 py-3 font-medium">Average Days to Pay</th>
+                <th className="px-4 py-3 font-medium">Payment behavior</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr
                   key={row.customerId}
                   className="border-t border-stone-100"
                 >
                   <td className="px-4 py-3 font-medium text-stone-800">
                     {row.customerName}
+                  </td>
+                  <td className="px-4 py-3">
+                    <ServiceHoldBadge
+                      onHold={heldCustomerIds.has(row.customerId)}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <RiskBadge level={row.risk} />
@@ -638,9 +706,12 @@ function CollectionRiskSection({ rows }: { rows: CustomerCollectionRisk[] }) {
                   </td>
                   <td className="px-4 py-3">{row.overdueInvoiceCount}</td>
                   <td className="px-4 py-3 text-stone-700">
-                    {row.averageDaysToPay === null
-                      ? "—"
-                      : `${row.averageDaysToPay} days`}
+                    {!row.hasPaymentHistory || row.averageDaysToPay == null
+                      ? "No Payment History"
+                      : `Average Days to Pay: ${row.averageDaysToPay} Days`}
+                  </td>
+                  <td className="px-4 py-3">
+                    <PaymentBehaviorBadge behavior={row.paymentBehavior} />
                   </td>
                 </tr>
               ))}
@@ -649,6 +720,37 @@ function CollectionRiskSection({ rows }: { rows: CustomerCollectionRisk[] }) {
         </div>
       )}
     </section>
+  );
+}
+
+function PaymentBehaviorBadge({
+  behavior,
+}: {
+  behavior: PaymentBehavior | null;
+}) {
+  if (!behavior) {
+    return <span className="text-sm text-stone-500">No Payment History</span>;
+  }
+
+  const styles: Record<PaymentBehavior, string> = {
+    excellent: "bg-green-100 text-green-800 border-green-200",
+    on_time: "bg-yellow-100 text-yellow-900 border-yellow-200",
+    slow: "bg-orange-100 text-orange-900 border-orange-200",
+    high_risk: "bg-red-100 text-red-800 border-red-200",
+  };
+  const labels: Record<PaymentBehavior, string> = {
+    excellent: "🟢 Excellent Payer",
+    on_time: "🟡 On-Time Payer",
+    slow: "🟠 Slow Payer",
+    high_risk: "🔴 High Collection Risk",
+  };
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[behavior]}`}
+    >
+      {labels[behavior]}
+    </span>
   );
 }
 
@@ -694,11 +796,13 @@ function DashboardStatCard({
 function RecordPaymentModal({
   customers,
   busy,
+  heldCustomerIds,
   onClose,
   onComplete,
 }: {
   customers: CustomerOption[];
   busy: boolean;
+  heldCustomerIds: Set<string>;
   onClose: () => void;
   onComplete: (
     result: { success: true; message: string } | { success: false; error: string }
@@ -858,10 +962,18 @@ function RecordPaymentModal({
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.name}
+                  {heldCustomerIds.has(customer.id) ? " (Service Hold)" : ""}
                 </option>
               ))}
             </select>
           </label>
+          {customerId && heldCustomerIds.has(customerId) ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+              This customer is on Service Hold. Paying enough to clear all
+              invoices that are 30 or more days overdue will automatically
+              restore Active status.
+            </div>
+          ) : null}
 
           <label className="block text-sm font-medium text-stone-700">
             Open invoice

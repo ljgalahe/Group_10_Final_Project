@@ -7,14 +7,10 @@ export function formatCurrency(amount: number) {
 }
 
 export function formatDate(dateStr: string) {
-  const [year, month, day] = dateStr.slice(0, 10).split("-").map(Number);
-  if (!year || !month || !day) return dateStr;
-  // Force UTC so server and browser always render the same calendar day.
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-    timeZone: "UTC",
   });
 }
 

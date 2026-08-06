@@ -28,11 +28,17 @@ import {
   fetchServiceLineGrossMargins,
 } from "@/app/reports/profitability/queries";
 
-export default async function ProfitabilityPage() {
+export default async function ProfitabilityPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ low?: string }>;
+}) {
   await requireAppAccess();
 
   const role = await getViewRole();
   if (!roleCanViewReports(role)) redirect("/dashboard");
+  const params = await searchParams;
+  const lowOnly = params.low === "1";
   const isAccountant = role === "accountant";
 
   const [
@@ -43,7 +49,7 @@ export default async function ProfitabilityPage() {
     jobCostVariance,
     profitPerCrewHour,
   ] = await Promise.all([
-    fetchProfitabilityReport({ useAccountantVisitCosts: isAccountant }),
+    fetchProfitabilityReport(),
     fetchProfitLeakInputs(),
     isAccountant ? fetchFinancialStatementInputs() : Promise.resolve(null),
     isAccountant ? fetchDirectCostsBreakdown() : Promise.resolve(null),
@@ -79,6 +85,12 @@ export default async function ProfitabilityPage() {
         ? "text-yellow-600"
         : "text-red-700";
 
+  const tableRows = (
+    lowOnly
+      ? report.filter((row) => row.margin < 0 || row.marginPct < 15)
+      : report
+  ).slice().sort((a, b) => a.marginPct - b.marginPct);
+
   return (
     <AppShell>
       <PageHeader
@@ -94,6 +106,22 @@ export default async function ProfitabilityPage() {
           ) : undefined
         }
       />
+
+      {lowOnly ? (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Showing{" "}
+          {tableRows.length === 1
+            ? "1 contract"
+            : `${tableRows.length} contracts`}{" "}
+          with low profitability (negative margin or under 15% margin).{" "}
+          <a
+            href="/reports/profitability"
+            className="font-medium text-green-800 underline hover:text-green-950"
+          >
+            Clear filter
+          </a>
+        </div>
+      ) : null}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {isAccountant ? (
@@ -151,13 +179,17 @@ export default async function ProfitabilityPage() {
             <AccountantProfitPerCrewHour report={profitPerCrewHour} />
           ) : null}
 
-          <AllContractsTable
-            rows={report}
-            directCostsBreakdown={
-              isAccountant ? directCostsBreakdown : null
-            }
-            costsLabel={isAccountant ? "Visit Costs" : "Direct Costs"}
-          />
+          {lowOnly && tableRows.length === 0 ? (
+            <EmptyState message="No low-profitability contracts match this filter." />
+          ) : (
+            <AllContractsTable
+              rows={tableRows}
+              directCostsBreakdown={
+                isAccountant ? directCostsBreakdown : null
+              }
+              costsLabel={isAccountant ? "Visit Costs" : "Direct Costs"}
+            />
+          )}
         </>
       )}
 

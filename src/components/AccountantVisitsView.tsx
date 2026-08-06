@@ -88,35 +88,22 @@ export function AccountantVisitsView({
   const [statusFilter, setStatusFilter] = useState<
     "all" | "scheduled" | "completed"
   >("all");
-  const [journalFilter, setJournalFilter] = useState<
-    "all" | "ready" | "not_ready"
-  >("all");
+  const [activeTab, setActiveTab] = useState<"visits" | "wip">("visits");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const today = todayIso;
   const todayVisits = visits.filter((visit) => visit.scheduled_date === today);
-
   const filteredVisits = useMemo(() => {
-    return visits.filter((visit) => {
-      if (statusFilter !== "all" && visit.status !== statusFilter) return false;
-      if (journalFilter === "all") return true;
-      const alreadyHasJournal = Boolean(visitJournalStates[visit.id]);
-      const readyToPost =
-        !alreadyHasJournal &&
-        visitJournalReadyReason(visit.status, visit.visit_costs.length) == null;
-      if (journalFilter === "ready") return readyToPost;
-      return !readyToPost;
-    });
-  }, [visits, statusFilter, journalFilter, visitJournalStates]);
+    if (statusFilter === "all") return visits;
+    return visits.filter((visit) => visit.status === statusFilter);
+  }, [visits, statusFilter]);
 
-  const metrics = filteredVisits.reduce(
+  const metrics = visits.reduce(
     (acc, visit) => {
       const totals = sumCostsByType(visit.visit_costs);
-      const totalCost = totals.labor + totals.materials + totals.equipment;
       const revenue = allocatedVisitRevenue(
         visit.contracts?.monthly_fee,
         visit.contracts?.visits_per_week
       );
-      const estimated = estimatedVisitCost(totalCost, visit.id);
       const laborCost = visit.visit_costs.find((cost) => cost.cost_type === "labor");
       const hours =
         laborCost?.quantity != null && Number(laborCost.quantity) > 0
@@ -125,48 +112,161 @@ export function AccountantVisitsView({
               (sum, entry) => sum + Number(entry.hours),
               0
             );
-
-      if (visit.status === "completed") {
-        acc.labor += totals.labor;
-        acc.materials += totals.materials;
-        acc.equipment += totals.equipment;
-        acc.hours += hours;
-        acc.completedRevenue += revenue;
-        acc.completedActual += totalCost;
-      } else if (visit.status === "scheduled") {
-        acc.estimatedCost += estimated;
-        acc.scheduledRevenue += revenue;
-      }
-
+      acc.labor += totals.labor;
+      acc.materials += totals.materials;
+      acc.equipment += totals.equipment;
       acc.revenue += revenue;
+      acc.hours += hours;
       return acc;
     },
-    {
-      labor: 0,
-      materials: 0,
-      equipment: 0,
-      revenue: 0,
-      hours: 0,
-      estimatedCost: 0,
-      scheduledRevenue: 0,
-      completedRevenue: 0,
-      completedActual: 0,
-    }
+    { labor: 0, materials: 0, equipment: 0, revenue: 0, hours: 0 }
   );
 
-  const invoicesReady = filteredVisits.filter(
+  const invoicesReady = visits.filter(
     (visit) => visit.status === "completed" && visit.invoices.length === 0
   ).length;
-  /** Realized profit from completed visits only (never scheduled). */
-  const profit = metrics.completedRevenue - metrics.completedActual;
-  const showScheduledMetrics =
-    statusFilter === "scheduled" || statusFilter === "all";
-  const showCompletedMetrics =
-    statusFilter === "completed" || statusFilter === "all";
+  const profit = metrics.revenue - (metrics.labor + metrics.materials + metrics.equipment);
   const summaryVisits = todayVisits.length || visits.length;
+  const scheduledCount = visits.filter((visit) => visit.status !== "cancelled").length;
+  const completedCount = visits.filter((visit) => visit.status === "completed").length;
+  const remainingCount = visits.filter((visit) => visit.status === "scheduled").length;
+  const progressPct =
+    scheduledCount > 0 ? Math.round((completedCount / scheduledCount) * 100) : 0;
+  const remainingVisits = [...visits]
+    .filter((visit) => visit.status === "scheduled")
+    .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
+  const scheduleByDate = remainingVisits.reduce<Record<string, AccountantVisit[]>>(
+    (groups, visit) => {
+      const key = visit.scheduled_date;
+      groups[key] = [...(groups[key] ?? []), visit];
+      return groups;
+    },
+    {}
+  );
+  const scheduleDates = Object.keys(scheduleByDate).sort();
 
   return (
     <div className="space-y-6">
+      <div className="flex gap-2 border-b border-stone-200 pb-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab("visits")}
+          className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
+            activeTab === "visits"
+              ? "bg-green-800 text-white"
+              : "text-stone-600 hover:bg-stone-100"
+          }`}
+        >
+          Visits
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("wip")}
+          className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
+            activeTab === "wip"
+              ? "bg-green-800 text-white"
+              : "text-stone-600 hover:bg-stone-100"
+          }`}
+        >
+          WIP
+        </button>
+      </div>
+
+      {activeTab === "wip" ? (
+        <div className="space-y-4">
+          <div className="max-w-md rounded-xl bg-stone-100 p-5 shadow-sm">
+            <p className="font-mono text-sm font-semibold text-stone-800">
+              Work Progress
+            </p>
+            <div className="mt-3 space-y-1 font-mono text-sm text-stone-800">
+              <p>Scheduled Visits: {scheduledCount}</p>
+              <p>Completed: {completedCount}</p>
+              <p>Remaining: {remainingCount}</p>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-200">
+              <div
+                className="h-full rounded-full bg-green-800"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-stone-500">
+              {progressPct}% of scheduled visit work is complete.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-green-950">
+              Completion schedule
+            </h3>
+            <p className="mt-1 text-xs text-stone-500">
+              Dates remaining visits are scheduled to be completed.
+            </p>
+            {scheduleDates.length === 0 ? (
+              <p className="mt-3 text-sm text-stone-500">
+                No remaining scheduled visits.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {scheduleDates.map((date) => {
+                  const dayVisits = scheduleByDate[date];
+                  const weekday = [
+                    "Sunday",
+                    "Monday",
+                    "Tuesday",
+                    "Wednesday",
+                    "Thursday",
+                    "Friday",
+                    "Saturday",
+                  ][new Date(`${date}T12:00:00Z`).getUTCDay()];
+                  return (
+                    <section
+                      key={date}
+                      className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+                    >
+                      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                        <h4 className="font-semibold text-green-950">
+                          {weekday}, {formatDate(date)}
+                        </h4>
+                        <span className="text-xs text-stone-500">
+                          {dayVisits.length} visit
+                          {dayVisits.length === 1 ? "" : "s"} to complete
+                        </span>
+                      </div>
+                      <ul className="space-y-2">
+                        {dayVisits.map((visit) => {
+                          const crew = crewDetailsForVisit(
+                            visit.id,
+                            visit.contracts?.assigned_crew,
+                            null,
+                            null
+                          );
+                          return (
+                            <li
+                              key={visit.id}
+                              className="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
+                            >
+                              <p className="font-medium text-stone-800">
+                                {visit.contracts?.title ?? "Contract"}
+                              </p>
+                              <p className="text-xs text-stone-500">
+                                {visit.contracts?.customers?.name ?? "Customer"} ·
+                                Crew: {crew.leader} · Due {formatDate(date)}
+                              </p>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "visits" ? (
+      <>
       <div className="rounded-xl border border-stone-200 bg-stone-100 p-4 shadow-sm">
         <p className="mb-3 text-sm font-semibold text-green-950">
           Accounting Metrics
@@ -177,60 +277,22 @@ export function AccountantVisitsView({
             value={todayVisits.length || summaryVisits}
             hint={todayVisits.length ? "Scheduled today" : "All tracked visits"}
           />
-          {showScheduledMetrics ? (
-            <>
-              <StatCard
-                label="Estimated Cost"
-                value={formatCurrency(metrics.estimatedCost)}
-                hint="Scheduled visits only"
-              />
-              <StatCard
-                label="Contract Revenue"
-                value={formatCurrency(
-                  statusFilter === "scheduled"
-                    ? metrics.scheduledRevenue
-                    : metrics.revenue
-                )}
-                hint={
-                  statusFilter === "scheduled"
-                    ? "Allocated from contracts"
-                    : "Scheduled + completed"
-                }
-              />
-            </>
-          ) : null}
-          {showCompletedMetrics ? (
-            <>
-              <StatCard
-                label="Crew Hours"
-                value="47,268.60"
-                hint="Completed visits"
-              />
-              <StatCard
-                label="Labor Cost"
-                value={formatCurrency(metrics.labor)}
-              />
-              <StatCard
-                label="Material Cost"
-                value={formatCurrency(metrics.materials)}
-              />
-              <StatCard
-                label="Equipment Cost"
-                value={formatCurrency(metrics.equipment)}
-              />
-              {statusFilter === "completed" ? (
-                <StatCard
-                  label="Revenue"
-                  value={formatCurrency(metrics.completedRevenue)}
-                />
-              ) : null}
-              <StatCard
-                label="Profit"
-                value={formatCurrency(profit)}
-                hint="Completed visits only"
-              />
-            </>
-          ) : null}
+          <StatCard
+            label="Crew Hours"
+            value={metrics.hours.toFixed(1)}
+            hint="Synced from crew labor"
+          />
+          <StatCard label="Labor Cost" value={formatCurrency(metrics.labor)} />
+          <StatCard
+            label="Material Cost"
+            value={formatCurrency(metrics.materials)}
+          />
+          <StatCard
+            label="Equipment Cost"
+            value={formatCurrency(metrics.equipment)}
+          />
+          <StatCard label="Revenue" value={formatCurrency(metrics.revenue)} />
+          <StatCard label="Profit" value={formatCurrency(profit)} />
           <StatCard
             label="Invoices Ready"
             value={invoicesReady}
@@ -240,62 +302,40 @@ export function AccountantVisitsView({
       </div>
 
       <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
-          <label className="block text-sm">
-            <span className="mb-1.5 block font-medium text-stone-600">
-              Visit Status
-            </span>
-            <select
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(
-                  event.target.value as "all" | "scheduled" | "completed"
-                )
-              }
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-green-700 focus:outline-none focus:ring-1 focus:ring-green-700"
-            >
-              <option value="all">All visits</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="completed">Completed</option>
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1.5 block font-medium text-stone-600">
-              Journal Entry
-            </span>
-            <select
-              value={journalFilter}
-              onChange={(event) =>
-                setJournalFilter(
-                  event.target.value as "all" | "ready" | "not_ready"
-                )
-              }
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-green-700 focus:outline-none focus:ring-1 focus:ring-green-700"
-            >
-              <option value="all">All journal states</option>
-              <option value="ready">Ready to post</option>
-              <option value="not_ready">Not ready to post</option>
-            </select>
-          </label>
-        </div>
+        <label className="block max-w-xs text-sm">
+          <span className="mb-1.5 block font-medium text-stone-600">
+            Visit Status
+          </span>
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(
+                event.target.value as "all" | "scheduled" | "completed"
+              )
+            }
+            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-green-700 focus:outline-none focus:ring-1 focus:ring-green-700"
+          >
+            <option value="all">All visits</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="completed">Completed</option>
+          </select>
+        </label>
       </div>
 
       <div className="space-y-5">
         {filteredVisits.length === 0 ? (
-          <EmptyState message="No visits match the selected filters." />
+          <EmptyState message="No visits match the selected status filter." />
         ) : null}
         {filteredVisits.map((visit) => {
           const totals = sumCostsByType(visit.visit_costs);
           const totalCost = totals.labor + totals.materials + totals.equipment;
-          const isCompleted = visit.status === "completed";
           const revenue = allocatedVisitRevenue(
             visit.contracts?.monthly_fee,
             visit.contracts?.visits_per_week
           );
-          const estimated = estimatedVisitCost(totalCost, visit.id);
-          const displayCost = isCompleted ? totalCost : estimated;
-          const grossProfit = revenue - displayCost;
+          const grossProfit = revenue - totalCost;
           const margin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+          const estimated = estimatedVisitCost(totalCost, visit.id);
           const variance = totalCost - estimated;
           const variancePct = estimated > 0 ? (variance / estimated) * 100 : 0;
           const overBudget = variance > 0;
@@ -380,8 +420,7 @@ export function AccountantVisitsView({
                   <p className="text-sm text-stone-500">
                     {visit.contracts?.customers?.name} ·{" "}
                     {formatDate(visit.scheduled_date)} ·{" "}
-                    {formatCurrency(displayCost)}{" "}
-                    {isCompleted ? "cost" : "est. cost"}
+                    {formatCurrency(totalCost)} cost
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -419,53 +458,31 @@ export function AccountantVisitsView({
                     Profitability per Visit
                   </h3>
                   <div className="space-y-1.5">
-                    {isCompleted ? (
-                      <>
-                        <DottedRow
-                          label="Contract Revenue Allocated"
-                          value={formatCurrency(revenue)}
-                        />
-                        <DottedRow
-                          label="Labor Cost"
-                          value={formatCurrency(totals.labor)}
-                        />
-                        <DottedRow
-                          label="Materials"
-                          value={formatCurrency(totals.materials)}
-                        />
-                        <DottedRow
-                          label="Equipment"
-                          value={formatCurrency(totals.equipment)}
-                        />
-                        <DottedRow
-                          label="Estimated Cost"
-                          value={formatCurrency(estimated)}
-                        />
-                        <DottedRow
-                          label="Actual Cost"
-                          value={formatCurrency(totalCost)}
-                        />
-                        <DottedRow
-                          label="Gross Profit"
-                          value={formatCurrency(grossProfit)}
-                        />
-                        <DottedRow
-                          label="Margin"
-                          value={`${margin.toFixed(1)}%`}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <DottedRow
-                          label="Estimated Cost"
-                          value={formatCurrency(estimated)}
-                        />
-                        <DottedRow
-                          label="Contract Revenue Allocated"
-                          value={formatCurrency(revenue)}
-                        />
-                      </>
-                    )}
+                    <DottedRow
+                      label="Contract Revenue Allocated"
+                      value={formatCurrency(revenue)}
+                    />
+                    <DottedRow
+                      label="Labor Cost"
+                      value={formatCurrency(totals.labor)}
+                    />
+                    <DottedRow
+                      label="Materials"
+                      value={formatCurrency(totals.materials)}
+                    />
+                    <DottedRow
+                      label="Equipment"
+                      value={formatCurrency(totals.equipment)}
+                    />
+                    <DottedRow
+                      label="Total Cost"
+                      value={formatCurrency(totalCost)}
+                    />
+                    <DottedRow
+                      label="Gross Profit"
+                      value={formatCurrency(grossProfit)}
+                    />
+                    <DottedRow label="Margin" value={`${margin.toFixed(1)}%`} />
                   </div>
                 </section>
 
@@ -520,89 +537,62 @@ export function AccountantVisitsView({
                   <h3 className="mb-3 text-sm font-semibold text-green-950">
                     Variance Alert
                   </h3>
-                  {isCompleted ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-                        <div>
-                          <p className="text-xs text-stone-500">Estimated Cost</p>
-                          <p className="font-semibold text-green-950">
-                            {formatCurrency(estimated)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-stone-500">Actual Cost</p>
-                          <p className="font-semibold text-green-950">
-                            {formatCurrency(totalCost)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-stone-500">Cost Variance</p>
-                          <p className="font-semibold text-green-950">
-                            {variance >= 0 ? "+" : ""}
-                            {formatCurrency(variance)} ({variancePct.toFixed(0)}
-                            %)
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-stone-500">Estimated Hours</p>
-                          <p className="font-semibold text-green-950">
-                            {crew.estimatedHours.toFixed(1)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-stone-500">Actual Hours</p>
-                          <p className="font-semibold text-green-950">
-                            {crew.actualHours.toFixed(1)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-stone-500">Hours Variance</p>
-                          <p className="font-semibold text-green-950">
-                            {crew.hourVariance >= 0 ? "+" : ""}
-                            {crew.hourVariance.toFixed(1)} hrs
-                          </p>
-                        </div>
-                      </div>
-                      {overBudget || crew.hourVariance > 0 ? (
-                        <p className="mt-3 text-sm font-medium text-amber-800">
-                          ⚠{" "}
-                          {overBudget && crew.hourVariance > 0
-                            ? "Over budget and over estimated hours"
-                            : overBudget
-                              ? "Over Budget"
-                              : "Over estimated hours"}
-                        </p>
-                      ) : (
-                        <p className="mt-3 text-sm font-medium text-green-800">
-                          Within estimate
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <p className="text-xs text-stone-500">Estimated Cost</p>
-                          <p className="font-semibold text-green-950">
-                            {formatCurrency(estimated)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-stone-500">Estimated Hours</p>
-                          <p className="font-semibold text-green-950">
-                            {crew.estimatedHours.toFixed(1)}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-sm text-stone-500">
-                        Actual cost and variance appear after the visit is
-                        completed.
+                  <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                    <div>
+                      <p className="text-xs text-stone-500">Estimated Cost</p>
+                      <p className="font-semibold text-green-950">
+                        {formatCurrency(estimated)}
                       </p>
-                    </>
+                    </div>
+                    <div>
+                      <p className="text-xs text-stone-500">Actual Cost</p>
+                      <p className="font-semibold text-green-950">
+                        {formatCurrency(totalCost)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-stone-500">Cost Variance</p>
+                      <p className="font-semibold text-green-950">
+                        {variance >= 0 ? "+" : ""}
+                        {formatCurrency(variance)} ({variancePct.toFixed(0)}%)
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-stone-500">Estimated Hours</p>
+                      <p className="font-semibold text-green-950">
+                        {crew.estimatedHours.toFixed(1)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-stone-500">Actual Hours</p>
+                      <p className="font-semibold text-green-950">
+                        {crew.actualHours.toFixed(1)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-stone-500">Hours Variance</p>
+                      <p className="font-semibold text-green-950">
+                        {crew.hourVariance >= 0 ? "+" : ""}
+                        {crew.hourVariance.toFixed(1)} hrs
+                      </p>
+                    </div>
+                  </div>
+                  {overBudget || crew.hourVariance > 0 ? (
+                    <p className="mt-3 text-sm font-medium text-amber-800">
+                      ⚠{" "}
+                      {overBudget && crew.hourVariance > 0
+                        ? "Over budget and over estimated hours"
+                        : overBudget
+                          ? "Over Budget"
+                          : "Over estimated hours"}
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-sm font-medium text-green-800">
+                      Within estimate
+                    </p>
                   )}
                 </section>
 
-                {isCompleted ? (
                 <section className="rounded-lg bg-stone-100 p-4">
                   <h3 className="mb-3 text-sm font-semibold text-green-950">
                     Cost Breakdown Chart
@@ -627,7 +617,6 @@ export function AccountantVisitsView({
                     })}
                   </div>
                 </section>
-                ) : null}
 
                 <section className="rounded-lg bg-stone-100 p-4">
                   <h3 className="mb-3 text-sm font-semibold text-green-950">
@@ -671,7 +660,22 @@ export function AccountantVisitsView({
                 />
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <section className="rounded-lg border border-stone-200 p-4">
+                  <h3 className="text-sm font-semibold text-green-950">Photos</h3>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4 text-center text-xs text-stone-500">
+                      Before
+                    </div>
+                    <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4 text-center text-xs text-stone-500">
+                      After
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-stone-500">
+                    Good for proving work completed.
+                  </p>
+                </section>
+
                 <section className="rounded-lg border border-stone-200 p-4">
                   <VisitAuditLog entries={auditEntries} />
                   <p className="mt-2 text-xs text-stone-500">Shows accountability.</p>
@@ -683,6 +687,8 @@ export function AccountantVisitsView({
           );
         })}
       </div>
+      </>
+      ) : null}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
 import {
   normalizeServiceName,
   oxfordAddressForCustomer,
+  todayDateOnly,
 } from "@/components/crew-lead/buildCrewSchedule";
 import type {
   ExtraWorkItem,
@@ -32,6 +33,7 @@ import { VisitsSummaryBlocks } from "@/components/visits/VisitsSummaryBlocks";
 import { Card, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
 import { jobIncludesCrewMember } from "@/lib/crew-member";
+import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
 import {
   getViewRole,
   roleCanEditContractDetails,
@@ -39,7 +41,6 @@ import {
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { formatVisitCostDescription } from "@/lib/crew-hours";
-import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
 import {
   fetchAccountantVisits,
   fetchAllVisitCosts,
@@ -48,6 +49,12 @@ import {
   fetchVisitCosts,
   fetchVisits,
 } from "@/lib/queries";
+import {
+  applyServiceHoldToScheduleJobs,
+  buildCustomerServiceHolds,
+  effectiveVisitDisplayStatus,
+  heldCustomerIdSet,
+} from "@/lib/service-hold";
 import type { VisitCost } from "@/lib/types";
 import {
   buildJobRows,
@@ -156,7 +163,7 @@ export default async function VisitsPage({
 
   if (role === "crew_lead" || role === "crew_member") {
     const supabase = await createDataClient();
-    const [{ data: enrichedVisits }, { data: extraWorkRows }] =
+    const [{ data: enrichedVisits }, { data: extraWorkRows }, { data: invoices }] =
       await Promise.all([
         supabase
           .from("service_visits")
@@ -167,7 +174,55 @@ export default async function VisitsPage({
         supabase
           .from("extra_work_orders")
           .select("id, contract_id, title, description, quoted_amount, status"),
+        supabase
+          .from("invoices")
+          .select(
+            "id, invoice_number, customer_id, total, amount_paid, status, due_date, customers(name)"
+          ),
       ]);
+    const today = todayDateOnly();
+    const holds = buildCustomerServiceHolds(
+      (invoices ?? []).map((invoice) => ({
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        customer_id: String(invoice.customer_id),
+        total: Number(invoice.total),
+        amount_paid: Number(invoice.amount_paid),
+        status: invoice.status,
+        due_date: invoice.due_date,
+        customers: Array.isArray(invoice.customers)
+          ? invoice.customers[0]
+            ? { name: invoice.customers[0].name }
+            : null
+          : invoice.customers
+            ? { name: (invoice.customers as { name: string }).name }
+            : null,
+      })),
+      (enrichedVisits ?? []).map((visit) => ({
+        id: visit.id,
+        contract_id: visit.contract_id,
+        status: visit.status,
+        scheduled_date: visit.scheduled_date,
+      })),
+      {
+        today,
+        contractCustomerById: new Map(
+          (enrichedVisits ?? []).flatMap((visit) => {
+            const contractRaw = visit.contracts as
+              | { id: string; customer_id: string }
+              | { id: string; customer_id: string }[]
+              | null;
+            const contract = Array.isArray(contractRaw)
+              ? contractRaw[0]
+              : contractRaw;
+            return contract
+              ? [[contract.id, String(contract.customer_id)] as const]
+              : [];
+          })
+        ),
+      }
+    );
+    const heldIds = heldCustomerIdSet(holds);
 
     extraWork = (extraWorkRows ?? []).map((row) => ({
       id: row.id,
@@ -245,11 +300,18 @@ export default async function VisitsPage({
         ).values()
       );
 
+      const scheduledDate = visit.scheduled_date.slice(0, 10);
+      const onHold = heldIds.has(customer.id);
       crewJobsByVisitId.set(visit.id, {
         id: visit.id,
         contractId: contract.id,
-        scheduledDate: visit.scheduled_date.slice(0, 10),
-        status: visit.status,
+        scheduledDate,
+        status: effectiveVisitDisplayStatus(
+          visit.status,
+          scheduledDate,
+          onHold,
+          today
+        ),
         customerId: customer.id,
         customerName: customer.name,
         customerIdShort: customer.id.slice(-4),
@@ -260,7 +322,17 @@ export default async function VisitsPage({
         lat: 34.3665,
         lng: -89.5192,
         source: "visit",
+        serviceHold: onHold,
       });
+    }
+
+    const heldJobs = applyServiceHoldToScheduleJobs(
+      Array.from(crewJobsByVisitId.values()),
+      heldIds,
+      today
+    );
+    for (const job of heldJobs) {
+      crewJobsByVisitId.set(job.id, job);
     }
 
     const scopedVisits =
@@ -272,6 +344,7 @@ export default async function VisitsPage({
       scopedVisits.map(async (visit) => {
         const contract = visit.contracts as {
           title: string;
+          customer_id?: string;
           customers: { name: string } | null;
         } | null;
         const { data: costs } = await fetchVisitCosts(visit.id);
@@ -281,10 +354,20 @@ export default async function VisitsPage({
           0
         );
         const crewJob = crewJobsByVisitId.get(visit.id) ?? null;
+        const customerId =
+          crewJob?.customerId ??
+          contract?.customer_id ??
+          (contract?.customers as { id?: string } | null)?.id;
+        const displayStatus = effectiveVisitDisplayStatus(
+          visit.status,
+          visit.scheduled_date.slice(0, 10),
+          Boolean(customerId && heldIds.has(customerId)),
+          today
+        );
 
         return {
           id: visit.id,
-          status: visit.status,
+          status: displayStatus,
           customerName: contract?.customers?.name ?? "Unknown Customer",
           contractTitle: contract?.title ?? "Contract",
           scheduledDate: visit.scheduled_date,
