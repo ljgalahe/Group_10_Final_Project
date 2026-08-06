@@ -89,7 +89,9 @@ insert into service_visits (id, contract_id, scheduled_date, status, crew_notes,
   ('33333333-3333-3333-3333-333333333308', '22222222-2222-2222-2222-222222222205', '2026-06-10', 'completed', 'Fixed zone 3 low pressure — courtyard beds', '2026-06-10 11:30:00+00'),
   ('33333333-3333-3333-3333-333333333309', '22222222-2222-2222-2222-222222222205', '2026-08-12', 'scheduled', null, null),
   ('33333333-3333-3333-3333-333333333310', '22222222-2222-2222-2222-222222222206', '2026-06-11', 'completed', 'North island mowed and edged', '2026-06-11 13:00:00+00'),
-  ('33333333-3333-3333-3333-333333333311', '22222222-2222-2222-2222-222222222206', '2026-08-13', 'scheduled', null, null);
+  ('33333333-3333-3333-3333-333333333311', '22222222-2222-2222-2222-222222222206', '2026-08-13', 'scheduled', null, null),
+  -- Weather reschedule first in schedule order for customer presentation (today / earliest open slot)
+  ('33333333-3333-3333-3333-333333333320', '22222222-2222-2222-2222-222222222201', '2026-08-05', 'rescheduled', 'Rescheduled due to severe thunderstorms and lightning safety. Original visit postponed; now first on the schedule for Aug 5, 2026.', null);
 
 -- ─── VISIT COSTS (labor, materials, equipment) ───────────────────────────────
 
@@ -114,21 +116,21 @@ insert into extra_work_orders (id, contract_id, title, description, quoted_amoun
   ('44444444-4444-4444-4444-444444444402', '22222222-2222-2222-2222-222222222203', 'Storm Damage Cleanup', 'Quoted for fallen branch removal after May storm.', 950.00, 'quoted', null);
 
 -- ─── INVOICES & LINE ITEMS ───────────────────────────────────────────────────
--- Story: Riverside has open June invoice w/ extra work | Metro is 90+ days overdue
-
+-- Story: open AR ~12 days past due (presentation); not 60–90+ day extreme aging
 -- Stories:
 --   INV-0001 fully paid (ACH)
 --   INV-0003 fully paid (check)
 --   INV-0005 partially paid with multiple payments (check + card)
 --   INV-0006 canceled (cannot receive payments)
+-- As-of ~2026-08-05 → due 2026-07-24 ≈ 12 days overdue
 insert into invoices (id, contract_id, customer_id, invoice_number, issue_date, due_date, status, subtotal, total, amount_paid) values
   ('55555555-5555-5555-5555-555555555501', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0001', '2026-05-01', '2026-05-31', 'paid', 2400.00, 2400.00, 2400.00),
-  ('55555555-5555-5555-5555-555555555502', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0002', '2026-06-01', '2026-07-01', 'sent', 4250.00, 4250.00, 0.00),
-  ('55555555-5555-5555-5555-555555555506', '22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111101', 'INV-0006', '2026-06-01', '2026-07-01', 'sent', 650.00, 650.00, 0.00),
-  ('55555555-5555-5555-5555-555555555507', '22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111101', 'INV-0007', '2026-06-01', '2026-07-01', 'sent', 900.00, 900.00, 0.00),
+  ('55555555-5555-5555-5555-555555555502', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0002', '2026-06-24', '2026-07-24', 'past_due', 4250.00, 4250.00, 0.00),
+  ('55555555-5555-5555-5555-555555555506', '22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111101', 'INV-0006', '2026-06-24', '2026-07-24', 'past_due', 650.00, 650.00, 0.00),
+  ('55555555-5555-5555-5555-555555555507', '22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111101', 'INV-0007', '2026-06-24', '2026-07-24', 'past_due', 900.00, 900.00, 0.00),
   ('55555555-5555-5555-5555-555555555503', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0003', '2026-06-01', '2026-07-01', 'paid', 3200.00, 3200.00, 3200.00),
-  ('55555555-5555-5555-5555-555555555504', '22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'INV-0004', '2026-04-01', '2026-05-01', 'past_due', 4500.00, 4500.00, 0.00),
-  ('55555555-5555-5555-5555-555555555505', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0005', '2026-07-01', '2026-07-15', 'partially_paid', 1800.00, 1800.00, 900.00),
+  ('55555555-5555-5555-5555-555555555504', '22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'INV-0004', '2026-06-24', '2026-07-24', 'past_due', 4500.00, 4500.00, 0.00),
+  ('55555555-5555-5555-5555-555555555505', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0005', '2026-07-01', '2026-07-24', 'partially_paid', 1800.00, 1800.00, 900.00),
   ('55555555-5555-5555-5555-555555555508', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0008', '2026-08-01', '2026-08-31', 'draft', 1200.00, 1200.00, 0.00),
   ('55555555-5555-5555-5555-555555555509', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0009', '2026-08-01', '2026-08-31', 'approved', 3200.00, 3200.00, 0.00);
 
@@ -188,3 +190,71 @@ insert into equipment_usage (equipment_id, visit_id, hours, used_on, notes) valu
   ('66666666-6666-6666-6666-666666666605', '33333333-3333-3333-3333-333333333308', 2.0, '2026-06-10', 'Zone 3 diagnostics'),
   ('66666666-6666-6666-6666-666666666601', '33333333-3333-3333-3333-333333333310', 2.0, '2026-06-11', 'North island mow'),
   ('66666666-6666-6666-6666-666666666606', '33333333-3333-3333-3333-333333333310', 1.0, '2026-06-11', 'Cleanup blow');
+
+-- ─── INQUIRIES + QUOTES (ops pipeline demo — few rows) ───────────────────────
+do $$ begin
+  delete from inquiries where id in (
+    'a1000000-0000-4000-8000-000000000001',
+    'a1000000-0000-4000-8000-000000000002',
+    'a1000000-0000-4000-8000-000000000003',
+    'a1000000-0000-4000-8000-000000000004'
+  );
+  delete from quote_requests where id in (
+    'b2000000-0000-4000-8000-000000000001',
+    'b2000000-0000-4000-8000-000000000002',
+    'b2000000-0000-4000-8000-000000000003',
+    'b2000000-0000-4000-8000-000000000004',
+    'b2000000-0000-4000-8000-000000000011',
+    'b2000000-0000-4000-8000-000000000012'
+  );
+exception
+  when undefined_table then null;
+end $$;
+
+insert into inquiries (
+  id, company_name, contact_name, contact_email, contact_phone,
+  property_address, property_type, services_interested, message, status, created_at
+) values
+  ('a1000000-0000-4000-8000-000000000001', 'Oakwood Retail Plaza', 'Kim Alvarez', 'kalvarez@oakwoodplaza.com', '(662) 555-0188',
+   '2100 Jackson Ave E, Oxford, MS', 'retail_center', array['mowing', 'seasonal_color'],
+   'Need curb appeal package before fall leasing season.', 'New', now() - interval '2 days'),
+  ('a1000000-0000-4000-8000-000000000002', 'North Lamar Medical Offices', 'Dr. Evan Parks', 'facilities@nlmed.example', '(662) 555-0192',
+   '450 North Lamar Blvd, Oxford, MS', 'office_park', array['mowing', 'irrigation', 'snow_removal'],
+   'Year-round grounds + parking lot snow priority for patients.', 'Under review', now() - interval '5 days'),
+  ('a1000000-0000-4000-8000-000000000003', 'Westside Logistics Yard', 'Taylor Quinn', 'tquinn@westside-logistics.com', null,
+   '880 Industrial Blvd, Oxford, MS', 'industrial', array['mowing', 'other'],
+   'Perimeter mowing only; must badge with security.', 'New', now() - interval '1 day'),
+  ('a1000000-0000-4000-8000-000000000004', 'Sycamore Court Apartments', 'Riley Grant', 'rgrant@sycamorecourt.com', '(662) 555-0170',
+   '75 Sycamore Dr, Oxford, MS', 'multifamily', array['mowing', 'irrigation', 'seasonal_color'],
+   'Went with another vendor after site walk — keeping for pipeline demo.', 'Closed - Lost', now() - interval '12 days')
+on conflict (id) do nothing;
+
+insert into quote_requests (
+  id, customer_id, service_description, notes, property_address, status, budget_hours, budget_supplies, created_at
+) values
+  ('b2000000-0000-4000-8000-000000000001', '11111111-1111-1111-1111-111111111101',
+   'Seasonal color rotation — front entrance beds (Fall)',
+   'Customer asked for warm palette beds at University Ave entry.',
+   '1200 University Ave, Oxford, MS', 'new', 12.0, 'Mum trays, hardwood mulch top-up', now() - interval '3 days'),
+  ('b2000000-0000-4000-8000-000000000002', '11111111-1111-1111-1111-111111111102',
+   'Irrigation zone upgrade — south retail frontage',
+   'Survey scheduled after converted water meters.',
+   '450 Jackson Ave W, Oxford, MS', 'survey_scheduled', 8.0, 'Hunter heads, controller expansion module', now() - interval '6 days'),
+  ('b2000000-0000-4000-8000-000000000003', '11111111-1111-1111-1111-111111111103',
+   'HOA common-area snow priority package',
+   'Budgeting salt, plows, and response SLA for winter 2026–27.',
+   '88 South Lamar Blvd, Oxford, MS', 'budgeted', 0.0, 'Salt bulk reserve, plow blades', now() - interval '10 days'),
+  ('b2000000-0000-4000-8000-000000000004', '11111111-1111-1111-1111-111111111104',
+   'Industrial perimeter mowing + detention pond bank care',
+   'Out-of-scope add for Metro — PPE / escort required.',
+   '900 Molly Barr Rd, Oxford, MS', 'new', 16.0, null, now() - interval '1 day'),
+  -- Riverside customer: one open (unresolved) + one closed (resolved)
+  ('b2000000-0000-4000-8000-000000000011', '11111111-1111-1111-1111-111111111101',
+   'Mulch / bed refresh — north courtyard (Riverside)',
+   'OPEN: Waiting on final bed layout sketch from property manager. Priority before fall.',
+   '1200 University Ave, Oxford, MS', 'new', 10.0, 'Hardwood mulch, seasonal annuals', now() - interval '4 days'),
+  ('b2000000-0000-4000-8000-000000000012', '11111111-1111-1111-1111-111111111101',
+   'Spring cleanup catch-up — parking island edges (Riverside)',
+   'RESOLVED: Scope completed and billed on INV-0001 season. Closed after customer sign-off.',
+   '1200 University Ave, Oxford, MS', 'closed', 6.0, null, now() - interval '45 days')
+on conflict (id) do nothing;

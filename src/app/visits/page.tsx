@@ -400,7 +400,11 @@ export default async function VisitsPage({
   const filteredVisits =
     statusFilter === "all"
       ? visits
-      : visits.filter((v) => v.status === statusFilter);
+      : statusFilter === "scheduled"
+        ? visits.filter(
+            (v) => v.status === "scheduled" || v.status === "rescheduled"
+          )
+        : visits.filter((v) => v.status === statusFilter);
 
   const emptyMessage = (() => {
     if (statusFilter === "scheduled") {
@@ -502,12 +506,23 @@ export default async function VisitsPage({
                           <p className="mt-1 text-sm text-stone-500">
                             Visit date: {formatDate(visit.scheduled_date)}
                           </p>
-                          <p className="mt-3 text-sm text-stone-700">
-                            <span className="font-medium text-stone-800">
-                              Service summary:{" "}
-                            </span>
-                            {formatVisitDescription(visit.crew_notes)}
-                          </p>
+                          {visit.status === "rescheduled" ? (
+                            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
+                              <p className="font-medium">
+                                Rescheduled for weather
+                              </p>
+                              <p className="mt-0.5 text-amber-900/90">
+                                {formatVisitDescription(visit.crew_notes)}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-sm text-stone-700">
+                              <span className="font-medium text-stone-800">
+                                Service summary:{" "}
+                              </span>
+                              {formatVisitDescription(visit.crew_notes)}
+                            </p>
+                          )}
                           {customerNotes.length > 0 ? (
                             <div className="mt-4">
                               <p className="text-sm font-medium text-stone-800">

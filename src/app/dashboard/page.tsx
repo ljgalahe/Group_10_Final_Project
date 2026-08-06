@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
@@ -173,6 +174,9 @@ export default async function DashboardPage({
   await requireAppAccess();
 
   const role = await getViewRole();
+  if (role === "inquiries") {
+    redirect("/inquiries");
+  }
   const stats = await fetchDashboardStats();
   const params = await searchParams;
 

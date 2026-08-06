@@ -40,6 +40,16 @@ export function roleCanManageQuotes(role: UserRole) {
   return role === "operations";
 }
 
+/** Prospective customer marketing / inquiry start page. */
+export function roleIsInquiries(role: UserRole) {
+  return role === "inquiries";
+}
+
+/** Operations inbox for reviewing and converting prospect inquiries. */
+export function roleCanViewInquiriesInbox(role: UserRole) {
+  return role === "operations";
+}
+
 export function roleCanManageCompanySchedule(role: UserRole) {
   return role === "operations";
 }
