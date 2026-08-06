@@ -5,7 +5,7 @@ import { createDataClient } from "@/lib/auth-access";
 import {
   ALLOWED_SERVICE_VALUES,
   SERVICE_LABELS,
-  toLegacyServiceValues,
+  toCanonicalServiceValues,
 } from "@/lib/commercial-services";
 import { revalidatePath } from "next/cache";
 
@@ -161,7 +161,7 @@ export async function submitProspectInquiry(
     contact_phone: contact_phone || null,
     property_address,
     property_type,
-    services_interested: toLegacyServiceValues(services_interested),
+    services_interested: toCanonicalServiceValues(services_interested),
     message: combinedMessage,
     status: "New",
     acres,

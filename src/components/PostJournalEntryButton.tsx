@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { postAutomatedJournalEntry } from "@/app/actions/journal";
+import { journalEntryListHref } from "@/lib/journal-source-href";
 import type { JournalSource, JournalStatus } from "@/lib/journal";
 
 type State = { ok: boolean; error?: string } | null;
@@ -50,7 +51,7 @@ export function PostJournalEntryButton({
         </span>
         {!readOnly ? (
           <Link
-            href="/reports/journal-entries"
+            href={journalEntryListHref(sourceId)}
             className="text-xs font-medium text-green-800 hover:underline"
           >
             Edit Journal Entry

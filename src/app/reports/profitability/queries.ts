@@ -862,54 +862,70 @@ export type RevenueSeasonMonth = {
   invoiceCount: number;
 };
 
-/** Last 12 months of billed revenue and visit costs for active contracts. */
+function monthLabelFromKey(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  if (!year || !month) return monthKey;
+  return new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-US", {
+    month: "short",
+    year: "2-digit",
+    timeZone: "UTC",
+  });
+}
+
+function buildMonthKeys(startKey: string, endKey: string): string[] {
+  const [sy, sm] = startKey.split("-").map(Number);
+  const [ey, em] = endKey.split("-").map(Number);
+  if (!sy || !sm || !ey || !em) return [];
+  const keys: string[] = [];
+  let y = sy;
+  let m = sm;
+  while (y < ey || (y === ey && m <= em)) {
+    keys.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return keys;
+}
+
+/**
+ * Monthly billed revenue and visit costs for active contracts.
+ * Uses the same invoice universe as Total Revenue (all non-void invoices on
+ * those contracts) so seasonality bars sum to the KPI.
+ */
 export async function fetchRevenueSeasonality(
   contractIds: string[]
 ): Promise<RevenueSeasonMonth[]> {
-  const months: RevenueSeasonMonth[] = [];
   const now = new Date();
-  const cursor = new Date(
+  const currentKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const defaultStart = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1)
   );
+  const defaultStartKey = `${defaultStart.getUTCFullYear()}-${String(defaultStart.getUTCMonth() + 1).padStart(2, "0")}`;
 
-  for (let i = 0; i < 12; i++) {
-    const year = cursor.getUTCFullYear();
-    const month = cursor.getUTCMonth();
-    const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
-    const label = cursor.toLocaleString("en-US", {
-      month: "short",
-      year: "2-digit",
-      timeZone: "UTC",
-    });
-    months.push({
+  if (contractIds.length === 0) {
+    return buildMonthKeys(defaultStartKey, currentKey).map((monthKey) => ({
       monthKey,
-      label,
+      label: monthLabelFromKey(monthKey),
       revenue: 0,
       costs: 0,
       invoiceCount: 0,
-    });
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }));
   }
-
-  if (contractIds.length === 0) return months;
-
-  const monthIndex = new Map(months.map((m, i) => [m.monthKey, i]));
-  const rangeStart = `${months[0].monthKey}-01`;
-  const last = months[months.length - 1];
-  const [ly, lm] = last.monthKey.split("-").map(Number);
-  const rangeEndDate = new Date(Date.UTC(ly, lm, 0)); // last day of last month
-  const rangeEnd = rangeEndDate.toISOString().slice(0, 10);
 
   const supabase = await createDataClient();
   const pageSize = 1000;
+
+  type InvoiceAgg = { total: number; issue_date: string };
+  const invoiceRows: InvoiceAgg[] = [];
 
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from("invoices")
       .select("total, status, issue_date, contract_id")
       .in("contract_id", contractIds)
-      .gte("issue_date", rangeStart)
-      .lte("issue_date", rangeEnd)
       .range(from, from + pageSize - 1);
 
     if (error) {
@@ -919,19 +935,47 @@ export async function fetchRevenueSeasonality(
     if (!data?.length) break;
 
     for (const invoice of data) {
-      const status = String(invoice.status ?? "");
-      if (status === "canceled" || status === "voided") continue;
+      // Match fetchProfitabilityReport: sum every invoice total on active contracts.
       const issueDate = String(invoice.issue_date ?? "").slice(0, 10);
       if (!issueDate) continue;
-      const key = issueDate.slice(0, 7);
-      const idx = monthIndex.get(key);
-      if (idx == null) continue;
-      months[idx].revenue += Number(invoice.total);
-      months[idx].invoiceCount += 1;
+      invoiceRows.push({
+        total: Number(invoice.total),
+        issue_date: issueDate,
+      });
     }
 
     if (data.length < pageSize) break;
   }
+
+  let startKey = defaultStartKey;
+  for (const invoice of invoiceRows) {
+    const key = invoice.issue_date.slice(0, 7);
+    if (key < startKey) startKey = key;
+  }
+
+  const monthKeys = buildMonthKeys(startKey, currentKey);
+  const months: RevenueSeasonMonth[] = monthKeys.map((monthKey) => ({
+    monthKey,
+    label: monthLabelFromKey(monthKey),
+    revenue: 0,
+    costs: 0,
+    invoiceCount: 0,
+  }));
+  const monthIndex = new Map(months.map((m, i) => [m.monthKey, i]));
+
+  for (const invoice of invoiceRows) {
+    const key = invoice.issue_date.slice(0, 7);
+    const idx = monthIndex.get(key);
+    if (idx == null) continue;
+    months[idx].revenue += invoice.total;
+    months[idx].invoiceCount += 1;
+  }
+
+  const rangeStart = `${months[0]?.monthKey ?? defaultStartKey}-01`;
+  const last = months[months.length - 1] ?? { monthKey: currentKey };
+  const [ly, lm] = last.monthKey.split("-").map(Number);
+  const rangeEndDate = new Date(Date.UTC(ly, lm, 0));
+  const rangeEnd = rangeEndDate.toISOString().slice(0, 10);
 
   // Visit costs by visit scheduled_date month
   const visitToMonth = new Map<string, string>();
@@ -979,11 +1023,25 @@ export async function fetchRevenueSeasonality(
     if (data.length < pageSize) break;
   }
 
-  return months.map((m) => ({
+  const rounded = months.map((m) => ({
     ...m,
     revenue: roundMoney(m.revenue),
     costs: roundMoney(m.costs),
   }));
+
+  // Keep the chart readable: last 11 months + one "Earlier" rollup so totals still match.
+  if (rounded.length <= 12) return rounded;
+
+  const earlier = rounded.slice(0, -11);
+  const recent = rounded.slice(-11);
+  const rolled: RevenueSeasonMonth = {
+    monthKey: "earlier",
+    label: "Earlier",
+    revenue: roundMoney(earlier.reduce((s, m) => s + m.revenue, 0)),
+    costs: roundMoney(earlier.reduce((s, m) => s + m.costs, 0)),
+    invoiceCount: earlier.reduce((s, m) => s + m.invoiceCount, 0),
+  };
+  return [rolled, ...recent];
 }
 
 export async function fetchFinancialStatementInputs(): Promise<FinancialStatementInputs> {

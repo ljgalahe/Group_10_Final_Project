@@ -77,15 +77,18 @@ function RevenueInsightModal({
   }, [serviceLines, totalRevenue]);
 
   const seasonReport = useMemo(() => {
-    const withRevenue = seasonality.filter((m) => m.revenue > 0);
+    const chartMonths = seasonality.filter((m) => m.monthKey !== "earlier");
+    const withRevenue = chartMonths.filter((m) => m.revenue > 0);
+    const total = seasonality.reduce((s, m) => s + m.revenue, 0);
     if (withRevenue.length === 0) {
       return {
         peak: null as RevenueSeasonMonth | null,
         trough: null as RevenueSeasonMonth | null,
-        total: 0,
+        total,
         peakShare: 0,
         avg: 0,
-        narrative: "No billed revenue in the last 12 months yet.",
+        narrative: "No billed revenue on active contracts yet.",
+        aligned: Math.abs(total - totalRevenue) < 0.02,
       };
     }
     const peak = withRevenue.reduce((best, m) =>
@@ -94,7 +97,6 @@ function RevenueInsightModal({
     const trough = withRevenue.reduce((best, m) =>
       m.revenue < best.revenue ? m : best
     );
-    const total = seasonality.reduce((s, m) => s + m.revenue, 0);
     const avg = total / Math.max(withRevenue.length, 1);
     const peakShare = total > 0 ? (peak.revenue / total) * 100 : 0;
     const swing =
@@ -104,11 +106,19 @@ function RevenueInsightModal({
 
     const narrative =
       swing == null
-        ? `${peak.label} is the strongest billing month at ${formatCurrency(peak.revenue)} (${peakShare.toFixed(0)}% of trailing-year revenue).`
-        : `Revenue peaks in ${peak.label} (${formatCurrency(peak.revenue)}) and dips in ${trough.label} (${formatCurrency(trough.revenue)}). Peak month is ${swing.toFixed(0)}% above the softest month and accounts for ${peakShare.toFixed(0)}% of trailing-year billings.`;
+        ? `${peak.label} is the strongest billing month at ${formatCurrency(peak.revenue)} (${peakShare.toFixed(0)}% of billed revenue).`
+        : `Revenue peaks in ${peak.label} (${formatCurrency(peak.revenue)}) and dips in ${trough.label} (${formatCurrency(trough.revenue)}). Peak month is ${swing.toFixed(0)}% above the softest month and accounts for ${peakShare.toFixed(0)}% of billed revenue.`;
 
-    return { peak, trough, total, peakShare, avg, narrative };
-  }, [seasonality]);
+    return {
+      peak,
+      trough,
+      total,
+      peakShare,
+      avg,
+      narrative,
+      aligned: Math.abs(total - totalRevenue) < 0.02,
+    };
+  }, [seasonality, totalRevenue]);
 
   return (
     <div
@@ -134,8 +144,8 @@ function RevenueInsightModal({
               Total Revenue — {formatCurrency(totalRevenue)}
             </h2>
             <p className="mt-1 text-sm text-stone-500">
-              Service-line mix from allocated contract billings, plus trailing
-              12-month seasonality.
+              Service-line mix from allocated contract billings, plus monthly
+              seasonality that sums to Total Revenue.
             </p>
           </div>
           <button
@@ -171,8 +181,11 @@ function RevenueInsightModal({
                 Seasonality Report
               </h3>
               <p className="text-sm text-stone-500">
-                Invoice billings and visit costs by month for the last 12
-                months.
+                Invoice billings and visit costs by month — chart total{" "}
+                {formatCurrency(seasonReport.total)}
+                {seasonReport.aligned
+                  ? " matches Total Revenue."
+                  : ` (Total Revenue ${formatCurrency(totalRevenue)}).`}
               </p>
             </div>
 

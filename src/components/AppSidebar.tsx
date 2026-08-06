@@ -81,48 +81,40 @@ export function AppSidebar({
   return (
     <aside
       className={`gs-sidebar relative z-40 flex w-full flex-col border-b border-white/10 transition-[width] duration-300 ease-out md:fixed md:inset-y-0 md:left-0 md:h-dvh md:overflow-hidden md:border-b-0 md:border-r md:border-white/10 ${
-        collapsed ? "md:w-[4.5rem]" : "md:w-60"
+        collapsed ? "md:w-10" : "md:w-60"
       }`}
       data-sidebar={collapsed ? "collapsed" : "expanded"}
     >
       <div
         className={`flex shrink-0 items-start justify-between gap-3 px-3 pb-4 pt-5 md:flex-col md:items-stretch ${
-          collapsed ? "md:px-2 md:pt-4" : "md:px-4"
+          collapsed ? "md:items-center md:px-0 md:pb-0 md:pt-4" : "md:px-4"
         }`}
       >
-        <div
-          className={`relative min-w-0 ${collapsed ? "md:text-center" : "md:pl-1"}`}
-        >
-          {!collapsed ? (
-            <>
-              <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-[var(--champagne-bright)]">
-                Commercial
-              </p>
-              <Link
-                href="/"
-                className="mt-1 block font-display text-[1.7rem] leading-none tracking-tight text-[#faf8f4]"
-              >
-                GreenScape
-              </Link>
-              <p className="mt-2 max-w-[11rem] font-display text-[13px] italic leading-relaxed text-[#9a958a]">
-                Commercial grounds, elevated.
-              </p>
-            </>
-          ) : (
+        {!collapsed ? (
+          <div className="relative min-w-0 md:pl-1">
+            <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-[var(--champagne-bright)]">
+              Commercial
+            </p>
             <Link
               href="/"
-              className="mx-auto block font-display text-2xl font-semibold leading-none text-[#faf8f4]"
-              title="GreenScape"
+              className="mt-1 block font-display text-[1.7rem] leading-none tracking-tight text-[#faf8f4]"
             >
-              G
+              GreenScape
             </Link>
-          )}
-        </div>
+            <p className="mt-2 max-w-[11rem] font-display text-[13px] italic leading-relaxed text-[#9a958a]">
+              Commercial grounds, elevated.
+            </p>
+          </div>
+        ) : null}
 
         <button
           type="button"
           onClick={toggleCollapsed}
-          className="hidden h-9 w-9 shrink-0 items-center justify-center border border-white/15 text-[#c9c4b8] transition hover:border-[var(--champagne)]/40 hover:bg-white/5 hover:text-[#faf8f4] md:inline-flex"
+          className={`hidden shrink-0 items-center justify-center border border-white/15 text-[#c9c4b8] transition hover:border-[var(--champagne)]/40 hover:bg-white/5 hover:text-[#faf8f4] md:inline-flex ${
+            collapsed
+              ? "h-9 w-full rounded-none border-x-0 border-t-0 border-b-white/10"
+              : "h-9 w-9"
+          }`}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-expanded={!collapsed}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -152,46 +144,31 @@ export function AppSidebar({
               Navigate
             </p>
           </div>
-        ) : (
-          <div className="my-3 hidden h-px bg-white/10 md:block" />
-        )}
+        ) : null}
       </div>
 
-      <div className="gs-sidebar-scroll min-h-0 flex-1 px-1.5 pb-3 md:overflow-y-auto">
-        <AppNavLinks items={items} collapsed={collapsed} />
-      </div>
+      {!collapsed ? (
+        <div className="gs-sidebar-scroll min-h-0 flex-1 px-1.5 pb-3 md:overflow-y-auto">
+          <AppNavLinks items={items} />
+        </div>
+      ) : (
+        <div className="hidden min-h-0 flex-1 md:block" aria-hidden />
+      )}
 
-      <div
-        className={`mt-auto shrink-0 space-y-3 border-t border-white/10 py-4 ${
-          collapsed ? "px-2" : "px-3"
-        }`}
-      >
-        {!collapsed ? (
-          <>
-            <RoleSwitcher currentRole={role} />
-            <form action={signOut}>
-              <button
-                type="submit"
-                className="gs-text-link w-full justify-between border border-white/15 px-3 py-2 text-[#c9c4b8] hover:border-[var(--champagne)]/40 hover:bg-white/5 hover:text-[#faf8f4]"
-              >
-                Sign Out
-                <span aria-hidden>→</span>
-              </button>
-            </form>
-          </>
-        ) : (
-          <form action={signOut} className="flex justify-center">
+      {!collapsed ? (
+        <div className="mt-auto shrink-0 space-y-3 border-t border-white/10 px-3 py-4">
+          <RoleSwitcher currentRole={role} />
+          <form action={signOut}>
             <button
               type="submit"
-              className="inline-flex h-9 w-9 items-center justify-center border border-white/15 text-[11px] tracking-wide text-[#c9c4b8] transition hover:border-[var(--champagne)]/40 hover:bg-white/5 hover:text-[#faf8f4]"
-              title="Sign Out"
-              aria-label="Sign Out"
+              className="gs-text-link w-full justify-between border border-white/15 px-3 py-2 text-[#c9c4b8] hover:border-[var(--champagne)]/40 hover:bg-white/5 hover:text-[#faf8f4]"
             >
-              ⎋
+              Sign Out
+              <span aria-hidden>→</span>
             </button>
           </form>
-        )}
-      </div>
+        </div>
+      ) : null}
     </aside>
   );
 }

@@ -25,7 +25,7 @@ function AppFrameInner({
       <AppSidebar role={role} items={items} />
       <div
         className={`min-h-dvh transition-[padding] duration-300 ease-out ${
-          collapsed ? "md:pl-[4.5rem]" : "md:pl-60"
+          collapsed ? "md:pl-10" : "md:pl-60"
         }`}
       >
         <main

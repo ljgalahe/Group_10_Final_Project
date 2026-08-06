@@ -898,11 +898,7 @@ export default async function DashboardPage({
         <div className="mt-6 space-y-5">
           <ServiceHoldAuditSync holds={serviceHolds} />
           <ManagerKpiStrip kpis={managerKpis} />
-          <ManagerAlertsCenter
-            alerts={managerAlerts}
-            paymentConcernInvoices={managerPaymentInvoices}
-            asOfDate={today}
-          />
+          <ManagerAlertsCenter alerts={managerAlerts} />
           <CompanyPerformanceLeaderboard
             categories={performanceCategories}
             initialCategory={initialPerfCategory}

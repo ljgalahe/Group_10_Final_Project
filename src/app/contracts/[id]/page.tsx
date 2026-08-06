@@ -46,6 +46,7 @@ export default async function ContractDetailPage({
     sent?: string;
     signed?: string;
     paused?: string;
+    unpaused?: string;
     inquiry?: string;
     cancelled?: string;
     error?: string;
@@ -175,6 +176,11 @@ export default async function ContractDetailPage({
       {flash.paused === "1" ? (
         <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           Service Paused For One Month. You Can Extend Pause Again If Needed.
+        </p>
+      ) : null}
+      {flash.unpaused === "1" ? (
+        <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+          Service Resumed. Visits Can Continue On Schedule.
         </p>
       ) : null}
       {flash.inquiry === "1" ? (

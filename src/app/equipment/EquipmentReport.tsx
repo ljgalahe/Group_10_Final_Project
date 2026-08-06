@@ -8,7 +8,6 @@ import { chatHrefForEquipmentReplacement } from "@/lib/chat-demo";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   createEquipment,
-  logEquipmentHours,
   reactivateEquipment,
   retireEquipment,
   updateEquipment,
@@ -287,11 +286,12 @@ function AssetForm({
 export function EquipmentReport({
   report,
   usage,
-  visits,
+  visits: _visits,
   dateFrom,
   dateTo,
   companyRevenueInView,
 }: Props) {
+  void _visits;
   const { assets, companyRevenue } = report;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -302,7 +302,6 @@ export function EquipmentReport({
   const [formMode, setFormMode] = useState<FormMode>("closed");
   const [editing, setEditing] = useState<EquipmentRow | null>(null);
   const [detailAsset, setDetailAsset] = useState<EquipmentRow | null>(null);
-  const [logOpen, setLogOpen] = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string>("All");
   const [equipmentFilter, setEquipmentFilter] = useState<string>("All");
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -740,23 +739,6 @@ export function EquipmentReport({
 
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <label className="block text-sm">
-            <span className="text-stone-600">Category</span>
-            <select
-              value={category}
-              onChange={(e) =>
-                setCategory(e.target.value as "All" | EquipmentCategory)
-              }
-              className="mt-1 block min-w-[11rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="All">All categories</option>
-              {EQUIPMENT_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
             <span className="text-stone-600">Status</span>
             <select
               value={statusFilter}
@@ -958,86 +940,7 @@ export function EquipmentReport({
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            onClick={() => setLogOpen((o) => !o)}
-            className="rounded-lg border border-green-800 px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-          >
-            {logOpen ? "Hide log form" : "Log hours"}
-          </button>
         </div>
-
-        {logOpen ? (
-          <form
-            action={logEquipmentHours}
-            className="mb-6 mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-2 lg:grid-cols-4"
-          >
-            <label className="block text-sm sm:col-span-2">
-              <span className="text-stone-600">Equipment</span>
-              <select
-                name="equipment_id"
-                required
-                className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
-                defaultValue=""
-              >
-                <option value="" disabled>
-                  Select equipment
-                </option>
-                {assets
-                  .filter((a) => a.status === "active")
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label className="block text-sm sm:col-span-2">
-              <span className="text-stone-600">Completed visit</span>
-              <select
-                name="visit_id"
-                required
-                className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
-                defaultValue=""
-              >
-                <option value="" disabled>
-                  Select visit
-                </option>
-                {visits.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="text-stone-600">Hours</span>
-              <input
-                type="number"
-                name="hours"
-                min={0.01}
-                step="0.01"
-                required
-                className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm sm:col-span-2 lg:col-span-2">
-              <span className="text-stone-600">Notes</span>
-              <input
-                name="notes"
-                className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
-              />
-            </label>
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-900"
-              >
-                Save hours
-              </button>
-            </div>
-          </form>
-        ) : null}
 
         {hoursOpen ? (
           <div className="mt-4">

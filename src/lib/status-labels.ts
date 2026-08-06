@@ -41,6 +41,7 @@ const STATUS_LABELS: Record<string, string> = {
   rescheduled: "Rescheduled",
   closed: "Closed",
   approved: "Approved",
+  paused: "Paused",
   quoted: "Quoted",
   routine: "Routine",
   high: "High",

@@ -787,14 +787,35 @@ export async function fetchProfitabilityReport() {
   const invoices: InvoiceRow[] = [];
   const visits: VisitRow[] = [];
 
+  // Page past PostgREST's 1000-row default — active contracts can have 1k+ visits.
   for (let i = 0; i < contractIds.length; i += SUPABASE_IN_CHUNK) {
     const chunk = contractIds.slice(i, i + SUPABASE_IN_CHUNK);
-    const [{ data: invoiceRows }, { data: visitRows }] = await Promise.all([
-      supabase.from("invoices").select("contract_id, total").in("contract_id", chunk),
-      supabase.from("service_visits").select("id, contract_id").in("contract_id", chunk),
+    const [invoicePage, visitPage] = await Promise.all([
+      fetchAllPaged<InvoiceRow>((from, to) =>
+        supabase
+          .from("invoices")
+          .select("contract_id, total")
+          .in("contract_id", chunk)
+          .range(from, to)
+      ),
+      fetchAllPaged<VisitRow>((from, to) =>
+        supabase
+          .from("service_visits")
+          .select("id, contract_id")
+          .in("contract_id", chunk)
+          .range(from, to)
+      ),
     ]);
-    invoices.push(...((invoiceRows ?? []) as InvoiceRow[]));
-    visits.push(...((visitRows ?? []) as VisitRow[]));
+    if (invoicePage.error) {
+      console.error("fetchProfitabilityReport invoices:", invoicePage.error);
+    } else {
+      invoices.push(...invoicePage.data);
+    }
+    if (visitPage.error) {
+      console.error("fetchProfitabilityReport visits:", visitPage.error);
+    } else {
+      visits.push(...visitPage.data);
+    }
   }
 
   const revenueByContract = new Map<string, number>();

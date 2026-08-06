@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 import { AddChartOfAccountModal } from "@/components/AddChartOfAccountModal";
 import { ChartOfAccountsBrowse } from "@/components/ChartOfAccountsBrowse";
 import { EmptyState, StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { journalEntryListHref } from "@/lib/journal-source-href";
 import type { ChartOfAccount } from "@/lib/chart-of-accounts";
 import {
   buildAccountRegister,
@@ -110,9 +112,9 @@ export function AccountantGeneralLedgerView({
       {filtered.length === 0 ? (
         <EmptyState message="No accounts match these filters." />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+        <div className="max-h-[40rem] overflow-auto rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-sm">
-            <thead className="bg-stone-50 text-left text-stone-600">
+            <thead className="sticky top-0 z-10 bg-stone-50 text-left text-stone-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Account</th>
                 <th className="px-4 py-3 text-right font-medium">Debits</th>
@@ -211,7 +213,27 @@ export function AccountantGeneralLedgerView({
                                       {formatDate(line.date)}
                                     </td>
                                     <td className="py-1.5 font-mono text-green-900">
-                                      {line.entryNumber}
+                                      {line.sourceId ? (
+                                        <Link
+                                          href={journalEntryListHref(line.sourceId)}
+                                          className="font-medium text-green-800 hover:underline"
+                                          onClick={(event) =>
+                                            event.stopPropagation()
+                                          }
+                                        >
+                                          {line.entryNumber}
+                                        </Link>
+                                      ) : (
+                                        <Link
+                                          href="/reports/journal-entries"
+                                          className="font-medium text-green-800 hover:underline"
+                                          onClick={(event) =>
+                                            event.stopPropagation()
+                                          }
+                                        >
+                                          {line.entryNumber}
+                                        </Link>
+                                      )}
                                     </td>
                                     <td className="py-1.5 text-stone-700">
                                       {line.memo}

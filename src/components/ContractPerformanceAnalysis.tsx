@@ -32,6 +32,8 @@ export function ContractPerformanceAnalysis({
 }) {
   const ranked = useMemo(() => sortByMarginPctDesc(report), [report]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Manager page: collapsible bar list (accountant twin uses `embedded` scroll only). */
+  const [listOpen, setListOpen] = useState(true);
 
   const maxAbsMargin = useMemo(() => {
     const peak = Math.max(...ranked.map((row) => Math.abs(row.marginPct)), 1);
@@ -66,95 +68,150 @@ export function ContractPerformanceAnalysis({
     ? recommendationsForContract(selected.contractId, recommendations)
     : [];
 
-  return (
-    <section className={embedded ? "space-y-3" : "mt-2 space-y-4"}>
-      <div>
-        <h2
-          className={
-            embedded
-              ? "text-base font-semibold text-green-950"
-              : "text-lg font-semibold text-green-950"
-          }
-        >
-          Contract Performance Analysis
-        </h2>
-        {!embedded ? (
-          <p className="text-sm text-stone-500">
-            Click a contract bar to open status, profit leaks, and recommended
-            actions. Sorted highest margin % to lowest.
-          </p>
-        ) : (
+  const barList = (
+    <ul
+      className={`space-y-3 ${
+        embedded
+          ? "max-h-[28rem] overflow-y-auto pr-1"
+          : "max-h-80 overflow-y-auto overscroll-contain pr-1"
+      }`}
+      role="list"
+    >
+      {ranked.map((row) => {
+        const isSelected = row.contractId === selectedId;
+        const widthPct = Math.min(
+          100,
+          (Math.abs(row.marginPct) / maxAbsMargin) * 100
+        );
+        const positive = row.marginPct >= 0;
+
+        return (
+          <li key={row.contractId}>
+            <button
+              type="button"
+              onClick={() => setSelectedId(row.contractId)}
+              aria-pressed={isSelected}
+              className={`group w-full rounded-lg border px-3 py-2.5 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 ${
+                isSelected
+                  ? "border-green-700 bg-green-50 shadow-sm ring-2 ring-green-700/20"
+                  : "border-transparent hover:border-stone-200 hover:bg-stone-50"
+              }`}
+            >
+              <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                <span
+                  className={`truncate text-sm font-medium ${
+                    isSelected ? "text-green-950" : "text-stone-800"
+                  }`}
+                >
+                  {row.title}
+                </span>
+                <span
+                  className={`shrink-0 text-sm font-semibold tabular-nums ${
+                    positive ? "text-green-900" : "text-red-700"
+                  }`}
+                >
+                  {row.marginPct.toFixed(1)}%
+                </span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-stone-100">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ease-out ${
+                    isSelected
+                      ? positive
+                        ? "bg-green-800"
+                        : "bg-red-600"
+                      : positive
+                        ? "bg-green-600 group-hover:bg-green-700"
+                        : "bg-red-500 group-hover:bg-red-600"
+                  }`}
+                  style={{ width: `${Math.max(widthPct, 3)}%` }}
+                />
+              </div>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  if (embedded) {
+    return (
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-green-950">
+            Contract Performance Analysis
+          </h2>
           <p className="text-xs text-stone-500">
             Click a bar to open contract details. Sorted by margin %.
           </p>
-        )}
-      </div>
+        </div>
 
-      <div
-        className={`rounded-xl border border-stone-200 bg-white shadow-sm ${
-          embedded ? "p-3 sm:p-4" : "p-4 sm:p-6"
-        }`}
-      >
-        <ul
-          className={`space-y-3 ${embedded ? "max-h-[28rem] overflow-y-auto pr-1" : ""}`}
-          role="list"
+        <div className="rounded-xl border border-stone-200 bg-white p-3 shadow-sm sm:p-4">
+          {barList}
+        </div>
+
+        {selected && selectedStatus ? (
+          <SelectedContractPanel
+            row={selected}
+            status={selectedStatus}
+            summary={managerSummarySentence(
+              selected,
+              selectedLeaks,
+              selectedStatus
+            )}
+            leaks={selectedLeaks}
+            recommendations={selectedRecs}
+            onClose={() => setSelectedId(null)}
+          />
+        ) : null}
+      </section>
+    );
+  }
+
+  return (
+    <section className="mt-2 space-y-4">
+      <section className="rounded-xl border border-stone-200 bg-white shadow-sm">
+        <button
+          type="button"
+          onClick={() => setListOpen((open) => !open)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5"
+          aria-expanded={listOpen}
         >
-          {ranked.map((row) => {
-            const isSelected = row.contractId === selectedId;
-            const widthPct = Math.min(
-              100,
-              (Math.abs(row.marginPct) / maxAbsMargin) * 100
-            );
-            const positive = row.marginPct >= 0;
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold text-green-950">
+                Contract Performance Analysis
+              </h2>
+              <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-700">
+                {ranked.length} contract{ranked.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-sm text-stone-500">
+              Click a contract bar for status, profit leaks, and actions
+            </p>
+          </div>
+          <span className="shrink-0 text-xs font-medium text-stone-500">
+            {listOpen ? "Collapse" : "Expand"}
+          </span>
+        </button>
 
-            return (
-              <li key={row.contractId}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(row.contractId)}
-                  aria-pressed={isSelected}
-                  className={`group w-full rounded-lg border px-3 py-2.5 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 ${
-                    isSelected
-                      ? "border-green-700 bg-green-50 shadow-sm ring-2 ring-green-700/20"
-                      : "border-transparent hover:border-stone-200 hover:bg-stone-50"
-                  }`}
-                >
-                  <div className="mb-1.5 flex items-baseline justify-between gap-3">
-                    <span
-                      className={`truncate text-sm font-medium ${
-                        isSelected ? "text-green-950" : "text-stone-800"
-                      }`}
-                    >
-                      {row.title}
-                    </span>
-                    <span
-                      className={`shrink-0 text-sm font-semibold tabular-nums ${
-                        positive ? "text-green-900" : "text-red-700"
-                      }`}
-                    >
-                      {row.marginPct.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-stone-100">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ease-out ${
-                        isSelected
-                          ? positive
-                            ? "bg-green-800"
-                            : "bg-red-600"
-                          : positive
-                            ? "bg-green-600 group-hover:bg-green-700"
-                            : "bg-red-500 group-hover:bg-red-600"
-                      }`}
-                      style={{ width: `${Math.max(widthPct, 3)}%` }}
-                    />
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+        <div
+          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+            listOpen
+              ? "grid-rows-[1fr] opacity-100"
+              : "grid-rows-[0fr] opacity-0"
+          }`}
+          aria-hidden={!listOpen}
+        >
+          <div
+            className={`min-h-0 overflow-hidden ${listOpen ? "" : "pointer-events-none"}`}
+          >
+            <div className="border-t border-stone-100 px-4 py-4 sm:px-5">
+              {barList}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {selected && selectedStatus ? (
         <SelectedContractPanel

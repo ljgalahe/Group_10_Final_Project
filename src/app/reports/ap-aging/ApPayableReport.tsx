@@ -27,7 +27,6 @@ import {
   apApprovalMarker,
   applyPaidApOverrides,
   getApPaymentGateStatus,
-  markApInvoicePaid,
   payApInvoiceIfApproved,
   requestApPaymentApproval,
   type ApPaymentGateStatus,
@@ -197,11 +196,6 @@ export function ApPayableReport({
       window.removeEventListener("storage", syncPaid);
     };
   }, [seedInvoices]);
-
-  function handleMarkPaid(invoiceId: string) {
-    markApInvoicePaid(invoiceId);
-    setInvoices(applyPaidApOverrides(seedInvoices));
-  }
 
   function handleRequestInvoiceApproval(inv: ApInvoice) {
     requestApPaymentApproval(inv.id);
@@ -626,13 +620,6 @@ export function ApPayableReport({
                       <span className="font-semibold text-green-950">
                         {formatCurrency(inv.amount)}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleMarkPaid(inv.id)}
-                        className="rounded-md border border-green-700 px-2.5 py-1 text-xs font-medium text-green-800 hover:bg-green-50"
-                      >
-                        Mark paid
-                      </button>
                     </div>
                   </li>
                 ))}
@@ -719,7 +706,6 @@ export function ApPayableReport({
           invoices={categoryDetailInvoices}
           total={categoryTotals[categoryDetail]}
           asOf={asOf}
-          onMarkPaid={handleMarkPaid}
           onClose={() => setCategoryDetail(null)}
         />
       ) : null}
@@ -1116,14 +1102,12 @@ function CategoryPayablesModal({
   invoices,
   total,
   asOf,
-  onMarkPaid,
   onClose,
 }: {
   category: ApCategory;
   invoices: ApInvoice[];
   total: number;
   asOf: string;
-  onMarkPaid: (invoiceId: string) => void;
   onClose: () => void;
 }) {
   return (
@@ -1185,9 +1169,6 @@ function CategoryPayablesModal({
                     <th className="px-4 py-2.5 font-medium">Aging</th>
                     <th className="px-4 py-2.5 font-medium">Discount</th>
                     <th className="px-4 py-2.5 text-right font-medium">Amount</th>
-                    <th className="px-4 py-2.5 text-right font-medium">
-                      Payment
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -1226,15 +1207,6 @@ function CategoryPayablesModal({
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-green-950 whitespace-nowrap">
                           {formatCurrency(inv.amount)}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => onMarkPaid(inv.id)}
-                            className="rounded-md border border-green-700 px-2.5 py-1 text-xs font-medium text-green-800 hover:bg-green-50"
-                          >
-                            Mark paid
-                          </button>
                         </td>
                       </tr>
                     );

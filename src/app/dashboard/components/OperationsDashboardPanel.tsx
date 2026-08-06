@@ -24,7 +24,7 @@ function VisitList({
   }
 
   return (
-    <ul className="mt-3 divide-y divide-stone-100 border-t border-stone-100">
+    <ul className="mt-3 max-h-80 divide-y divide-stone-100 overflow-y-auto overscroll-contain border-t border-stone-100 pr-1">
       {items.map((item) => (
         <li key={item.id}>
           <Link

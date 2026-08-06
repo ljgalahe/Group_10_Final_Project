@@ -2,10 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { InvoicePaymentConcernAlerts } from "@/components/invoices/InvoicePaymentConcernAlerts";
-import type { InvoiceListItem } from "@/lib/invoice-list";
-import { buildCompanyPaymentConcerns } from "@/lib/invoice-payment-concerns";
 import {
   REFERRAL_PARTNERS,
   type ReferralPartner,
@@ -276,15 +272,9 @@ function AlertRow({ alert }: { alert: ManagerAlert }) {
 
 export function ManagerAlertsCenter({
   alerts,
-  paymentConcernInvoices = [],
-  asOfDate,
 }: {
   alerts: ManagerAlert[];
-  /** Same past-due / hold-jobs concerns shown on Invoices. */
-  paymentConcernInvoices?: InvoiceListItem[];
-  asOfDate?: string;
 }) {
-  const router = useRouter();
   const sorted = useMemo(
     () =>
       [...alerts].sort((a, b) => {
@@ -303,12 +293,6 @@ export function ManagerAlertsCenter({
 
   const visible = showAll ? sorted : sorted.slice(0, 3);
   const hiddenCount = Math.max(0, sorted.length - 3);
-  const concernAsOf = asOfDate ?? new Date().toISOString().slice(0, 10);
-  const paymentConcernCount = useMemo(
-    () =>
-      buildCompanyPaymentConcerns(paymentConcernInvoices, concernAsOf).length,
-    [paymentConcernInvoices, concernAsOf]
-  );
 
   return (
     <section
@@ -345,18 +329,7 @@ export function ManagerAlertsCenter({
       >
         <div className="overflow-hidden">
           <div className="space-y-4 border-t border-stone-100 px-4 pb-4 pt-3 sm:px-5">
-            <InvoicePaymentConcernAlerts
-              invoices={paymentConcernInvoices}
-              asOfDate={concernAsOf}
-              defaultOpen
-              onSelectCompany={(name) => {
-                router.push(
-                  `/invoices?company=${encodeURIComponent(name)}&status=overdue`
-                );
-              }}
-            />
-
-            {sorted.length === 0 && paymentConcernCount === 0 ? (
+            {sorted.length === 0 ? (
               <div className="rounded-lg border border-dashed border-stone-200 bg-stone-50 px-4 py-6 text-center">
                 <p className="text-sm font-medium text-green-950">
                   No Active Alerts

@@ -452,7 +452,7 @@ export function CrewLeadSchedule({
                 No jobs on {leadName}&apos;s route today.
               </p>
             ) : (
-              <ol className="mt-3 max-h-[28rem] space-y-3 overflow-y-auto">
+              <ol className="mt-3 max-h-80 space-y-3 overflow-y-auto overscroll-contain pr-1">
                 <li className="rounded-lg border border-amber-200 bg-amber-50/80 p-3">
                   <div className="flex items-start gap-3">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-800 text-[10px] font-bold uppercase text-white">
@@ -594,7 +594,7 @@ export function CrewLeadSchedule({
         {selectedJobs.length === 0 ? (
           <EmptyState message="No jobs scheduled on this day. Use the calendar filters and pick another day." />
         ) : (
-          <ul className="space-y-3">
+          <ul className="max-h-80 space-y-3 overflow-y-auto overscroll-contain pr-1">
             {selectedJobs.map((job) => {
               const open = expandedJobId === `cal-${job.id}`;
               const serviceLabel =

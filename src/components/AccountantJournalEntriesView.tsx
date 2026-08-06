@@ -1,10 +1,12 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import Link from "next/link";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { deleteJournalEntry } from "@/app/actions/journal";
 import { JournalEntryForm } from "@/components/JournalEntryForm";
 import { Card, EmptyState, StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { journalSourceHref } from "@/lib/journal-source-href";
 import type { JournalSource } from "@/lib/journal";
 import type { ChartOfAccount } from "@/lib/chart-of-accounts";
 import type { JournalEntry } from "@/lib/queries";
@@ -30,10 +32,13 @@ export function AccountantJournalEntriesView({
   entries,
   chartAccounts,
   todayIso,
+  focusSourceId = null,
 }: {
   entries: JournalEntry[];
   chartAccounts: ChartOfAccount[];
   todayIso: string;
+  /** Deep-link from invoice/payment/visit journal buttons. */
+  focusSourceId?: string | null;
 }) {
   const [sourceFilter, setSourceFilter] = useState<"all" | JournalSource>("all");
   const [search, setSearch] = useState("");
@@ -41,6 +46,20 @@ export function AccountantJournalEntriesView({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusSourceId) return;
+    const match = entries.find((entry) => entry.sourceId === focusSourceId);
+    if (!match) return;
+    setExpandedId(match.id);
+    setSourceFilter(match.source);
+    const timer = window.setTimeout(() => {
+      document
+        .getElementById(`journal-entry-${match.id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [entries, focusSourceId]);
 
   const customerOptions = useMemo(() => {
     return Array.from(
@@ -167,13 +186,14 @@ export function AccountantJournalEntriesView({
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+        <div className="max-h-[40rem] overflow-auto rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-sm">
-            <thead className="bg-stone-50 text-left text-stone-600">
+            <thead className="sticky top-0 z-10 bg-stone-50 text-left text-stone-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Entry</th>
                 <th className="px-4 py-3 font-medium">Type</th>
+                <th className="px-4 py-3 font-medium">Source</th>
                 <th className="px-4 py-3 font-medium">Memo</th>
                 <th className="px-4 py-3 font-medium">Customer / Contract</th>
                 <th className="px-4 py-3 text-right font-medium">Debit</th>
@@ -184,10 +204,16 @@ export function AccountantJournalEntriesView({
             <tbody>
               {filtered.map((entry) => {
                 const open = expandedId === entry.id;
+                const sourceHref = journalSourceHref(entry.source, entry.sourceId);
                 return (
                   <Fragment key={entry.id}>
                     <tr
-                      className="cursor-pointer border-t border-stone-100 hover:bg-stone-50"
+                      id={`journal-entry-${entry.id}`}
+                      className={`cursor-pointer border-t border-stone-100 hover:bg-stone-50 ${
+                        focusSourceId && entry.sourceId === focusSourceId
+                          ? "bg-green-50/70"
+                          : ""
+                      }`}
                       onClick={() => setExpandedId(open ? null : entry.id)}
                     >
                       <td className="whitespace-nowrap px-4 py-3">
@@ -202,6 +228,19 @@ export function AccountantJournalEntriesView({
                         >
                           {entry.sourceLabel}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {sourceHref ? (
+                          <Link
+                            href={sourceHref}
+                            onClick={(event) => event.stopPropagation()}
+                            className="text-xs font-medium text-green-800 hover:underline"
+                          >
+                            Open {entry.sourceLabel.toLowerCase()}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-stone-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-stone-700">{entry.memo}</td>
                       <td className="px-4 py-3 text-stone-600">
@@ -257,10 +296,20 @@ export function AccountantJournalEntriesView({
                     </tr>
                     {open ? (
                       <tr className="border-t border-stone-100 bg-stone-50">
-                        <td colSpan={8} className="px-6 py-4">
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-                            Double-entry lines · Ref {entry.reference || "—"}
-                          </p>
+                        <td colSpan={9} className="px-6 py-4">
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                              Double-entry lines · Ref {entry.reference || "—"}
+                            </p>
+                            {sourceHref ? (
+                              <Link
+                                href={sourceHref}
+                                className="text-xs font-medium text-green-800 hover:underline"
+                              >
+                                View linked {entry.sourceLabel.toLowerCase()} →
+                              </Link>
+                            ) : null}
+                          </div>
                           <table className="min-w-full text-sm">
                             <thead className="text-left text-stone-500">
                               <tr>

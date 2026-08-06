@@ -16,6 +16,7 @@ export type GeneralLedgerAccount = {
 export type GeneralLedgerRegisterLine = {
   entryId: string;
   entryNumber: string;
+  sourceId: string | null;
   date: string;
   memo: string;
   reference: string;
@@ -98,6 +99,7 @@ export function buildAccountRegister(
       lines.push({
         entryId: entry.id,
         entryNumber: entry.entryNumber,
+        sourceId: entry.sourceId,
         date: entry.date,
         memo: entry.memo,
         reference: entry.reference,

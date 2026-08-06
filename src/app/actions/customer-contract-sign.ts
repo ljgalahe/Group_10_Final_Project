@@ -10,7 +10,10 @@ import {
   roleCanManageQuotes,
   roleCanSignContracts,
 } from "@/lib/demo-role";
-import type { QuoteLineItem } from "@/lib/service-pricing";
+import {
+  contractServiceName,
+  type QuoteLineItem,
+} from "@/lib/service-pricing";
 import { DEMO_CREW_LEAD_NAME } from "@/lib/types";
 
 /** Create a draft contract from an approved quote (Ops Draft Contracts). */
@@ -87,7 +90,9 @@ export async function createContractFromApprovedQuote(
     await supabase.from("contract_services").insert(
       lineItems.map((li) => ({
         contract_id: contract.id,
-        service_name: li.label,
+        service_name: contractServiceName(
+          String(li.serviceKey || li.label || "other")
+        ),
         included: true,
       }))
     );

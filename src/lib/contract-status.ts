@@ -2,6 +2,20 @@ import type { Contract } from "@/lib/types";
 
 export type RenewalStatus = "current" | "expiring" | "expired";
 
+/** Customer list sort: active → approved → paused → completed, then others. */
+const CUSTOMER_STATUS_SORT_ORDER = [
+  "active",
+  "approved",
+  "paused",
+  "completed",
+  "scheduled",
+  "needs_scheduling",
+  "sent_to_customer_awaiting_approval",
+  "draft",
+  "cancelled",
+  "canceled",
+] as const;
+
 /**
  * Customer visibility for the Ops pipeline:
  * - Proposed (`pending_customer`) — needs review & signature
@@ -41,13 +55,28 @@ export function isContractAwaitingDualApproval(
   return isContractAwaitingApproval(contract);
 }
 
+/** True when service_paused_until is today or in the future. */
+export function isContractServicePaused(
+  servicePausedUntil?: string | null,
+  today: Date = new Date()
+): boolean {
+  if (!servicePausedUntil) return false;
+  const pauseEnd = new Date(`${servicePausedUntil}T00:00:00`);
+  const startOfToday = new Date(today);
+  startOfToday.setHours(0, 0, 0, 0);
+  return pauseEnd.getTime() >= startOfToday.getTime();
+}
+
 /**
  * Ops / Manager / Customer display status for the survey→quote→sign pipeline.
  */
 export function getContractDisplayStatus(
   contract: Pick<
     Contract,
-    "status" | "approval_state" | "customer_signed_at"
+    | "status"
+    | "approval_state"
+    | "customer_signed_at"
+    | "service_paused_until"
   > & { has_service_visit?: boolean }
 ): string {
   const state = contract.approval_state;
@@ -59,6 +88,12 @@ export function getContractDisplayStatus(
   }
   if (contract.customer_signed_at || state === "approved") {
     if (contract.status === "completed") return "completed";
+    if (
+      contract.status === "active" &&
+      isContractServicePaused(contract.service_paused_until)
+    ) {
+      return "paused";
+    }
     if (contract.has_service_visit || contract.status === "active") {
       // Prefer scheduled when Ops has placed service visits (caller may set flag).
       if (contract.has_service_visit) return "scheduled";
@@ -66,6 +101,15 @@ export function getContractDisplayStatus(
     }
   }
   return contract.status;
+}
+
+/** Sort key for customer contracts list (lower = earlier). */
+export function getCustomerContractSortRank(displayStatus: string): number {
+  const key = displayStatus.trim().toLowerCase();
+  const idx = CUSTOMER_STATUS_SORT_ORDER.indexOf(
+    key as (typeof CUSTOMER_STATUS_SORT_ORDER)[number]
+  );
+  return idx === -1 ? CUSTOMER_STATUS_SORT_ORDER.length : idx;
 }
 
 /** Prefer renewal_date; fall back to season_end. */

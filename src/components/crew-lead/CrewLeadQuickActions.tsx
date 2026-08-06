@@ -434,7 +434,7 @@ export function CrewLeadQuickActions({
               ))}
             </select>
           </label>
-          <div className="mt-3 space-y-4">
+          <div className="mt-3 max-h-80 space-y-4 overflow-y-auto overscroll-contain pr-1">
             {visibleCrewGroups.length === 0 ? (
               <p className="text-sm text-stone-500">
                 No members for this crew filter.

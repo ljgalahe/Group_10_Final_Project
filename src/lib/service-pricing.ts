@@ -1,19 +1,16 @@
 /**
  * Acre-banded commercial landscaping demo pricing catalog.
- * Midpoints sit inside market ranges; larger acre bands get volume discounts.
- * Anchors: mowing ~$50–$150/acre (<5) / ~$25–$60 (5+); full-service ~$800–$1,600/acre/mo.
+ * Keys and labels match featured services on the welcome / request-a-quote form
+ * ([COMMERCIAL_SERVICES](./commercial-services.ts)) so quotes, surveys, and
+ * contracts stay aligned with the public site.
  */
 
-export type ServiceCatalogKey =
-  | "mowing"
-  | "edging"
-  | "irrigation"
-  | "seasonal_color"
-  | "fertilization"
-  | "leaf_cleanup"
-  | "snow_removal"
-  | "full_service"
-  | "other";
+import {
+  COMMERCIAL_SERVICES,
+  type CommercialServiceValue,
+} from "@/lib/commercial-services";
+
+export type ServiceCatalogKey = CommercialServiceValue;
 
 export type AcreBand = "<5" | "5+";
 
@@ -24,6 +21,7 @@ export interface ServiceCatalogItem {
   /** Per-acre monthly midpoints by acre band (demo USD). */
   perAcreMonthly: Record<AcreBand, { low: number; mid: number; high: number }>;
   unitLabel: string;
+  image: string | null;
 }
 
 export interface QuoteLineItem {
@@ -35,98 +33,98 @@ export interface QuoteLineItem {
   quantity?: number;
 }
 
-export const SERVICE_CATALOG: ServiceCatalogItem[] = [
-  {
-    key: "mowing",
-    label: "Mowing & Grounds Care",
-    description: "Weekly mowing, trimming, and grounds tidy-up.",
-    perAcreMonthly: {
-      "<5": { low: 50, mid: 100, high: 150 },
-      "5+": { low: 25, mid: 42, high: 60 },
-    },
-    unitLabel: "per acre / month",
+/** Pricing midpoints for each featured commercial service. */
+const PRICING_BY_KEY: Record<
+  Exclude<CommercialServiceValue, "other">,
+  Record<AcreBand, { low: number; mid: number; high: number }>
+> = {
+  lawn_mowing_edging: {
+    "<5": { low: 50, mid: 100, high: 150 },
+    "5+": { low: 25, mid: 42, high: 60 },
   },
-  {
-    key: "edging",
-    label: "Edging",
-    description: "Bed and walkway edge definition.",
-    perAcreMonthly: {
-      "<5": { low: 20, mid: 35, high: 50 },
-      "5+": { low: 12, mid: 22, high: 35 },
-    },
-    unitLabel: "per acre / month",
+  flower_beds_seasonal: {
+    "<5": { low: 60, mid: 110, high: 160 },
+    "5+": { low: 40, mid: 70, high: 100 },
   },
-  {
-    key: "irrigation",
-    label: "Irrigation",
-    description: "System checks, adjustments, and seasonal start/stop.",
-    perAcreMonthly: {
-      "<5": { low: 40, mid: 75, high: 110 },
-      "5+": { low: 25, mid: 45, high: 70 },
-    },
-    unitLabel: "per acre / month",
+  sprinkler_watering: {
+    "<5": { low: 40, mid: 75, high: 110 },
+    "5+": { low: 25, mid: 45, high: 70 },
   },
-  {
-    key: "seasonal_color",
-    label: "Seasonal Color",
-    description: "Rotating color beds and seasonal plantings.",
-    perAcreMonthly: {
-      "<5": { low: 60, mid: 110, high: 160 },
-      "5+": { low: 40, mid: 70, high: 100 },
-    },
-    unitLabel: "per acre / month",
+  tree_bush_trimming: {
+    "<5": { low: 45, mid: 85, high: 130 },
+    "5+": { low: 30, mid: 55, high: 85 },
   },
-  {
-    key: "fertilization",
-    label: "Fertilization & Weed Control",
-    description: "Scheduled turf nutrition and weed programs.",
-    perAcreMonthly: {
-      "<5": { low: 45, mid: 85, high: 130 },
-      "5+": { low: 30, mid: 55, high: 85 },
-    },
-    unitLabel: "per acre / month",
+  mulch_landscape_beds: {
+    "<5": { low: 40, mid: 75, high: 110 },
+    "5+": { low: 28, mid: 50, high: 75 },
   },
-  {
-    key: "leaf_cleanup",
-    label: "Leaf Cleanup",
-    description: "Seasonal leaf removal (averaged monthly).",
-    perAcreMonthly: {
-      "<5": { low: 35, mid: 65, high: 100 },
-      "5+": { low: 22, mid: 40, high: 65 },
-    },
-    unitLabel: "per acre / month (seasonal)",
+  sidewalk_parking_cleanup: {
+    "<5": { low: 30, mid: 55, high: 85 },
+    "5+": { low: 20, mid: 38, high: 60 },
   },
-  {
-    key: "snow_removal",
-    label: "Snow Removal",
-    description: "Seasonal snow and ice response (averaged monthly).",
-    perAcreMonthly: {
-      "<5": { low: 80, mid: 140, high: 200 },
-      "5+": { low: 50, mid: 90, high: 130 },
-    },
-    unitLabel: "per acre / month (seasonal)",
+  leaf_debris_removal: {
+    "<5": { low: 35, mid: 65, high: 100 },
+    "5+": { low: 22, mid: 40, high: 65 },
   },
-  {
-    key: "full_service",
-    label: "Full-Service Bundle",
-    description: "Multi-line package reference (~$800–$1,600/acre/month).",
-    perAcreMonthly: {
-      "<5": { low: 800, mid: 1200, high: 1600 },
-      "5+": { low: 650, mid: 950, high: 1300 },
-    },
-    unitLabel: "per acre / month",
+  snow_ice_clearing: {
+    "<5": { low: 80, mid: 140, high: 200 },
+    "5+": { low: 50, mid: 90, high: 130 },
   },
+};
+
+const OTHER_PRICING: Record<AcreBand, { low: number; mid: number; high: number }> =
   {
-    key: "other",
-    label: "Other Services",
-    description: "Custom scope priced from survey notes.",
-    perAcreMonthly: {
-      "<5": { low: 40, mid: 80, high: 120 },
-      "5+": { low: 30, mid: 55, high: 90 },
-    },
-    unitLabel: "per acre / month",
-  },
-];
+    "<5": { low: 40, mid: 80, high: 120 },
+    "5+": { low: 30, mid: 55, high: 90 },
+  };
+
+export const SERVICE_CATALOG: ServiceCatalogItem[] = COMMERCIAL_SERVICES.map(
+  (service) => ({
+    key: service.value,
+    label: service.title,
+    description: service.blurb,
+    perAcreMonthly:
+      service.value === "other"
+        ? OTHER_PRICING
+        : PRICING_BY_KEY[service.value],
+    unitLabel:
+      service.value === "leaf_debris_removal" ||
+      service.value === "snow_ice_clearing"
+        ? "per acre / month (seasonal)"
+        : "per acre / month",
+    image: service.image,
+  })
+);
+
+/** Map older quote/seed keys onto the featured commercial catalog. */
+const LEGACY_KEY_ALIASES: Record<string, ServiceCatalogKey> = {
+  mowing: "lawn_mowing_edging",
+  edging: "lawn_mowing_edging",
+  irrigation: "sprinkler_watering",
+  seasonal_color: "flower_beds_seasonal",
+  fertilization: "mulch_landscape_beds",
+  leaf_cleanup: "leaf_debris_removal",
+  snow_removal: "snow_ice_clearing",
+  full_service: "lawn_mowing_edging",
+  other: "other",
+};
+
+export function resolveServiceKey(serviceKey: string): ServiceCatalogKey {
+  const raw = serviceKey.trim();
+  if (!raw) return "other";
+  if (SERVICE_CATALOG.some((item) => item.key === raw)) {
+    return raw as ServiceCatalogKey;
+  }
+  if (LEGACY_KEY_ALIASES[raw]) {
+    return LEGACY_KEY_ALIASES[raw];
+  }
+  const lower = raw.toLowerCase();
+  const byLabel = SERVICE_CATALOG.find(
+    (item) => item.label.toLowerCase() === lower
+  );
+  if (byLabel) return byLabel.key;
+  return "other";
+}
 
 export function getServiceCatalog(): ServiceCatalogItem[] {
   return SERVICE_CATALOG;
@@ -136,6 +134,11 @@ export function serviceLabel(serviceKey: string): string {
   return getCatalogItem(serviceKey)?.label ?? serviceKey;
 }
 
+/** Display name written to contract_services.service_name */
+export function contractServiceName(serviceKey: string): string {
+  return serviceLabel(resolveServiceKey(serviceKey));
+}
+
 export function acreBandFor(acres: number): AcreBand {
   return acres >= 5 ? "5+" : "<5";
 }
@@ -143,7 +146,8 @@ export function acreBandFor(acres: number): AcreBand {
 export function getCatalogItem(
   serviceKey: string
 ): ServiceCatalogItem | undefined {
-  return SERVICE_CATALOG.find((s) => s.key === serviceKey);
+  const resolved = resolveServiceKey(serviceKey);
+  return SERVICE_CATALOG.find((s) => s.key === resolved);
 }
 
 /** Midpoint unit price for a service at the given acreage. */
@@ -184,7 +188,7 @@ export function buildLineItem(
 
 /**
  * Estimate monthly fee from line items.
- * Visits-per-week lightly scales labor-heavy lines (mowing/edging) above 1x/week.
+ * Visits-per-week lightly scales labor-heavy lines above 1x/week.
  */
 export function estimateMonthlyFee(
   lineItems: Pick<QuoteLineItem, "lineTotal" | "serviceKey">[],
@@ -192,17 +196,23 @@ export function estimateMonthlyFee(
   visitsPerWeek = 1
 ): number {
   const visitFactor = Math.max(0.75, Math.min(2.5, Number(visitsPerWeek) || 1));
+  const laborHeavy = new Set([
+    "lawn_mowing_edging",
+    "sidewalk_parking_cleanup",
+    "leaf_debris_removal",
+    "mowing",
+    "edging",
+  ]);
   const total = lineItems.reduce((sum, line) => {
     const key = String(line.serviceKey);
-    const laborHeavy = key === "mowing" || key === "edging";
-    const factor = laborHeavy ? visitFactor : 1;
+    const factor = laborHeavy.has(key) ? visitFactor : 1;
     return sum + Number(line.lineTotal || 0) * factor;
   }, 0);
   return Math.round(total * 100) / 100;
 }
 
 export function catalogSnapshotForAcres(acres: number) {
-  return SERVICE_CATALOG.map((item) => ({
+  return SERVICE_CATALOG.filter((item) => item.key !== "other").map((item) => ({
     key: item.key,
     label: item.label,
     description: item.description,

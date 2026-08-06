@@ -189,7 +189,7 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
           : "Open past-due accounts that need a closer look.",
       priority: holdJobs > 0 ? "critical" : "high",
       count: paymentConcerns.length,
-      href: "/dashboard#payment-concerns",
+      href: "/invoices#payment-concerns",
       icon: "invoice",
     });
   }

@@ -89,7 +89,8 @@ function AccountantDirectCostsButton({
         labor: breakdown.labor,
         materials: breakdown.materials,
         equipment: breakdown.equipment,
-        total: breakdown.total,
+        // Prefer shared KPI amount so Manager/Accountant totals stay identical.
+        total: amount,
         contracts: breakdown.byContract.filter((c) => c.total > 0),
         heading: "Direct Costs",
         subheading:
@@ -104,7 +105,7 @@ function AccountantDirectCostsButton({
       labor: row?.labor ?? 0,
       materials: row?.materials ?? 0,
       equipment: row?.equipment ?? 0,
-      total: row?.total ?? amount,
+      total: amount,
       contracts: row ? [row] : [],
       heading: `Direct Costs — ${scope.title}`,
       subheading: "Cost types logged on this contract’s service visits.",

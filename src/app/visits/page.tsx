@@ -1,4 +1,3 @@
-import { completeVisit } from "@/app/actions/business";
 import { ensureCompletedVisitLaborSynced } from "@/app/actions/labor";
 import { AccountantVisitsView } from "@/components/AccountantVisitsView";
 import {
@@ -32,7 +31,6 @@ import { parseCustomerNotes } from "@/lib/customer-notes";
 import {
   getViewRole,
   roleCanEditContractDetails,
-  roleCanManageVisits,
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { formatVisitCostDescription } from "@/lib/crew-hours";
@@ -80,7 +78,7 @@ function formatExtraWorkStatus(status: string) {
 }
 
 function parseStatusFilter(raw?: string): VisitStatusFilterValue {
-  if (raw === "completed" || raw === "all") return raw;
+  if (raw === "completed" || raw === "all" || raw === "rescheduled") return raw;
   return "scheduled";
 }
 
@@ -101,6 +99,8 @@ export default async function VisitsPage({
   const isAccountant = roleCanEditContractDetails(role);
 
   if (isAccountant) {
+    const accountantParams = await searchParams;
+    const focusVisitId = firstParam(accountantParams.visit) ?? null;
     const { data: initialVisits } = await fetchAccountantVisits();
     const { synced } = await ensureCompletedVisitLaborSynced(
       initialVisits.map((visit) => visit.id)
@@ -132,6 +132,7 @@ export default async function VisitsPage({
             visits={visits as any}
             todayIso={new Date().toISOString().slice(0, 10)}
             visitJournalStates={visitJournalStates}
+            focusVisitId={focusVisitId}
             equipment={equipmentRows.map((item) => ({
               id: item.id,
               name: item.name,
@@ -158,7 +159,6 @@ export default async function VisitsPage({
   const isCustomer = role === "customer";
   const params = await searchParams;
   const { data: visits } = await fetchVisits();
-  const canManage = roleCanManageVisits(role);
 
   if (role === "crew_lead" || role === "crew_member") {
     const supabase = await createDataClient();
@@ -397,18 +397,18 @@ export default async function VisitsPage({
   const filteredVisits =
     statusFilter === "all"
       ? visits
-      : statusFilter === "scheduled"
-        ? // Rescheduled (e.g. weather) still counts as upcoming for demos.
-          visits.filter(
-            (v) => v.status === "scheduled" || v.status === "rescheduled"
-          )
-        : visits.filter((v) => v.status === statusFilter);
+      : visits.filter((v) => v.status === statusFilter);
 
   const emptyMessage = (() => {
     if (statusFilter === "scheduled") {
       return isCustomer
         ? "No scheduled visits for your account right now."
         : "No scheduled visits. Try All visits or run the seed script.";
+    }
+    if (statusFilter === "rescheduled") {
+      return isCustomer
+        ? "No rescheduled visits for your account right now."
+        : "No rescheduled visits found.";
     }
     if (statusFilter === "completed") {
       return isCustomer
@@ -458,7 +458,7 @@ export default async function VisitsPage({
       {filteredVisits.length === 0 ? (
         <EmptyState message={emptyMessage} />
       ) : (
-        <div className="space-y-4">
+        <div className="max-h-[36rem] space-y-4 overflow-y-auto overscroll-contain pr-1">
           {await Promise.all(
             filteredVisits.map(async (visit) => {
               const contract = visit.contracts as {
@@ -584,26 +584,6 @@ export default async function VisitsPage({
                     </div>
                     <div className="flex items-center gap-3">
                       <StatusBadge status={visit.status} />
-                      {canManage && visit.status === "scheduled" && (
-                        <form action={completeVisit}>
-                          <input
-                            type="hidden"
-                            name="visit_id"
-                            value={visit.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="notes"
-                            value="Visit completed on schedule."
-                          />
-                          <button
-                            type="submit"
-                            className="rounded-md bg-green-800 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
-                          >
-                            Mark Complete
-                          </button>
-                        </form>
-                      )}
                     </div>
                   </div>
 

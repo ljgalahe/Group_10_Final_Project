@@ -9,7 +9,7 @@ import type { VisitCost } from "@/lib/types";
 import { buildJobRows } from "@/lib/visit-jobs";
 import { defaultVisitPeriod } from "@/lib/visit-period";
 
-const UPCOMING_LIMIT = 8;
+const UPCOMING_LIMIT = 40;
 
 export type OpsUpcomingVisitItem = {
   id: string;

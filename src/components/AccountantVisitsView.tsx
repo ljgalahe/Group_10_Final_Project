@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
 import { VisitAuditLog } from "@/components/VisitAuditLog";
 import {
@@ -82,9 +82,27 @@ type AccountantVisit = {
 function servicesFromContractTitle(title?: string | null): string[] {
   if (!title) return [];
   const lower = title.toLowerCase();
-  if (lower.includes("irrigation")) return ["Irrigation Inspection"];
-  if (lower.includes("fertiliz")) return ["Fertilization"];
+  if (lower.includes("irrigation") || lower.includes("sprinkler")) {
+    return ["Sprinkler & watering systems"];
+  }
+  if (lower.includes("snow") || lower.includes("ice")) {
+    return ["Snow & ice clearing"];
+  }
+  if (lower.includes("leaf") || lower.includes("debris")) {
+    return ["Leaf & debris removal"];
+  }
+  if (lower.includes("mulch")) return ["Mulch & landscape beds"];
+  if (lower.includes("flower") || lower.includes("seasonal")) {
+    return ["Flower beds & seasonal plants"];
+  }
+  if (lower.includes("trim") || lower.includes("tree") || lower.includes("bush")) {
+    return ["Tree & bush trimming"];
+  }
+  if (lower.includes("sidewalk") || lower.includes("parking")) {
+    return ["Sidewalk & parking lot cleanup"];
+  }
   if (lower.includes("pond")) return ["Detention Pond Maintenance"];
+  if (lower.includes("fertiliz")) return ["Fertilization"];
   if (lower.includes("cleanup") || lower.includes("spring")) {
     return ["Spring Cleanup"];
   }
@@ -95,7 +113,7 @@ function servicesFromContractTitle(title?: string | null): string[] {
     lower.includes("lawn") ||
     lower.includes("landscape")
   ) {
-    return ["Mowing", "Edging", "Trimming"];
+    return ["Lawn mowing & edging"];
   }
   return [];
 }
@@ -209,12 +227,15 @@ export function AccountantVisitsView({
   visitJournalStates = {},
   equipment = [],
   equipmentUsage = [],
+  focusVisitId = null,
 }: {
   visits: AccountantVisit[];
   todayIso: string;
   visitJournalStates?: Record<string, JournalStatus>;
   equipment?: VisitEquipmentOption[];
   equipmentUsage?: VisitEquipmentUsageRow[];
+  /** Deep-link from journal entries — expand and scroll to this visit. */
+  focusVisitId?: string | null;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -228,10 +249,28 @@ export function AccountantVisitsView({
   const [billingFilter, setBillingFilter] = useState<
     "all" | "ready_to_invoice" | "already_invoiced" | "journal_ready"
   >("all");
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
-  const [visitsListOpen, setVisitsListOpen] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
+    focusVisitId ? new Set([focusVisitId]) : new Set()
+  );
+  const [visitsListOpen, setVisitsListOpen] = useState(Boolean(focusVisitId));
   const today = todayIso;
-  const todayVisits = visits.filter((visit) => visit.scheduled_date === today);
+
+  useEffect(() => {
+    if (!focusVisitId) return;
+    setExpandedIds((prev) => {
+      if (prev.has(focusVisitId)) return prev;
+      const next = new Set(prev);
+      next.add(focusVisitId);
+      return next;
+    });
+    setVisitsListOpen(true);
+    const timer = window.setTimeout(() => {
+      document
+        .getElementById(`accountant-visit-${focusVisitId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [focusVisitId]);
 
   const toggleExpanded = (visitId: string) => {
     setExpandedIds((prev) => {
@@ -396,7 +435,6 @@ export function AccountantVisitsView({
     (visit) => visit.status === "completed" && visit.invoices.length === 0
   ).length;
   const profit = metrics.revenue - (metrics.labor + metrics.materials + metrics.equipment);
-  const summaryVisits = todayVisits.length || visits.length;
   const visitCount = visits.length;
   const laborPerVisit = visitCount > 0 ? metrics.labor / visitCount : 0;
   const materialsPerVisit = visitCount > 0 ? metrics.materials / visitCount : 0;
@@ -409,11 +447,6 @@ export function AccountantVisitsView({
           Accounting Metrics
         </p>
         <div className="gs-kpi-grid">
-          <StatCard
-            label="Today's Visits"
-            value={todayVisits.length || summaryVisits}
-            hint={todayVisits.length ? "Scheduled today" : "All tracked visits"}
-          />
           <StatCard
             label="Crew Hours"
             value={metrics.hours.toLocaleString("en-US", {
@@ -729,11 +762,14 @@ export function AccountantVisitsView({
 
           return (
             <article
+              id={`accountant-visit-${visit.id}`}
               key={visit.id}
               className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
-                journalReady
-                  ? "border-amber-300 ring-1 ring-amber-200"
-                  : "border-stone-200"
+                focusVisitId === visit.id
+                  ? "border-green-600 ring-2 ring-green-300"
+                  : journalReady
+                    ? "border-amber-300 ring-1 ring-amber-200"
+                    : "border-stone-200"
               }`}
             >
               <button

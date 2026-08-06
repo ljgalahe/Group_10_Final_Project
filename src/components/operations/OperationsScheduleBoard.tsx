@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   autoGroupVisitsByLocation,
   createServiceVisit,
@@ -17,6 +17,8 @@ import {
 } from "@/lib/needs-reschedule";
 import type { JobRow } from "@/lib/visit-jobs";
 import { DEMO_CREW_LEADS } from "@/lib/types";
+
+type RescheduleListFilter = "all" | "needs" | "rescheduled";
 
 export type OpsVisitRow = {
   id: string;
@@ -114,6 +116,8 @@ export function OperationsScheduleBoard({
   calendarJobs?: JobRow[];
   preferredContractId?: string;
 }) {
+  const [rescheduleFilter, setRescheduleFilter] =
+    useState<RescheduleListFilter>("all");
   const readyContracts = contracts.filter((c) => c.ready_to_schedule);
   const calendarJobs = useMemo(
     () => calendarJobsProp ?? opsVisitsToJobRows(visits),
@@ -156,6 +160,13 @@ export function OperationsScheduleBoard({
       return a.date.localeCompare(b.date);
     });
   }, [calendarJobs, needsReschedule, today]);
+
+  const filteredRescheduledVisits = useMemo(() => {
+    if (rescheduleFilter === "all") return rescheduledVisitsList;
+    return rescheduledVisitsList.filter(
+      (job) => rescheduleListBucket(job, today) === rescheduleFilter
+    );
+  }, [rescheduleFilter, rescheduledVisitsList, today]);
 
   const needsIds = useMemo(
     () => new Set(needsReschedule.map((j) => j.visitId)),
@@ -212,18 +223,38 @@ export function OperationsScheduleBoard({
               Completed — same missed/weather queue as the Operations Dashboard.
             </p>
           </div>
-          <span className="rounded-full bg-amber-200 px-3 py-1 text-sm font-semibold text-amber-950">
-            {needsReschedule.length}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-sm text-stone-600">
+              <span className="sr-only">Filter rescheduled visits</span>
+              <select
+                value={rescheduleFilter}
+                onChange={(e) =>
+                  setRescheduleFilter(e.target.value as RescheduleListFilter)
+                }
+                className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm text-stone-800"
+              >
+                <option value="all">All</option>
+                <option value="needs">Needs Rescheduling</option>
+                <option value="rescheduled">Rescheduled</option>
+              </select>
+            </label>
+            <span className="rounded-full bg-amber-200 px-3 py-1 text-sm font-semibold text-amber-950">
+              {rescheduleFilter === "all"
+                ? needsReschedule.length
+                : filteredRescheduledVisits.length}
+            </span>
+          </div>
         </div>
 
-        {rescheduledVisitsList.length === 0 ? (
+        {filteredRescheduledVisits.length === 0 ? (
           <p className="mt-4 text-sm text-stone-500">
-            No missed or cancelled visits waiting to be rescheduled.
+            {rescheduledVisitsList.length === 0
+              ? "No missed or cancelled visits waiting to be rescheduled."
+              : "No visits match this filter."}
           </p>
         ) : (
-          <ul className="mt-4 space-y-3">
-            {rescheduledVisitsList.map((job) => {
+          <ul className="mt-4 max-h-[28rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
+            {filteredRescheduledVisits.map((job) => {
               const live = visitById.get(job.visitId);
               const crewLead =
                 live?.crew_lead_name ??

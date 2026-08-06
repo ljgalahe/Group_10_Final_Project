@@ -10,6 +10,7 @@ import { buildInvoiceListItem } from "@/app/invoices/lib/build-invoice-list-item
 import { CustomerPayButton } from "@/components/customer/CustomerPayButton";
 import { DownloadInvoiceReceiptButton } from "@/components/customer/DownloadInvoiceReceiptButton";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
 import { requireAppAccess } from "@/lib/auth-access";
 import {
   getViewCustomerId,
@@ -17,7 +18,10 @@ import {
   roleCanManageBilling,
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate, getDisplayInvoiceStatus } from "@/lib/format";
-import type { JournalStatus } from "@/lib/journal";
+import {
+  invoiceJournalReadyReason,
+  type JournalStatus,
+} from "@/lib/journal";
 import {
   fetchCustomerPaymentMethods,
   fetchInvoice,
@@ -25,6 +29,7 @@ import {
   fetchJournalSourceStates,
 } from "@/lib/queries";
 import { getOutstandingBalance } from "@/app/invoices/lib/accounting";
+import { InvoiceStatusBadge } from "@/app/invoices/components/InvoiceStatusBadge";
 import { AddInvoiceButton } from "@/app/invoices/components/AddInvoiceButton";
 import { AccountantPaymentsSection } from "@/app/invoices/components/AccountantPaymentsSection";
 import { fetchContractsForInvoice } from "@/app/invoices/queries";
@@ -94,7 +99,7 @@ function parseStatusFilter(raw?: string): InvoiceStatusFilterValue {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; company?: string }>;
+  searchParams: Promise<{ status?: string; company?: string; due?: string }>;
 }) {
   await requireAppAccess();
 
@@ -104,7 +109,10 @@ export default async function InvoicesPage({
   const isAccountant = role === "accountant";
   const showAccountantLayout = roleCanManageBilling(role);
   const params = await searchParams;
-  const statusFilter = parseStatusFilter(params.status);
+  const dueSoonOnly = params.due === "soon";
+  const statusFilter = dueSoonOnly
+    ? "due"
+    : parseStatusFilter(params.status);
   const companyFilter = params.company?.trim() || "overall";
   const dashboardStatus =
     params.status === "overdue" ||
@@ -117,7 +125,7 @@ export default async function InvoicesPage({
   const [{ data: invoices }, journalStates, contracts, accountantPaymentsResult] =
     await Promise.all([
       fetchInvoices(),
-      showAccountantLayout
+      showAccountantLayout || isAccountant
         ? fetchJournalSourceStates()
         : Promise.resolve(null),
       isAccountant
@@ -150,7 +158,166 @@ export default async function InvoicesPage({
     return new Date(dueDate + "T00:00:00") < today;
   }
 
-  // Manager / accountant: company filter + status + circle tracker
+  function daysUntilDue(dueDate: string) {
+    const due = new Date(dueDate + "T00:00:00");
+    return Math.floor(
+      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+  }
+
+  // Accountant: classic invoice table + payments section (pre-InvoicesDashboard).
+  if (isAccountant) {
+    const asOfDate = new Date().toISOString().slice(0, 10);
+    const filteredInvoices = invoices
+      .filter((invoice) => {
+        const balance = Number(invoice.total) - Number(invoice.amount_paid);
+        if (statusFilter === "due") {
+          if (balance <= 0.001) return false;
+        } else if (statusFilter === "paid") {
+          if (balance > 0.001) return false;
+        }
+        if (dueSoonOnly) {
+          const until = daysUntilDue(invoice.due_date);
+          return until >= 0 && until <= 7;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const balA = Number(a.total) - Number(a.amount_paid);
+        const balB = Number(b.total) - Number(b.amount_paid);
+        const pastA = isPastDue(a.due_date, balA) ? 0 : 1;
+        const pastB = isPastDue(b.due_date, balB) ? 0 : 1;
+        if (pastA !== pastB) return pastA - pastB;
+        if (balA > 0.001 || balB > 0.001) {
+          return a.due_date.localeCompare(b.due_date);
+        }
+        return b.issue_date.localeCompare(a.issue_date);
+      });
+
+    const emptyMessage = dueSoonOnly
+      ? "No open invoices are due within the next 7 days."
+      : statusFilter === "due"
+        ? "No open invoices. Switch to Paid or All invoices to see the rest."
+        : statusFilter === "paid"
+          ? "No fully paid invoices found."
+          : "No invoices yet. Generate one from a contract detail page.";
+
+    return (
+      <AppShell>
+        <PageHeader
+          kicker="Ledger"
+          title="Invoices"
+          description="Bills from contract terms and approved extra work."
+          action={
+            <div className="flex flex-wrap items-center gap-3">
+              <InvoiceStatusFilter value={statusFilter} />
+              <AddInvoiceButton contracts={contracts} />
+            </div>
+          }
+        />
+
+        {dueSoonOnly ? (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            Showing{" "}
+            {filteredInvoices.length === 1
+              ? "1 open invoice"
+              : `${filteredInvoices.length} open invoices`}{" "}
+            due within 7 days.{" "}
+            <a
+              href="/invoices"
+              className="font-medium text-green-800 underline hover:text-green-950"
+            >
+              Clear filter
+            </a>
+          </div>
+        ) : null}
+
+        {filteredInvoices.length === 0 ? (
+          <EmptyState message={emptyMessage} />
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+            <table className="min-w-full text-sm">
+              <thead className="bg-stone-50 text-left text-stone-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Invoice #</th>
+                  <th className="px-4 py-3 font-medium">Customer</th>
+                  <th className="px-4 py-3 font-medium">Contract</th>
+                  <th className="px-4 py-3 font-medium">Issue Date</th>
+                  <th className="px-4 py-3 font-medium">Due Date</th>
+                  <th className="px-4 py-3 font-medium">Total</th>
+                  <th className="px-4 py-3 font-medium">Outstanding Balance</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Journal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredInvoices.map((invoice) => {
+                  const balance = getOutstandingBalance(
+                    Number(invoice.total),
+                    Number(invoice.amount_paid)
+                  );
+                  return (
+                    <tr key={invoice.id} className="border-t border-stone-100">
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/invoices/${invoice.id}`}
+                          className="font-medium text-green-800 hover:underline"
+                        >
+                          {invoice.invoice_number}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {(invoice.customers as { name: string } | null)?.name}
+                      </td>
+                      <td className="px-4 py-3">
+                        {(invoice.contracts as { title: string } | null)?.title}
+                      </td>
+                      <td className="px-4 py-3">
+                        {formatDate(invoice.issue_date)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {formatDate(invoice.due_date)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {formatCurrency(Number(invoice.total))}
+                      </td>
+                      <td className="px-4 py-3">{formatCurrency(balance)}</td>
+                      <td className="px-4 py-3">
+                        <InvoiceStatusBadge
+                          invoice={invoice}
+                          asOfDate={asOfDate}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <PostJournalEntryButton
+                          source="invoice"
+                          sourceId={invoice.id}
+                          journalStatus={
+                            invoiceJournalStates.get(invoice.id) ?? null
+                          }
+                          disabledReason={
+                            invoiceJournalReadyReason(invoice.status) ??
+                            undefined
+                          }
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <AccountantPaymentsSection
+          payments={accountantPayments}
+          paymentJournalStates={paymentJournalStates}
+        />
+      </AppShell>
+    );
+  }
+
+  // Manager: company filter + status + circle tracker
   if (!isCustomer) {
     const asOfDate = new Date().toISOString().slice(0, 10);
     const listItems = invoices.map((invoice) =>
@@ -180,42 +347,22 @@ export default async function InvoicesPage({
         <PageHeader
           kicker="Ledger"
           title="Invoices"
-          description={
-            role === "manager"
-              ? "Invoices from contract terms and approved extra work. Filter by company and status."
-              : "Bills from contract terms and approved extra work."
-          }
-          action={
-            isAccountant ? <AddInvoiceButton contracts={contracts} /> : null
-          }
+          description="Invoices from contract terms and approved extra work. Filter by company and status."
         />
 
         {listItems.length === 0 ? (
-          <EmptyState
-            message={
-              role === "manager"
-                ? "No invoices to review yet."
-                : "No invoices yet. Generate one from a contract detail page."
-            }
-          />
+          <EmptyState message="No invoices to review yet." />
         ) : (
           <InvoicesDashboard
             invoices={listItems}
             asOfDate={asOfDate}
             journalStates={journalRecord}
             showJournal={showAccountantLayout}
-            isAccountant={isAccountant}
+            isAccountant={false}
             initialCompany={companyFilter}
             initialStatus={dashboardStatus}
           />
         )}
-
-        {isAccountant ? (
-          <AccountantPaymentsSection
-            payments={accountantPayments}
-            paymentJournalStates={paymentJournalStates}
-          />
-        ) : null}
       </AppShell>
     );
   }

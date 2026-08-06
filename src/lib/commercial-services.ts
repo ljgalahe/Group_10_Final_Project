@@ -77,18 +77,19 @@ export const LEGACY_SERVICE_VALUES = [
 
 /** Map featured services onto existing DB-allowed values until migration is applied. */
 export const SERVICE_TO_LEGACY: Record<string, string> = {
-  lawn_mowing_edging: "mowing",
-  flower_beds_seasonal: "seasonal_color",
-  sprinkler_watering: "irrigation",
-  tree_bush_trimming: "other",
-  mulch_landscape_beds: "other",
-  sidewalk_parking_cleanup: "other",
-  leaf_debris_removal: "other",
-  snow_ice_clearing: "snow_removal",
-  mowing: "mowing",
-  irrigation: "irrigation",
-  seasonal_color: "seasonal_color",
-  snow_removal: "snow_removal",
+  lawn_mowing_edging: "lawn_mowing_edging",
+  flower_beds_seasonal: "flower_beds_seasonal",
+  sprinkler_watering: "sprinkler_watering",
+  tree_bush_trimming: "tree_bush_trimming",
+  mulch_landscape_beds: "mulch_landscape_beds",
+  sidewalk_parking_cleanup: "sidewalk_parking_cleanup",
+  leaf_debris_removal: "leaf_debris_removal",
+  snow_ice_clearing: "snow_ice_clearing",
+  // Legacy demo values → closest featured service
+  mowing: "lawn_mowing_edging",
+  irrigation: "sprinkler_watering",
+  seasonal_color: "flower_beds_seasonal",
+  snow_removal: "snow_ice_clearing",
   other: "other",
 };
 
@@ -101,15 +102,21 @@ export const SERVICE_LABELS: Record<string, string> = {
   ...Object.fromEntries(
     COMMERCIAL_SERVICES.map((s) => [s.value, s.title])
   ),
-  mowing: "Mowing & grounds care",
-  irrigation: "Irrigation",
-  seasonal_color: "Seasonal color",
-  snow_removal: "Snow removal",
+  mowing: "Lawn mowing & edging",
+  irrigation: "Sprinkler & watering systems",
+  seasonal_color: "Flower beds & seasonal plants",
+  snow_removal: "Snow & ice clearing",
   other: "Other",
 };
 
-export function toLegacyServiceValues(selected: string[]): string[] {
+/** Prefer featured commercial keys; fall back to legacy aliases. */
+export function toCanonicalServiceValues(selected: string[]): string[] {
   return [
     ...new Set(selected.map((value) => SERVICE_TO_LEGACY[value] ?? "other")),
   ];
+}
+
+/** @deprecated Use toCanonicalServiceValues — kept for older call sites. */
+export function toLegacyServiceValues(selected: string[]): string[] {
+  return toCanonicalServiceValues(selected);
 }

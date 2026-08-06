@@ -5,6 +5,7 @@ import {
   cancelCustomerContract,
   pauseCustomerContract,
   submitContractInquiry,
+  unpauseCustomerContract,
 } from "@/app/actions/customer-contract-self-service";
 import { formatDate } from "@/lib/format";
 
@@ -65,6 +66,25 @@ export function CustomerContractSelfService({
             {isPaused ? "Pause Another Month" : "Pause Contract Temporarily"}
           </button>
         </form>
+
+        {isPaused ? (
+          <form
+            action={(fd) => {
+              startTransition(() => {
+                void unpauseCustomerContract(fd);
+              });
+            }}
+          >
+            <input type="hidden" name="contract_id" value={contractId} />
+            <button
+              type="submit"
+              disabled={pending}
+              className="rounded-md border border-amber-700 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-60"
+            >
+              Unpause Contract
+            </button>
+          </form>
+        ) : null}
 
         <button
           type="button"

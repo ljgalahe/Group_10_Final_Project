@@ -3,33 +3,34 @@
 import { usePathname, useRouter } from "next/navigation";
 
 const OPTIONS = [
-  { value: "scheduled", label: "Scheduled" },
-  { value: "rescheduled", label: "Rescheduled" },
+  { value: "all", label: "All Statuses" },
+  { value: "active", label: "Active" },
+  { value: "approved", label: "Approved" },
+  { value: "paused", label: "Paused" },
   { value: "completed", label: "Completed" },
-  { value: "all", label: "All Visits" },
 ] as const;
 
-export type VisitStatusFilterValue = (typeof OPTIONS)[number]["value"];
+export type ContractStatusFilterValue = (typeof OPTIONS)[number]["value"];
 
-export function VisitStatusFilter({
+export function ContractStatusFilter({
   value,
 }: {
-  value: VisitStatusFilterValue;
+  value: ContractStatusFilterValue;
 }) {
   const router = useRouter();
   const pathname = usePathname();
 
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor="visit-status-filter" className="text-sm text-stone-600">
+      <label htmlFor="contract-status-filter" className="text-sm text-stone-600">
         Show
       </label>
       <select
-        id="visit-status-filter"
+        id="contract-status-filter"
         value={value}
         onChange={(e) => {
-          const next = e.target.value as VisitStatusFilterValue;
-          if (next === "scheduled") {
+          const next = e.target.value as ContractStatusFilterValue;
+          if (next === "all") {
             router.push(pathname);
           } else {
             router.push(`${pathname}?status=${next}`);

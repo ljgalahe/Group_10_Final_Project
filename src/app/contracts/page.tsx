@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { AccountantContractsView } from "@/components/AccountantContractsView";
 import { AppShell } from "@/components/AppShell";
+import {
+  ContractStatusFilter,
+  type ContractStatusFilterValue,
+} from "@/components/ContractStatusFilter";
 import { ManagerContractsDashboard } from "@/components/contracts/ManagerContractsDashboard";
 import { DraftContractsSection } from "@/components/DraftContractsSection";
 import { ProposedContractSection } from "@/components/ProposedContractSection";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
 import { buildContractProgress } from "@/lib/contract-controls";
-import { getContractDisplayStatus } from "@/lib/contract-status";
+import {
+  getContractDisplayStatus,
+  getCustomerContractSortRank,
+} from "@/lib/contract-status";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -24,17 +31,37 @@ import {
 } from "@/lib/queries";
 import type { ServiceVisit } from "@/lib/types";
 
+function parseContractStatusFilter(raw?: string): ContractStatusFilterValue {
+  if (
+    raw === "active" ||
+    raw === "approved" ||
+    raw === "paused" ||
+    raw === "completed"
+  ) {
+    return raw;
+  }
+  return "all";
+}
+
 function SimpleContractsTable({
   contracts,
   showCustomerColumn,
+  scrollable = false,
 }: {
   contracts: Awaited<ReturnType<typeof fetchContracts>>["data"];
   showCustomerColumn: boolean;
+  scrollable?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+    <div
+      className={`rounded-xl border border-stone-200 bg-white shadow-sm ${
+        scrollable
+          ? "max-h-[36rem] overflow-y-auto overscroll-contain"
+          : "overflow-hidden"
+      }`}
+    >
       <table className="min-w-full text-sm">
-        <thead className="bg-stone-50 text-left text-stone-600">
+        <thead className="sticky top-0 bg-stone-50 text-left text-stone-600">
           <tr>
             <th className="px-4 py-3 font-medium">Contract</th>
             {showCustomerColumn ? (
@@ -88,7 +115,7 @@ function SimpleContractsTable({
 export default async function ContractsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ declined?: string }>;
+  searchParams?: Promise<{ declined?: string; status?: string }>;
 }) {
   await requireAppAccess();
 
@@ -144,6 +171,7 @@ export default async function ContractsPage({
 
   if (role === "customer" || role === "crew_lead" || role === "crew_member") {
     const isCustomer = role === "customer";
+    const statusFilter = parseContractStatusFilter(flash.status);
     const proposed = isCustomer
       ? (await fetchProposedContractsForCustomer()).data
       : [];
@@ -156,6 +184,30 @@ export default async function ContractsPage({
         )
       : contracts;
 
+    const customerList = isCustomer
+      ? [...activeList]
+          .map((contract) => ({
+            contract,
+            displayStatus: getContractDisplayStatus(contract),
+          }))
+          .filter(
+            ({ displayStatus }) =>
+              statusFilter === "all" || displayStatus === statusFilter
+          )
+          .sort((a, b) => {
+            const rankDiff =
+              getCustomerContractSortRank(a.displayStatus) -
+              getCustomerContractSortRank(b.displayStatus);
+            if (rankDiff !== 0) return rankDiff;
+            const aCreated =
+              (a.contract as { created_at?: string }).created_at ?? "";
+            const bCreated =
+              (b.contract as { created_at?: string }).created_at ?? "";
+            return bCreated.localeCompare(aCreated);
+          })
+          .map(({ contract }) => contract)
+      : activeList;
+
     return (
       <AppShell>
         <PageHeader
@@ -165,6 +217,9 @@ export default async function ContractsPage({
             isCustomer
               ? "Review proposed contracts and your signed agreements."
               : "Seasonal agreements with service terms, billing rules, and included services."
+          }
+          action={
+            isCustomer ? <ContractStatusFilter value={statusFilter} /> : null
           }
         />
 
@@ -177,19 +232,24 @@ export default async function ContractsPage({
 
         {isCustomer ? <ProposedContractSection contracts={proposed} /> : null}
 
-        {activeList.length === 0 && (!isCustomer || proposed.length === 0) ? (
+        {customerList.length === 0 && (!isCustomer || proposed.length === 0) ? (
           <EmptyState
             message={
               isCustomer
-                ? "No Contracts On File For This Property."
+                ? statusFilter !== "all"
+                  ? "No Contracts Match This Status."
+                  : "No Contracts On File For This Property."
                 : "No Contracts Yet."
             }
           />
-        ) : activeList.length > 0 ? (
+        ) : customerList.length > 0 ? (
           <SimpleContractsTable
-            contracts={activeList}
+            contracts={customerList}
             showCustomerColumn={!isCustomer}
+            scrollable={isCustomer}
           />
+        ) : isCustomer && statusFilter !== "all" ? (
+          <EmptyState message="No Contracts Match This Status." />
         ) : null}
       </AppShell>
     );

@@ -81,23 +81,41 @@ function serviceBucket(raw: string): string {
   if (
     s.includes("mow") ||
     s.includes("edg") ||
-    s.includes("trimm") ||
-    s.includes("weed") ||
     s.includes("lawn")
   ) {
     return "Lawn Maintenance";
   }
-  if (s.includes("mulch")) return "Mulching";
-  if (s.includes("irrigat")) return "Irrigation";
+  if (s.includes("trimm") || s.includes("tree") || s.includes("bush")) {
+    return "Tree Work";
+  }
+  if (s.includes("mulch") || s.includes("landscape bed")) return "Mulching";
+  if (
+    s.includes("irrigat") ||
+    s.includes("sprinkler") ||
+    s.includes("watering")
+  ) {
+    return "Irrigation";
+  }
   if (s.includes("fertil")) return "Fertilization";
+  if (s.includes("flower") || s.includes("seasonal plant")) {
+    return "Seasonal Color";
+  }
+  if (s.includes("snow") || s.includes("ice")) return "Snow & Ice";
+  if (s.includes("leaf") || s.includes("debris")) return "Leaf & Debris";
+  if (
+    s.includes("sidewalk") ||
+    s.includes("parking") ||
+    s.includes("cleanup") ||
+    s.includes("clean up") ||
+    s.includes("clean-up")
+  ) {
+    return "Cleanup";
+  }
   if (s.includes("install") || s.includes("landscape")) {
     return "Landscape Install";
   }
-  if (s.includes("cleanup") || s.includes("clean up") || s.includes("clean-up")) {
-    return "Cleanup";
-  }
-  if (s.includes("tree")) return "Tree Work";
   if (s.includes("pond")) return "Pond Maintenance";
+  if (s.includes("weed")) return "Lawn Maintenance";
   return raw
     .trim()
     .toLowerCase()

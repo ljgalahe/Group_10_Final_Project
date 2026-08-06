@@ -23,10 +23,13 @@ export function AllContractsTable({
   rows,
   directCostsBreakdown = null,
   costsLabel = "Direct Costs",
+  /** Manager view: cap table height with a vertical scrollbar when expanded. */
+  scrollBody = false,
 }: {
   rows: ContractRow[];
   directCostsBreakdown?: DirectCostsBreakdown | null;
   costsLabel?: string;
+  scrollBody?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [customer, setCustomer] = useState(ALL);
@@ -110,7 +113,14 @@ export function AllContractsTable({
       </div>
 
       {open ? (
-        <div id="all-contracts-panel" className="overflow-x-auto">
+        <div
+          id="all-contracts-panel"
+          className={
+            scrollBody
+              ? "max-h-80 overflow-y-auto overscroll-contain overflow-x-auto"
+              : "overflow-x-auto"
+          }
+        >
           {filtered.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-stone-500">
               No contracts match this customer filter.

@@ -320,7 +320,7 @@ const SCOPE_OVERLAYS: Record<
     amount: 1460,
     windowLabel: "awaiting manager approval",
     detail:
-      "Crew lead extra-cost requests outside the seasonal agreement. Do not treat as completed until management approves.",
+      "Crew lead extra-cost requests outside the seasonal agreement (separate from the approved $2,850 mulch WO already billed on INV-0553). Do not treat as completed until management approves.",
     items: [
       {
         title: "Irrigation repair",
@@ -337,9 +337,9 @@ const SCOPE_OVERLAYS: Record<
         occurrences: [{ label: "Requested · estimated", amount: 240 }],
       },
       {
-        title: "Materials (mulch/soil)",
+        title: "Materials (soil amendment)",
         amount: 800,
-        reason: "Crew request — materials needed for extra beds (pending approval)",
+        reason: "Crew request — soil/amendment for extra beds (pending approval; not the billed mulch WO)",
         occurrences: [
           { label: "Requested · estimated", amount: 800 },
         ],

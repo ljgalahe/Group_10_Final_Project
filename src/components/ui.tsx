@@ -125,6 +125,7 @@ export function StatusBadge({ status }: { status: string }) {
     rescheduled: "border-orange-800/40 text-orange-950",
     closed: "border-stone-400 text-stone-600",
     approved: "gs-complete-badge",
+    paused: "border-amber-800/40 text-amber-950",
     quoted: "border-champagne text-stone-800",
     routine: "border-stone-400 text-stone-600",
     high: "border-amber-800/40 text-amber-950",

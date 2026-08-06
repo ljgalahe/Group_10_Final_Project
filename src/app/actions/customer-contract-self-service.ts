@@ -125,6 +125,55 @@ export async function pauseCustomerContract(
   redirect(`/contracts/${contractId}?paused=1`);
 }
 
+/** Resume service by clearing service_paused_until. */
+export async function unpauseCustomerContract(
+  formData: FormData
+): Promise<void> {
+  const contractId = String(formData.get("contract_id") ?? "").trim();
+  if (!contractId) redirect("/contracts");
+
+  const { supabase, role, contract } =
+    await requireCustomerOwnedContract(contractId);
+
+  if (contract.status !== "active") {
+    redirect(`/contracts/${contractId}?error=unpause`);
+  }
+
+  const today = todayIsoDate();
+  const currentPause =
+    typeof contract.service_paused_until === "string" &&
+    contract.service_paused_until
+      ? new Date(`${contract.service_paused_until}T00:00:00`)
+      : null;
+  if (!currentPause || currentPause.getTime() < today.getTime()) {
+    redirect(`/contracts/${contractId}?error=unpause`);
+  }
+
+  const { error } = await supabase
+    .from("contracts")
+    .update({ service_paused_until: null })
+    .eq("id", contractId);
+
+  if (error) {
+    redirect(
+      `/contracts/${contractId}?error=${encodeURIComponent(error.message)}`
+    );
+  }
+
+  await supabase.from("contract_audit_logs").insert({
+    contract_id: contractId,
+    action: "contract_unpaused_by_customer",
+    actor_role: role,
+    details: {},
+  });
+
+  revalidatePath("/contracts");
+  revalidatePath(`/contracts/${contractId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/schedule");
+  redirect(`/contracts/${contractId}?unpaused=1`);
+}
+
 /** Customer contract inquiry via support_requests. */
 export async function submitContractInquiry(
   formData: FormData
