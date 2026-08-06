@@ -76,6 +76,11 @@ const navItems = [
     roles: ["manager", "accountant"],
   },
   {
+    href: "/reports/ap-aging",
+    label: "Accounts Payable",
+    roles: ["accountant"],
+  },
+  {
     href: "/reports/profitability",
     label: "Profitability",
     roles: ["manager", "accountant"],
