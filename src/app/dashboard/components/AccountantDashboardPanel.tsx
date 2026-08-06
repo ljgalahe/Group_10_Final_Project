@@ -219,6 +219,12 @@ export function AccountantDashboardPanel({
               Equipment
             </Link>
             <Link
+              href="/inventory"
+              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
+            >
+              Inventory
+            </Link>
+            <Link
               href="/reports/profitability"
               className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
             >

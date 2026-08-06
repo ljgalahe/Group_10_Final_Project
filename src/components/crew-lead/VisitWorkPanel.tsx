@@ -64,6 +64,8 @@ export function VisitWorkPanel({
   contractExtraWork,
   variant = "full",
   readOnly = false,
+  // Accepted for caller compatibility; panel controls notes rendering itself.
+  showCustomerNotes: _showCustomerNotes = true,
 }: {
   job: ScheduleJob;
   contractExtraWork: ExtraWorkItem[];
@@ -71,7 +73,10 @@ export function VisitWorkPanel({
   variant?: "full" | "planning";
   /** When true, hide all edit/save/status-change controls (crew member portal). */
   readOnly?: boolean;
+  /** Accepted for callers; existing panel logic owns customer-notes visibility. */
+  showCustomerNotes?: boolean;
 }) {
+  void _showCustomerNotes;
   const materials = useMemo(
     () => materialsForServices(job.services),
     [job.services]

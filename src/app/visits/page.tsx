@@ -10,7 +10,6 @@ import {
   VisitStatusFilter,
   type VisitStatusFilterValue,
 } from "@/components/VisitStatusFilter";
-import { VisitCostForm } from "@/components/VisitCostForm";
 import {
   CrewLeadVisitsBoard,
   type CrewLeadVisitCardData,
@@ -739,12 +738,6 @@ export default async function VisitsPage({
                           </p>
                         )}
                       </div>
-
-                      {role === "manager" ? (
-                        <div className="mt-4 border-t border-stone-100 pt-4">
-                          <VisitCostForm visitId={visit.id} />
-                        </div>
-                      ) : null}
                     </>
                   ) : null}
                 </div>

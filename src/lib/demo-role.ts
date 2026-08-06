@@ -5,10 +5,23 @@ import { DEMO_CUSTOMER_ID } from "@/lib/types";
 export const VIEW_ROLE_COOKIE = "greenscape_view_role";
 export const VIEW_CUSTOMER_COOKIE = "greenscape_view_customer_id";
 
+const VALID_VIEW_ROLES: UserRole[] = [
+  "manager",
+  "accountant",
+  "operations",
+  "crew_lead",
+  "crew_member",
+  "customer",
+];
+
 export async function getViewRole(): Promise<UserRole> {
   const cookieStore = await cookies();
-  const role = cookieStore.get(VIEW_ROLE_COOKIE)?.value as UserRole | undefined;
-  return role ?? "manager";
+  const role = cookieStore.get(VIEW_ROLE_COOKIE)?.value;
+  // Old "inquiries" demo role is retired — welcome + /quote is the prospect entry.
+  if (role && VALID_VIEW_ROLES.includes(role as UserRole)) {
+    return role as UserRole;
+  }
+  return "manager";
 }
 
 export async function getViewCustomerId(): Promise<string | null> {
@@ -38,11 +51,6 @@ export function roleCanApproveContracts(role: UserRole) {
 
 export function roleCanManageQuotes(role: UserRole) {
   return role === "operations";
-}
-
-/** Prospective customer marketing / inquiry start page. */
-export function roleIsInquiries(role: UserRole) {
-  return role === "inquiries";
 }
 
 /** Operations inbox: create quotes from new-client or existing-client inquiries. */
@@ -76,6 +84,10 @@ export function roleCanViewReports(role: UserRole) {
 }
 
 export function roleCanViewEquipment(role: UserRole) {
+  return role === "accountant";
+}
+
+export function roleCanViewInventory(role: UserRole) {
   return role === "accountant";
 }
 

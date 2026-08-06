@@ -5,6 +5,8 @@
 
 import type { CustomerCollectionRisk } from "@/lib/collection-risk";
 import type { CategoryLeaderboard } from "@/lib/company-performance";
+import { chatHrefForInventoryReorder } from "@/lib/chat-demo";
+import { isLowStock } from "@/lib/inventory";
 import { isOpenInvoiceStatus } from "@/lib/payment-utils";
 import {
   daysPastDue,
@@ -23,7 +25,7 @@ export type ManagerAlert = {
   priority: AlertPriority;
   count: number;
   href: string;
-  icon: "hold" | "warning" | "profit" | "risk" | "crew" | "equipment" | "invoice" | "contract";
+  icon: "hold" | "warning" | "profit" | "risk" | "crew" | "equipment" | "invoice" | "contract" | "inventory";
 };
 
 const PRIORITY_RANK: Record<AlertPriority, number> = {
@@ -47,6 +49,14 @@ type AlertContract = {
   status: string;
   season_end?: string | null;
   customer_id: string;
+};
+
+type AlertInventoryItem = {
+  id: string;
+  name: string;
+  unit: string;
+  quantity_on_hand: number;
+  par_level: number;
 };
 
 type AlertEquipment = {
@@ -79,6 +89,7 @@ export type ManagerAlertsInput = {
   customerRisk: CustomerCollectionRisk[];
   performanceCategories: CategoryLeaderboard[];
   equipment: AlertEquipment[];
+  inventory: AlertInventoryItem[];
   pendingChangeRequests: PendingChange[];
 };
 
@@ -121,6 +132,7 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
     customerRisk,
     performanceCategories,
     equipment,
+    inventory,
     pendingChangeRequests,
   } = input;
 
@@ -237,6 +249,27 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
       count: maintenanceEquipment.length,
       href: "/dashboard?perf=equipment#company-performance",
       icon: "equipment",
+    });
+  }
+
+  // 6b. Materials below 25% of par level
+  const lowStockMaterials = inventory.filter(isLowStock);
+  if (lowStockMaterials.length > 0) {
+    alerts.push({
+      id: "inventory-low-stock",
+      title: "Materials low — reorder needed",
+      explanation: `${lowStockMaterials.length} material${lowStockMaterials.length === 1 ? "" : "s"} at or below 25% of par level. Open Chat to confirm vendor orders.`,
+      priority: lowStockMaterials.length >= 3 ? "high" : "medium",
+      count: lowStockMaterials.length,
+      href: chatHrefForInventoryReorder(
+        lowStockMaterials.map((item) => ({
+          name: item.name,
+          quantity_on_hand: item.quantity_on_hand,
+          par_level: item.par_level,
+          unit: item.unit,
+        }))
+      ),
+      icon: "inventory",
     });
   }
 

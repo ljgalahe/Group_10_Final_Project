@@ -291,27 +291,42 @@ export async function fetchVisitLaborEntries(visitIds: string[]) {
 export async function fetchAccountantVisits() {
   const supabase = await createDataClient();
 
-  const { data: pagedVisits, error } = await fetchAllPaged((from, to) =>
-    supabase
+  const { data: pagedVisits, error } = await fetchAllPaged<
+    Record<string, unknown> & {
+      id: string;
+      contract_id: string;
+      scheduled_date: string;
+      status: string;
+      crew_notes: string | null;
+      completed_at: string | null;
+      created_at: string;
+    }
+  >(async (from, to) => {
+    const result = await supabase
       .from("service_visits")
       .select(
         "*, contracts(id, title, monthly_fee, visits_per_week, assigned_crew, billing_method, customer_id, customers(name))"
       )
       .order("scheduled_date", { ascending: false })
       .order("id", { ascending: true })
-      .range(from, to)
-  );
+      .range(from, to);
+    return { data: result.data, error: result.error };
+  });
 
   // Dedupe in case page boundaries still overlap on shared scheduled_date values.
   const visits = Array.from(
     new Map(
-      (pagedVisits as Array<{ id: string }>).map((visit) => [visit.id, visit])
+      pagedVisits.map((visit) => [visit.id, visit])
     ).values()
   ) as Array<{
     id: string;
     contract_id: string;
+    scheduled_date: string;
     status: string;
-    [key: string]: unknown;
+    crew_notes: string | null;
+    completed_at: string | null;
+    created_at: string;
+    contracts?: unknown;
   }>;
 
   if (error || visits.length === 0) {
@@ -1232,6 +1247,7 @@ export type SupportRequestQueueItem = {
   linked_type: string | null;
   linked_id: string | null;
   linked_label: string | null;
+  photo_path: string | null;
   status: string;
   resolution_notes: string | null;
   created_at: string;
@@ -1336,6 +1352,7 @@ export async function fetchAllSupportRequests(): Promise<{
       linked_type: row.linked_type,
       linked_id: row.linked_id,
       linked_label,
+      photo_path: (row as { photo_path?: string | null }).photo_path ?? null,
       status: row.status,
       resolution_notes: row.resolution_notes ?? null,
       created_at: row.created_at,

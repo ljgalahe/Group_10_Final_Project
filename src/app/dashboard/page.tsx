@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
@@ -30,6 +31,7 @@ import {
   fetchEquipment,
   fetchEquipmentUsage,
 } from "@/app/equipment/queries";
+import { fetchInventoryItems } from "@/app/inventory/queries";
 import { filterJobsForCrewMember } from "@/lib/crew-member";
 import type { VisitLaborEntry } from "@/lib/crew-hours";
 import { buildCollectionRisk } from "@/lib/collection-risk";
@@ -272,6 +274,7 @@ export default async function DashboardPage({
       { data: visitCosts },
       equipment,
       equipmentUsage,
+      inventoryItems,
       { data: invoices },
       { data: payments },
       profitability,
@@ -282,6 +285,7 @@ export default async function DashboardPage({
       fetchAllVisitCosts(),
       fetchEquipment().then((data) => data.assets),
       fetchEquipmentUsage(),
+      fetchInventoryItems(),
       fetchInvoices(),
       fetchPayments(),
       fetchProfitabilityReport(),
@@ -426,6 +430,13 @@ export default async function DashboardPage({
         status: asset.status,
         estimated_total_hours: Number(asset.estimated_total_hours),
         hours_used: Number(asset.hours_used),
+      })),
+      inventory: inventoryItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        unit: item.unit,
+        quantity_on_hand: item.quantity_on_hand,
+        par_level: item.par_level,
       })),
       pendingChangeRequests: pendingChangeRequests.map((row) => ({
         id: row.id,

@@ -558,6 +558,48 @@ export function chatHrefForCrewLead(opts: {
   return `/chat?${params.toString()}`;
 }
 
+/** Build a Chat deep-link for low-stock material reorder requests. */
+export function chatHrefForInventoryReorder(
+  items: Array<{
+    name: string;
+    quantity_on_hand: number;
+    par_level: number;
+    unit: string;
+  }>
+): string {
+  const lines = items.map((item) => {
+    const pct =
+      item.par_level > 0
+        ? ((item.quantity_on_hand / item.par_level) * 100).toFixed(0)
+        : "0";
+    const suggested = Math.max(
+      0,
+      Math.ceil(item.par_level - item.quantity_on_hand)
+    );
+    return `• ${item.name} — ${item.quantity_on_hand} ${item.unit} on hand (${pct}% of par ${item.par_level}); suggest ordering ~${suggested} ${item.unit}`;
+  });
+
+  const title =
+    items.length === 1
+      ? `Reorder materials: ${items[0].name}`
+      : `Materials reorder needed (${items.length} items)`;
+
+  const body = [
+    "The following materials are at or below 25% of par level and should be reordered:",
+    "",
+    ...lines,
+    "",
+    "Please confirm vendor, timing, and budget so we can restock before crews run short.",
+  ].join("\n");
+
+  const params = new URLSearchParams({
+    composeTitle: title,
+    composeBody: body,
+    composeCategory: "announcement",
+  });
+  return `/chat?${params.toString()}`;
+}
+
 /** Build a Chat deep-link that opens a prefilled board message about replacements. */
 export function chatHrefForEquipmentReplacement(
   assets: Array<{

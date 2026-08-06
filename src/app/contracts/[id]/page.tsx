@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { approveExtraWork, declineExtraWork, generateInvoice } from "@/app/actions/business";
+import { approveExtraWork, declineExtraWork } from "@/app/actions/business";
 import { AccountantContractDetail } from "@/components/AccountantContractDetail";
 import { AppShell } from "@/components/AppShell";
 import { ContractProgressChart } from "@/components/contracts/ContractPromiseUI";
@@ -79,19 +79,6 @@ export default async function ContractDetailPage({
       <PageHeader
         title={contract.title}
         description={`${customer.name} · ${customer.property_type ?? "Commercial property"}`}
-        action={
-          role === "accountant" ? (
-            <form action={generateInvoice}>
-              <input type="hidden" name="contract_id" value={id} />
-              <button
-                type="submit"
-                className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-              >
-                Generate Invoice
-              </button>
-            </form>
-          ) : null
-        }
       />
 
       <div className="space-y-6">

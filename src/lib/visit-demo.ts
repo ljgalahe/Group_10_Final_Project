@@ -123,6 +123,10 @@ export const WEATHER_EVENTS: WeatherOverlay[] = [
     detail:
       "Severe thunderstorms and lightning safety moved Riverside weekly grounds; now first on the open schedule.",
     severity: "rescheduled",
+    originalDate: "2026-08-04",
+    rescheduledDate: "2026-08-05",
+    plannedCrewPay: 216,
+    plannedCost: 80,
   },
   {
     visitId: SEED_VISIT.riversideSched,

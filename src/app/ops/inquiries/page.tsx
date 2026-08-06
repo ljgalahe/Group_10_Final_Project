@@ -98,7 +98,7 @@ export default async function OpsInquiriesPage({
           Could not load inquiries. {error.message}
         </div>
       ) : inquiries.length === 0 ? (
-        <EmptyState message="No inquiries yet. New prospects submit from the Inquiries start page; existing clients use Request a quote — both land here for Ops to create a quote." />
+        <EmptyState message="No inquiries yet. New prospects submit from the welcome page Request a quote form; existing clients use Request a quote — both land here for Ops to create a quote." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-left text-sm">

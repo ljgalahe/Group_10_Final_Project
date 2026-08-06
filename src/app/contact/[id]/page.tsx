@@ -6,6 +6,7 @@ import { requireAppAccess } from "@/lib/auth-access";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatDate } from "@/lib/format";
 import { fetchSupportRequestForCustomer } from "@/lib/queries";
+import { supportPhotoPublicUrl } from "@/lib/support-photos";
 import { SUPPORT_CATEGORIES } from "@/lib/types";
 
 function formatCategoryLabel(category: string) {
@@ -46,6 +47,10 @@ export default async function ContactRequestDetailPage({
     notFound();
   }
 
+  const photoUrl = supportPhotoPublicUrl(
+    (request as { photo_path?: string | null }).photo_path
+  );
+
   return (
     <AppShell>
       <PageHeader
@@ -67,6 +72,17 @@ export default async function ContactRequestDetailPage({
           <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-stone-700">
             {request.message}
           </p>
+          {photoUrl ? (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-stone-800">Photo</p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photoUrl}
+                alt="Photo attached to this support request"
+                className="mt-2 max-h-80 w-full rounded-lg border border-stone-200 object-contain bg-stone-50"
+              />
+            </div>
+          ) : null}
         </Card>
 
         <Card>
