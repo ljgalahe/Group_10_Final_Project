@@ -19,11 +19,9 @@ export function AppNavLinks({ items }: { items: AppNavItem[] }) {
     setPendingHref(null);
   }, [pathname]);
 
-  useEffect(() => {
-    for (const item of items) {
-      router.prefetch(item.href);
-    }
-  }, [items, router]);
+  // Do not prefetch every nav route on mount — heavy RSC pages (dashboard,
+  // visits, profitability, etc.) fan out shared Supabase work and stall
+  // soft navigations with "Rendering..." for the whole team.
 
   return (
     <nav
@@ -40,7 +38,7 @@ export function AppNavLinks({ items }: { items: AppNavItem[] }) {
           <Link
             key={item.href}
             href={item.href}
-            prefetch
+            prefetch={false}
             onClick={(event) => {
               if (
                 event.metaKey ||

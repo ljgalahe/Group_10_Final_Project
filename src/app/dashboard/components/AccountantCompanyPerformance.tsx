@@ -493,7 +493,8 @@ export function AccountantCompanyPerformanceSection({
       <Card>
         <h3 className="text-base font-semibold text-green-950">Profit Trend</h3>
         <p className="mt-1 text-sm text-stone-500">
-          Monthly revenue, cost, and profit for Jan–May {data.trendYear}.
+          Monthly revenue, cost, and profit from Jan through the month of the
+          latest completed visit ({data.trendYear}).
         </p>
         <div className="mt-4">
           <ProfitTrendChart points={data.profitTrend} />

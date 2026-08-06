@@ -45,7 +45,20 @@ export type AccountantCompanyPerformance = {
 };
 
 const PAGE = 1000;
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May"] as const;
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
 
 const COST_LABELS: Record<CostSlice["key"], string> = {
   labor: "Labor",
@@ -107,7 +120,7 @@ function parseDateOnly(iso: string) {
 
 export async function fetchAccountantCompanyPerformance(): Promise<AccountantCompanyPerformance> {
   const supabase = await createDataClient();
-  const trendYear = new Date().getUTCFullYear();
+  const fallbackYear = new Date().getUTCFullYear();
 
   const costTotals: Record<CostSlice["key"], number> = {
     labor: 0,
@@ -283,13 +296,30 @@ export async function fetchAccountantCompanyPerformance(): Promise<AccountantCom
     { profit: number; cost: number; revenue: number; visitShare: number }
   >();
 
-  const monthly = MONTH_LABELS.map((month, monthIndex) => ({
-    month,
-    monthIndex: monthIndex + 1,
-    revenue: 0,
-    cost: 0,
-    profit: 0,
-  }));
+  let lastCompletedTs = 0;
+  for (const visit of completedVisits) {
+    const doneTs =
+      parseDateOnly(visit.completed_at ?? "") ??
+      parseDateOnly(visit.scheduled_date);
+    if (doneTs != null && doneTs > lastCompletedTs) lastCompletedTs = doneTs;
+  }
+
+  const trendYear =
+    lastCompletedTs > 0
+      ? new Date(lastCompletedTs).getUTCFullYear()
+      : fallbackYear;
+  const lastMonthInclusive =
+    lastCompletedTs > 0 ? new Date(lastCompletedTs).getUTCMonth() + 1 : 1;
+
+  const monthly = MONTH_LABELS.slice(0, lastMonthInclusive).map(
+    (month, monthIndex) => ({
+      month,
+      monthIndex: monthIndex + 1,
+      revenue: 0,
+      cost: 0,
+      profit: 0,
+    })
+  );
 
   for (const visit of completedVisits) {
     const cost = costsByVisit.get(visit.id) ?? 0;
@@ -339,11 +369,13 @@ export async function fetchAccountantCompanyPerformance(): Promise<AccountantCom
     const doneDate = visit.completed_at ?? visit.scheduled_date;
     const y = Number(doneDate.slice(0, 4));
     const m = Number(doneDate.slice(5, 7));
-    if (y === trendYear && m >= 1 && m <= 5) {
+    if (y === trendYear && m >= 1 && m <= lastMonthInclusive) {
       const bucket = monthly[m - 1];
-      bucket.revenue += revenue;
-      bucket.cost += cost;
-      bucket.profit += profit;
+      if (bucket) {
+        bucket.revenue += revenue;
+        bucket.cost += cost;
+        bucket.profit += profit;
+      }
     }
 
     const share = 1 / contract.services.length;
