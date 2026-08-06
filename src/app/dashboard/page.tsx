@@ -16,7 +16,7 @@ import { CompanyPerformanceLeaderboard } from "@/components/CompanyPerformanceLe
 import { DashboardCollapsibleSection } from "@/components/DashboardCollapsibleSection";
 import { ManagerAlertsCenter } from "@/components/ManagerAlertsCenter";
 import { ManagerKpiStrip, type ManagerKpi } from "@/components/ManagerKpiStrip";
-import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPanel";
+import { ManagerApprovalsAlertsInbox } from "@/components/manager/ManagerApprovalsAlertsInbox";
 import {
   ServiceHoldAuditSync,
   ServiceHoldDashboardCard,
@@ -58,6 +58,7 @@ import {
   fetchPayments,
   fetchPendingContractChangeRequests,
   fetchProfitabilityReport,
+  fetchQuotesPendingApproval,
   fetchVisitLaborEntries,
   fetchVisits,
 } from "@/lib/queries";
@@ -285,6 +286,9 @@ export default async function DashboardPage({
   let managerAlerts: ManagerAlert[] = [];
   let managerKpis: ManagerKpi[] = [];
   let operationsDashboard: OperationsDashboardData | null = null;
+  let pendingQuotes: Awaited<
+    ReturnType<typeof fetchQuotesPendingApproval>
+  >["data"] = [];
 
   if (role === "operations") {
     operationsDashboard = await fetchOperationsDashboardData();
@@ -302,6 +306,7 @@ export default async function DashboardPage({
       { data: payments },
       profitability,
       { data: pendingChangeRequests },
+      { data: quotesNeedingApproval },
     ] = await Promise.all([
       fetchContracts(),
       fetchVisits(),
@@ -313,7 +318,9 @@ export default async function DashboardPage({
       fetchPayments(),
       fetchProfitabilityReport(),
       fetchPendingContractChangeRequests(),
+      fetchQuotesPendingApproval(),
     ]);
+    pendingQuotes = quotesNeedingApproval;
 
     const contractCustomerById = new Map(
       contracts.map((contract) => [
@@ -919,10 +926,17 @@ export default async function DashboardPage({
           </DashboardCollapsibleSection>
           <DashboardCollapsibleSection
             title="Approvals & Crew Alerts"
-            summary="Field concerns, extra-work approvals, and visit comments"
+            summary={
+              pendingQuotes.length === 0
+                ? "Quotes needing approval and field concerns"
+                : `${pendingQuotes.length} quote${pendingQuotes.length === 1 ? "" : "s"} needing approval · field concerns`
+            }
             defaultOpen={false}
           >
-            <ManagerApprovalsPanel visitLabels={visitLabels} hideIntro />
+            <ManagerApprovalsAlertsInbox
+              pendingQuotes={pendingQuotes}
+              visitLabels={visitLabels}
+            />
           </DashboardCollapsibleSection>
         </div>
       ) : null}
