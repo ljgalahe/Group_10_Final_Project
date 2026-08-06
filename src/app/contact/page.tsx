@@ -77,11 +77,7 @@ export default async function ContactPage({
           <h2 className="text-lg font-semibold text-green-950">
             Submit a Request
           </h2>
-          <form
-            action={submitSupportRequest}
-            className="mt-4 space-y-4"
-            encType="multipart/form-data"
-          >
+          <form action={submitSupportRequest} className="mt-4 space-y-4">
             <div>
               <label
                 htmlFor="category"

@@ -1,11 +1,14 @@
+import Script from "next/script";
+
 /**
  * Cursor's in-IDE browser injects data-cursor-ref attributes into the DOM
  * before React hydrates, which triggers a false hydration mismatch overlay.
  * Strip those attributes as early as possible (and if they reappear).
  */
 export function CursorRefHydrationFix() {
-  const script = `
-(function () {
+  return (
+    <Script id="cursor-ref-hydration-fix" strategy="beforeInteractive">
+      {`(function () {
   var ATTR = "data-cursor-ref";
   function strip(root) {
     try {
@@ -38,12 +41,7 @@ export function CursorRefHydrationFix() {
       attributeFilter: [ATTR],
     });
   } catch (e) {}
-})();`;
-
-  return (
-    <script
-      id="cursor-ref-hydration-fix"
-      dangerouslySetInnerHTML={{ __html: script }}
-    />
+})();`}
+    </Script>
   );
 }

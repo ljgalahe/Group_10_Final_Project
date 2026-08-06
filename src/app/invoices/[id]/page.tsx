@@ -33,24 +33,34 @@ import { fetchInvoiceActivity } from "@/app/invoices/queries";
 import { RecordPaymentButton } from "@/app/payments/components/RecordPaymentButton";
 
 /** Prefer stored customer method labels; map legacy simulated_* values only. */
-function formatCustomerPaymentMethod(method: string) {
+function formatCustomerPaymentMethod(method: string, notes?: string | null) {
+  // Prefer the customer-facing label stored in portal payment notes.
+  const fromNotes = notes?.match(/·\s*(.+)$/)?.[1]?.trim();
+  if (fromNotes && !/simulated/i.test(fromNotes)) return fromNotes;
+
   const normalized = method.toLowerCase().trim();
-  const legacy: Record<string, string> = {
+  const labels: Record<string, string> = {
+    card: "Card payment",
+    ach: "ACH bank transfer",
+    bank_transfer: "Bank transfer",
+    check: "Check",
     simulated_card: "Card ending in 4242",
     simulated: "Card ending in 4242",
-    "card payment": "Card ending in 4242",
-    card_payment: "Card ending in 4242",
+    "card payment": "Card payment",
+    card_payment: "Card payment",
     simulated_ach: "Bank account ending in 8821",
     simulated_check: "Check",
   };
-  if (legacy[normalized]) return legacy[normalized];
-  if (!/simulated/i.test(method)) return method;
+  if (labels[normalized]) return labels[normalized];
+  if (!/simulated/i.test(method)) {
+    return method.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
 
   const cleaned = method
     .replace(/simulated[_ ]?/gi, "")
     .replaceAll("_", " ")
     .trim();
-  return cleaned || "Card ending in 4242";
+  return cleaned || "Card payment";
 }
 
 export default async function InvoiceDetailPage({
@@ -93,6 +103,7 @@ export default async function InvoiceDetailPage({
     amount: number;
     payment_date: string;
     payment_method: string;
+    notes?: string | null;
     unapplied_amount?: number;
   }[];
   const balance = getOutstandingBalance(
@@ -278,7 +289,10 @@ export default async function InvoiceDetailPage({
                     ) : null}
                     {formatDate(payment.payment_date)} ·{" "}
                     {role === "customer"
-                      ? formatCustomerPaymentMethod(payment.payment_method)
+                      ? formatCustomerPaymentMethod(
+                          payment.payment_method,
+                          payment.notes
+                        )
                       : payment.payment_method.replace(/_/g, " ")}
                     {showAccountantLayout && Number(payment.unapplied_amount) > 0 ? (
                       <span className="text-amber-700">

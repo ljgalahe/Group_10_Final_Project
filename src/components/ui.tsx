@@ -115,6 +115,7 @@ export function StatusBadge({ status }: { status: string }) {
     disputed: "border-orange-800/40 text-orange-950",
     open: "border-stone-500 text-stone-800",
     "in progress": "border-amber-800/40 text-amber-950",
+    in_progress: "border-amber-800/40 text-amber-950",
     resolved: "gs-complete-badge",
     scheduled: "border-amber-800/40 text-amber-950",
     on_hold: "border-red-800/50 text-red-900",

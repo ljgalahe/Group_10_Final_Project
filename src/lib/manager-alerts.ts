@@ -5,6 +5,10 @@
 
 import type { CustomerCollectionRisk } from "@/lib/collection-risk";
 import type { CategoryLeaderboard } from "@/lib/company-performance";
+import {
+  CAPACITY_ALERT_THRESHOLD_PCT,
+  type CompanyCapacity,
+} from "@/lib/company-capacity";
 import { chatHrefForInventoryReorder } from "@/lib/chat-demo";
 import { isLowStock } from "@/lib/inventory";
 import { isOpenInvoiceStatus } from "@/lib/payment-utils";
@@ -18,6 +22,15 @@ import {
 
 export type AlertPriority = "critical" | "high" | "medium" | "low";
 
+export type ManagerAlertAction = {
+  id: string;
+  label: string;
+  /** Navigate to a page when set. */
+  href?: string;
+  /** Client-side action handled by the alerts UI (e.g. open partners). */
+  action?: "open-partners";
+};
+
 export type ManagerAlert = {
   id: string;
   title: string;
@@ -25,7 +38,18 @@ export type ManagerAlert = {
   priority: AlertPriority;
   count: number;
   href: string;
-  icon: "hold" | "warning" | "profit" | "risk" | "crew" | "equipment" | "invoice" | "contract" | "inventory";
+  icon:
+    | "hold"
+    | "warning"
+    | "profit"
+    | "risk"
+    | "crew"
+    | "equipment"
+    | "invoice"
+    | "contract"
+    | "inventory"
+    | "capacity";
+  actions?: ManagerAlertAction[];
 };
 
 const PRIORITY_RANK: Record<AlertPriority, number> = {
@@ -91,6 +115,7 @@ export type ManagerAlertsInput = {
   equipment: AlertEquipment[];
   inventory: AlertInventoryItem[];
   pendingChangeRequests: PendingChange[];
+  capacity?: CompanyCapacity | null;
 };
 
 function daysUntilDue(dueDate: string, today: string): number {
@@ -134,11 +159,37 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
     equipment,
     inventory,
     pendingChangeRequests,
+    capacity,
   } = input;
 
   const alerts: ManagerAlert[] = [];
   const open = openInvoices(invoices);
   const heldIds = new Set(serviceHolds.map((hold) => hold.customerId));
+
+  // 0. Company capacity critically booked
+  if (capacity?.isLow) {
+    alerts.push({
+      id: "company-capacity",
+      title: "Company capacity is critically booked",
+      explanation: `Crew labor is ${Math.round(capacity.bookedPct)}% booked against contracted weekly visits (threshold ${CAPACITY_ALERT_THRESHOLD_PCT}%). Consider hiring more crew or referring new customers to partners.`,
+      priority: "high",
+      count: 1,
+      href: "/dashboard#manager-alerts",
+      icon: "capacity",
+      actions: [
+        {
+          id: "hire",
+          label: "Plan hiring in Chat",
+          href: "/chat",
+        },
+        {
+          id: "refer",
+          label: "Open partner list",
+          action: "open-partners",
+        },
+      ],
+    });
+  }
 
   // 1. Customers on Service Hold
   if (serviceHolds.length > 0) {
