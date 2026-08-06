@@ -1247,6 +1247,7 @@ export type SupportRequestQueueItem = {
   linked_type: string | null;
   linked_id: string | null;
   linked_label: string | null;
+  photo_path: string | null;
   status: string;
   resolution_notes: string | null;
   created_at: string;
@@ -1351,6 +1352,7 @@ export async function fetchAllSupportRequests(): Promise<{
       linked_type: row.linked_type,
       linked_id: row.linked_id,
       linked_label,
+      photo_path: (row as { photo_path?: string | null }).photo_path ?? null,
       status: row.status,
       resolution_notes: row.resolution_notes ?? null,
       created_at: row.created_at,

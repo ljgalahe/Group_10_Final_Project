@@ -47,7 +47,7 @@ export async function startDemoSession(role = "manager"): Promise<void> {
 }
 
 /** Ensure demo cookies exist without forcing a role change if already active. */
-export async function ensureDemoSession(fallbackRole = "inquiries"): Promise<void> {
+export async function ensureDemoSession(fallbackRole = "manager"): Promise<void> {
   if (await hasAppAccess()) return;
   await startDemoSession(fallbackRole);
 }

@@ -66,12 +66,22 @@ export default async function ContactPage({
         </div>
       ) : null}
 
+      {params.error && params.error !== "invalid" ? (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {params.error}
+        </div>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <h2 className="text-lg font-semibold text-green-950">
             Submit a Request
           </h2>
-          <form action={submitSupportRequest} className="mt-4 space-y-4">
+          <form
+            action={submitSupportRequest}
+            className="mt-4 space-y-4"
+            encType="multipart/form-data"
+          >
             <div>
               <label
                 htmlFor="category"
@@ -135,6 +145,26 @@ export default async function ContactPage({
                 placeholder="Describe your question or issue…"
                 className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
               />
+            </div>
+
+            <div>
+              <label
+                htmlFor="photo"
+                className="block text-sm font-medium text-stone-700"
+              >
+                Photo of the issue{" "}
+                <span className="font-normal text-stone-500">(optional)</span>
+              </label>
+              <input
+                id="photo"
+                name="photo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="mt-1 block w-full text-sm text-stone-600 file:mr-3 file:rounded-md file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-green-900 hover:file:bg-green-100"
+              />
+              <p className="mt-1 text-xs text-stone-500">
+                JPG, PNG, WEBP, or GIF up to 5 MB.
+              </p>
             </div>
 
             <button
