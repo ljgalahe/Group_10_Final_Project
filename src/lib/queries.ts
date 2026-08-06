@@ -5,6 +5,11 @@ import {
   type JournalSource,
   type JournalStatus,
 } from "@/lib/journal";
+import {
+  DEFAULT_CHART_OF_ACCOUNTS,
+  type AccountType,
+  type ChartOfAccount,
+} from "@/lib/chart-of-accounts";
 import { enrichPaymentRow, isMissingColumnError } from "@/lib/payment-schema";
 import { daysBetween, isOpenInvoiceStatus } from "@/lib/payment-utils";
 import type { Payment, PaymentsSummary, UserRole } from "@/lib/types";
@@ -608,6 +613,7 @@ export async function fetchProfitabilityReport() {
   return results;
 }
 
+export type { ChartOfAccount } from "@/lib/chart-of-accounts";
 export type { JournalSource, JournalStatus };
 
 export type JournalLine = {
@@ -676,6 +682,24 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
 
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+export async function fetchChartOfAccounts(): Promise<ChartOfAccount[]> {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("chart_of_accounts")
+    .select("code, name, account_type")
+    .order("code", { ascending: true });
+
+  if (error || !data?.length) {
+    return DEFAULT_CHART_OF_ACCOUNTS;
+  }
+
+  return data.map((row) => ({
+    code: row.code,
+    name: row.name,
+    accountType: row.account_type as AccountType,
+  }));
 }
 
 export async function fetchJournalSourceStates() {

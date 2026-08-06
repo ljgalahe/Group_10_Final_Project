@@ -6,10 +6,10 @@ import {
   updateJournalEntry,
 } from "@/app/actions/journal";
 import {
-  JOURNAL_ACCOUNTS,
   roundMoney,
   type JournalLineInput,
 } from "@/lib/journal";
+import type { ChartOfAccount } from "@/lib/chart-of-accounts";
 import { formatCurrency } from "@/lib/format";
 
 type LineState = {
@@ -30,10 +30,12 @@ export function JournalEntryForm({
   mode,
   todayIso,
   entry,
+  chartAccounts,
   onClose,
 }: {
   mode: "create" | "edit";
   todayIso: string;
+  chartAccounts: ChartOfAccount[];
   entry?: {
     id: string;
     date: string;
@@ -183,7 +185,7 @@ export function JournalEntryForm({
                           }}
                           className="w-full rounded-md border border-stone-300 px-2 py-1.5 text-sm"
                         >
-                          {JOURNAL_ACCOUNTS.map((account) => (
+                          {chartAccounts.map((account) => (
                             <option key={account.code} value={account.code}>
                               {account.code} · {account.name}
                             </option>
