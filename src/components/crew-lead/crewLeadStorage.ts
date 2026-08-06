@@ -141,6 +141,30 @@ export function getAssignedEmployeesForJob(jobId: string): CrewMember[] {
   return loadVisitWorkState(jobId).assignedEmployees ?? [];
 }
 
+/** Sample crew-written notes for a subset of completed demo visits. */
+const COMPLETED_ADDITIONAL_NOTES = [
+  "Client on site — confirmed bed edging looked good. Gate left locked as requested.",
+  "Irrigation zone 2 still low pressure after flush; flagged for ops follow-up.",
+  "Mulch delivery ran short by ~2 yards; topped high-visibility beds first.",
+  "Storm debris cleared from north lot before mow. Photos uploaded.",
+  "New parking curb installed since last visit — trimmed around it carefully.",
+  "Dog waste bags left near dumpster enclosure; noted for property manager.",
+  "Asked to skip flower bed near entrance until annuals are planted next week.",
+  "Equipment trailer tire soft on arrival; aired up at yard after route.",
+] as const;
+
+/**
+ * Returns a demo additional note for roughly ~1/3 of completed visits.
+ * Empty string means leave Additional Notes blank.
+ */
+export function demoAdditionalNotesForCompletedVisit(jobId: string): string {
+  const bucket = hashString(jobId + "-addl-notes") % 3;
+  if (bucket !== 0) return "";
+  const index =
+    hashString(jobId + "-addl-pick") % COMPLETED_ADDITIONAL_NOTES.length;
+  return COMPLETED_ADDITIONAL_NOTES[index];
+}
+
 /**
  * Fills in a completed visit so it looks fully finished:
  * all tasks checked, labor hours calculated, extra work approved.
@@ -192,12 +216,16 @@ export function buildCompletedVisitState(
     new Date(Date.now() - totalLabor * 60 * 60 * 1000).toISOString();
   const ended = base.jobEndedAt ?? new Date().toISOString();
 
+  const existingAdditional = (base.crewAdditionalNotes ?? "").trim();
+  const crewAdditionalNotes =
+    existingAdditional || demoAdditionalNotesForCompletedVisit(jobId);
+
   return {
     assignedEmployees: assigned,
     employees,
     completedTaskIds: Array.from(new Set(taskIds)),
     extraWorkNotes,
-    crewAdditionalNotes: base.crewAdditionalNotes ?? "",
+    crewAdditionalNotes,
     jobStartedAt: started,
     jobEndedAt: ended,
     plannedHours,
