@@ -15,14 +15,10 @@ import {
   type CrewLeadVisitCardData,
 } from "@/components/crew-lead/CrewLeadVisitsBoard";
 import {
-  normalizeServiceName,
-  oxfordAddressForCustomer,
+  buildCrewSchedule,
   todayDateOnly,
 } from "@/components/crew-lead/buildCrewSchedule";
-import type {
-  ExtraWorkItem,
-  ScheduleJob,
-} from "@/components/crew-lead/schedule-types";
+import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
 import { OrganizedJobList } from "@/components/visits/JobList";
 import {
   OrganizeToggle,
@@ -31,8 +27,8 @@ import {
 import { VisitsSummaryBlocks } from "@/components/visits/VisitsSummaryBlocks";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
-import { jobIncludesCrewMember } from "@/lib/crew-member";
-import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
+import { filterJobsForCrewMember } from "@/lib/crew-member";
+import { parseCustomerNotes } from "@/lib/customer-notes";
 import {
   getViewRole,
   roleCanEditContractDetails,
@@ -52,10 +48,10 @@ import {
 import {
   applyServiceHoldToScheduleJobs,
   buildCustomerServiceHolds,
-  effectiveVisitDisplayStatus,
   heldCustomerIdSet,
 } from "@/lib/service-hold";
 import type { VisitCost } from "@/lib/types";
+import { generateDailySampleJobs } from "@/lib/visit-demo";
 import {
   buildJobRows,
   groupJobsByCompany,
@@ -164,29 +160,57 @@ export default async function VisitsPage({
   const { data: visits } = await fetchVisits();
   const canManage = roleCanManageVisits(role);
 
-  let extraWork: ExtraWorkItem[] = [];
-  const crewJobsByVisitId = new Map<string, ScheduleJob>();
-
   if (role === "crew_lead" || role === "crew_member") {
     const supabase = await createDataClient();
-    const [{ data: enrichedVisits }, { data: extraWorkRows }, { data: invoices }] =
-      await Promise.all([
-        supabase
-          .from("service_visits")
-          .select(
-            "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
-          )
-          .order("scheduled_date", { ascending: true }),
-        supabase
-          .from("extra_work_orders")
-          .select("id, contract_id, title, description, quoted_amount, status"),
-        supabase
-          .from("invoices")
-          .select(
-            "id, invoice_number, customer_id, total, amount_paid, status, due_date, customers(name)"
-          ),
-      ]);
+    const visitWindowStart = (() => {
+      const d = new Date(`${todayDateOnly()}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() - 14);
+      return d.toISOString().slice(0, 10);
+    })();
+    const visitWindowEnd = (() => {
+      const d = new Date(`${todayDateOnly()}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + 90);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    // Same data pipeline as Schedule so scheduled/completed statuses match.
+    const [
+      { data: contracts },
+      { data: scheduleVisits },
+      { data: extraWorkRows },
+      { data: invoices },
+    ] = await Promise.all([
+      supabase
+        .from("contracts")
+        .select(
+          "id, title, status, visits_per_week, season_start, season_end, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included)"
+        )
+        .eq("status", "active"),
+      supabase
+        .from("service_visits")
+        .select(
+          "id, scheduled_date, status, crew_notes, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
+        )
+        .gte("scheduled_date", visitWindowStart)
+        .lte("scheduled_date", visitWindowEnd)
+        .order("scheduled_date", { ascending: true }),
+      supabase
+        .from("extra_work_orders")
+        .select("id, contract_id, title, description, quoted_amount, status"),
+      supabase
+        .from("invoices")
+        .select(
+          "id, invoice_number, customer_id, total, amount_paid, status, due_date, customers(name)"
+        ),
+    ]);
+
     const today = todayDateOnly();
+    const contractCustomerById = new Map(
+      (contracts ?? []).map((contract) => [
+        contract.id,
+        String(contract.customer_id),
+      ])
+    );
     const holds = buildCustomerServiceHolds(
       (invoices ?? []).map((invoice) => ({
         id: invoice.id,
@@ -204,33 +228,17 @@ export default async function VisitsPage({
             ? { name: (invoice.customers as { name: string }).name }
             : null,
       })),
-      (enrichedVisits ?? []).map((visit) => ({
+      (scheduleVisits ?? []).map((visit) => ({
         id: visit.id,
         contract_id: visit.contract_id,
         status: visit.status,
         scheduled_date: visit.scheduled_date,
       })),
-      {
-        today,
-        contractCustomerById: new Map(
-          (enrichedVisits ?? []).flatMap((visit) => {
-            const contractRaw = visit.contracts as
-              | { id: string; customer_id: string }
-              | { id: string; customer_id: string }[]
-              | null;
-            const contract = Array.isArray(contractRaw)
-              ? contractRaw[0]
-              : contractRaw;
-            return contract
-              ? [[contract.id, String(contract.customer_id)] as const]
-              : [];
-          })
-        ),
-      }
+      { today, contractCustomerById }
     );
     const heldIds = heldCustomerIdSet(holds);
 
-    extraWork = (extraWorkRows ?? []).map((row) => ({
+    const extraWork: ExtraWorkItem[] = (extraWorkRows ?? []).map((row) => ({
       id: row.id,
       contractId: row.contract_id,
       title: row.title,
@@ -239,160 +247,58 @@ export default async function VisitsPage({
       status: row.status,
     }));
 
-    for (const visit of enrichedVisits ?? []) {
-      const contractRaw = visit.contracts as
-        | {
-            id: string;
-            title: string;
-            customer_id: string;
-            customers:
-              | {
-                  id: string;
-                  name: string;
-                  address: string | null;
-                  customer_notes?: string | null;
-                }
-              | {
-                  id: string;
-                  name: string;
-                  address: string | null;
-                  customer_notes?: string | null;
-                }[]
-              | null;
-            contract_services:
-              | { service_name: string; included: boolean }[]
-              | null;
-          }
-        | {
-            id: string;
-            title: string;
-            customer_id: string;
-            customers:
-              | {
-                  id: string;
-                  name: string;
-                  address: string | null;
-                  customer_notes?: string | null;
-                }
-              | {
-                  id: string;
-                  name: string;
-                  address: string | null;
-                  customer_notes?: string | null;
-                }[]
-              | null;
-            contract_services:
-              | { service_name: string; included: boolean }[]
-              | null;
-          }[]
-        | null;
-      const contract = Array.isArray(contractRaw)
-        ? contractRaw[0]
-        : contractRaw;
-      const customerRaw = contract?.customers;
-      const customer = Array.isArray(customerRaw)
-        ? customerRaw[0]
-        : customerRaw;
-      if (!contract || !customer) continue;
-
-      const services = Array.from(
-        new Map(
-          (contract.contract_services ?? [])
-            .filter((s) => s.included)
-            .map((s) => {
-              const name = normalizeServiceName(s.service_name);
-              return [name.toLowerCase(), name] as const;
-            })
-        ).values()
-      );
-
-      const scheduledDate = visit.scheduled_date.slice(0, 10);
-      const onHold = heldIds.has(customer.id);
-      crewJobsByVisitId.set(visit.id, {
-        id: visit.id,
-        contractId: contract.id,
-        scheduledDate,
-        status: effectiveVisitDisplayStatus(
-          visit.status,
-          scheduledDate,
-          onHold,
-          today
-        ),
-        customerId: customer.id,
-        customerName: customer.name,
-        customerIdShort: customer.id.slice(-4),
-        address: oxfordAddressForCustomer(customer.id, customer.address),
-        contractTitle: contract.title,
-        services,
-        customerNotes: customerNotesForCrew(customer.customer_notes),
-        lat: 34.3665,
-        lng: -89.5192,
-        source: "visit",
-        serviceHold: onHold,
-      });
-    }
-
-    const heldJobs = applyServiceHoldToScheduleJobs(
-      Array.from(crewJobsByVisitId.values()),
+    const allJobs = applyServiceHoldToScheduleJobs(
+      buildCrewSchedule(contracts ?? [], scheduleVisits ?? []),
       heldIds,
       today
     );
-    for (const job of heldJobs) {
-      crewJobsByVisitId.set(job.id, job);
-    }
+    const scheduleJobs =
+      role === "crew_member" ? filterJobsForCrewMember(allJobs) : allJobs;
 
-    const scopedVisits =
-      role === "crew_member"
-        ? visits.filter((visit) => jobIncludesCrewMember(visit.id))
-        : visits;
-
-    const { data: allScopedCosts } = await fetchVisitCostsByVisitIds(
-      scopedVisits.map((visit) => visit.id)
+    const notesByVisitId = new Map(
+      (scheduleVisits ?? []).map((visit) => [
+        visit.id,
+        (visit as { crew_notes?: string | null }).crew_notes ?? null,
+      ])
     );
+    const sampleById = new Map(
+      generateDailySampleJobs().map((job) => [job.visitId, job] as const)
+    );
+
+    const realVisitIds = scheduleJobs
+      .map((job) => job.id)
+      .filter((id) => !id.startsWith("demo-day-") && !id.startsWith("projected-"));
+    const { data: allScopedCosts } = await fetchVisitCostsByVisitIds(realVisitIds);
     const costsByVisitId = new Map<string, typeof allScopedCosts>();
     for (const cost of allScopedCosts) {
       const list = costsByVisitId.get(cost.visit_id) ?? [];
       list.push(cost);
       costsByVisitId.set(cost.visit_id, list);
     }
-    const cardData: CrewLeadVisitCardData[] = scopedVisits.map((visit) => {
-      const contract = visit.contracts as {
-        title: string;
-        customer_id?: string;
-        customers: { name: string } | null;
-      } | null;
-      const costRows = costsByVisitId.get(visit.id) ?? [];
-      const totalCosts = costRows.reduce(
-        (sum, c) => sum + Number(c.amount),
-        0
-      );
-      const crewJob = crewJobsByVisitId.get(visit.id) ?? null;
-      const customerId =
-        crewJob?.customerId ??
-        contract?.customer_id ??
-        (contract?.customers as { id?: string } | null)?.id;
-      const displayStatus = effectiveVisitDisplayStatus(
-        visit.status,
-        visit.scheduled_date.slice(0, 10),
-        Boolean(customerId && heldIds.has(customerId)),
-        today
-      );
+
+    const cardData: CrewLeadVisitCardData[] = scheduleJobs.map((job) => {
+      const costRows = costsByVisitId.get(job.id) ?? [];
+      const sample = sampleById.get(job.id);
+      const dbTotal = costRows.reduce((sum, c) => sum + Number(c.amount), 0);
+      const jobLabel =
+        sample?.jobLabel ??
+        (job.services.length > 0 ? job.services.join(", ") : job.contractTitle);
 
       return {
-        id: visit.id,
-        status: displayStatus,
-        customerName: contract?.customers?.name ?? "Unknown Customer",
-        contractTitle: contract?.title ?? "Contract",
-        scheduledDate: visit.scheduled_date,
-        crewNotes: visit.crew_notes,
-        totalCosts,
+        id: job.id,
+        status: job.status,
+        customerName: job.customerName,
+        contractTitle: jobLabel,
+        scheduledDate: job.scheduledDate,
+        crewNotes: notesByVisitId.get(job.id) ?? null,
+        totalCosts: costRows.length > 0 ? dbTotal : (sample?.costTotal ?? 0),
         costs: costRows.map((cost) => ({
           id: cost.id,
           cost_type: cost.cost_type,
           description: cost.description,
           amount: Number(cost.amount),
         })),
-        crewJob,
+        crewJob: job,
       };
     });
 

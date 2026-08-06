@@ -1,5 +1,12 @@
 import { formatCurrency } from "@/lib/format";
+import { landscapePairById } from "@/lib/landscape-proof-photos";
 import type { Invoice, InvoiceLine } from "@/lib/types";
+
+const lawnMow = landscapePairById("lawn-mow");
+const flowerBed = landscapePairById("flower-bed");
+const mulchBed = landscapePairById("mulch-bed");
+const leafCleanup = landscapePairById("leaf-cleanup");
+const hedgeTrim = landscapePairById("hedge-trim");
 
 export const SEED_INVOICE = {
   riversidePaid: "55555555-5555-5555-5555-555555555501",
@@ -212,8 +219,8 @@ const OVERLAYS: Record<string, Overlay> = {
       crew: ["Alex Rivera", "Jordan Lee"],
       arrival: "2026-05-12T08:05:00Z",
       completion: "2026-05-12T14:00:00Z",
-      beforeImage: "https://images.unsplash.com/photo-1558904541-efa843a96f01?w=400&h=300&fit=crop",
-      afterImage: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=300&fit=crop",
+      beforeImage: lawnMow.beforeImage,
+      afterImage: lawnMow.afterImage,
       crewNotes: "Standard grounds pass — all areas.",
       materials: ["Fertilizer blend"],
       equipment: ["Mower", "Edger"],
@@ -271,8 +278,8 @@ const OVERLAYS: Record<string, Overlay> = {
       crew: ["Alex Rivera", "Sam Ortiz", "Casey Ng"],
       arrival: "2026-06-02T07:50:00Z",
       completion: "2026-06-09T15:30:00Z",
-      beforeImage: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=300&fit=crop",
-      afterImage: "https://images.unsplash.com/photo-1585320806297-779f39a5d3e8?w=400&h=300&fit=crop",
+      beforeImage: mulchBed.beforeImage,
+      afterImage: mulchBed.afterImage,
       crewNotes: "Mulch installed at entrance; hedge trim completed.",
       materials: ["12 yd premium mulch"],
       equipment: ["Mower", "Edger", "Mulch blower"],
@@ -334,8 +341,8 @@ const OVERLAYS: Record<string, Overlay> = {
       crew: ["Taylor Brooks", "Morgan Diaz", "Riley Chen"],
       arrival: "2026-06-03T07:40:00Z",
       completion: "2026-06-03T12:10:00Z",
-      beforeImage: "https://images.unsplash.com/photo-1558904541-efa843a96f01?w=400&h=300&fit=crop",
-      afterImage: "https://images.unsplash.com/photo-1466692476862-a9d8e9b0c1b4?w=400&h=300&fit=crop",
+      beforeImage: lawnMow.beforeImage,
+      afterImage: lawnMow.afterImage,
       crewNotes: "Retail frontage mowed and edged.",
       materials: ["Fertilizer"],
       equipment: ["Mower", "Edger"],
@@ -392,8 +399,8 @@ const OVERLAYS: Record<string, Overlay> = {
       crew: ["Taylor Brooks", "Jordan Lee", "Sam Ortiz", "Casey Ng"],
       arrival: "2026-04-04T07:30:00Z",
       completion: "2026-04-04T16:00:00Z",
-      beforeImage: "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=400&h=300&fit=crop",
-      afterImage: "https://images.unsplash.com/photo-1466692476862-a9d8e9b0c1b4?w=400&h=300&fit=crop",
+      beforeImage: leafCleanup.beforeImage,
+      afterImage: leafCleanup.afterImage,
       crewNotes: "Extra time on pond area — costs running high.",
       materials: ["Pond treatment chemicals"],
       equipment: ["Extended equipment rental"],
@@ -455,8 +462,8 @@ const OVERLAYS: Record<string, Overlay> = {
       crew: ["Alex Rivera", "Jordan Lee"],
       arrival: "2026-07-08T08:00:00Z",
       completion: "2026-07-08T12:30:00Z",
-      beforeImage: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=300&fit=crop",
-      afterImage: "https://images.unsplash.com/photo-1585320806297-779f39a5d3e8?w=400&h=300&fit=crop",
+      beforeImage: flowerBed.beforeImage,
+      afterImage: flowerBed.afterImage,
       crewNotes: "Common areas and entrance beds.",
       materials: [],
       equipment: ["Mower"],
@@ -552,8 +559,8 @@ function defaultOverlay(invoice: Invoice & { customers?: { name?: string; addres
       crew: ["Crew TBD"],
       arrival: `${invoice.issue_date}T08:00:00Z`,
       completion: `${invoice.issue_date}T14:00:00Z`,
-      beforeImage: "https://images.unsplash.com/photo-1558904541-efa843a96f01?w=400&h=300&fit=crop",
-      afterImage: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=300&fit=crop",
+      beforeImage: hedgeTrim.beforeImage,
+      afterImage: hedgeTrim.afterImage,
       crewNotes: "Demo package",
       materials: [],
       equipment: [],

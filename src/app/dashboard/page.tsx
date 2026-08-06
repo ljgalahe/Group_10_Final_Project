@@ -64,6 +64,11 @@ import {
 } from "@/lib/queries";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
 import { AccountantDashboardPanel } from "@/app/dashboard/components/AccountantDashboardPanel";
+import { OperationsDashboardPanel } from "@/app/dashboard/components/OperationsDashboardPanel";
+import {
+  fetchOperationsDashboardData,
+  type OperationsDashboardData,
+} from "@/app/dashboard/operations-dashboard-data";
 import { fetchAccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
 
 function attentionActionLabel(kind: string) {
@@ -242,9 +247,14 @@ export default async function DashboardPage({
       description:
         "Track billing, outstanding balances, and contract profitability.",
     },
+    operations: {
+      title: "Operations Dashboard",
+      description:
+        "Upcoming visits and site surveys, plus scheduling shortcuts — create quotes from Inquiries, track status on Quotes.",
+    },
     crew_lead: {
       title: "Crew Lead Dashboard",
-      description: "See upcoming visits and mark work as completed.",
+      description: "",
     },
     crew_member: {
       title: "Crew Member Dashboard",
@@ -279,6 +289,11 @@ export default async function DashboardPage({
   let serviceHolds: CustomerServiceHold[] = [];
   let managerAlerts: ManagerAlert[] = [];
   let managerKpis: ManagerKpi[] = [];
+  let operationsDashboard: OperationsDashboardData | null = null;
+
+  if (role === "operations") {
+    operationsDashboard = await fetchOperationsDashboardData();
+  }
 
   if (role === "manager") {
     const [
@@ -764,9 +779,22 @@ export default async function DashboardPage({
   return (
     <AppShell>
       <PageHeader
+        kicker={
+          role === "operations"
+            ? "Operations"
+            : role === "manager"
+              ? "Manager"
+              : role === "accountant"
+                ? "Accounting"
+                : undefined
+        }
         title={role === "customer" ? propertyTitle : copy.title}
         description={
-          role === "customer" ? propertyDescription : copy.description
+          role === "customer"
+            ? propertyDescription
+            : role === "crew_lead"
+              ? undefined
+              : copy.description || undefined
         }
       />
 
@@ -863,10 +891,16 @@ export default async function DashboardPage({
 
       {role !== "customer" &&
       role !== "crew_member" &&
+      role !== "crew_lead" &&
       role !== "manager" &&
-      role !== "accountant"
+      role !== "accountant" &&
+      role !== "operations"
         ? staffStatsRow
         : null}
+
+      {role === "operations" && operationsDashboard ? (
+        <OperationsDashboardPanel data={operationsDashboard} />
+      ) : null}
 
       {role === "manager" ? (
         <div className="mt-6 space-y-5">

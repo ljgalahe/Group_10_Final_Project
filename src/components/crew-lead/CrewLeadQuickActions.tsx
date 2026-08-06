@@ -244,10 +244,6 @@ export function CrewLeadQuickActions({
           <h3 className="text-base font-semibold text-green-950">
             Submit Extra Cost for Approval
           </h3>
-          <p className="mt-1 text-sm text-stone-500">
-            Requests go to Extra work approval on Contracts. Do not complete
-            extra work until management approves.
-          </p>
           <form onSubmit={submitExtraWork} className="mt-3 space-y-2">
             <input
               value={customerName}
@@ -345,10 +341,6 @@ export function CrewLeadQuickActions({
           <h3 className="text-base font-semibold text-green-950">
             Equipment Repair / Maintenance
           </h3>
-          <p className="mt-1 text-sm text-stone-500">
-            Message the manager when gear needs repair or scheduled
-            maintenance.
-          </p>
           <form onSubmit={submitEquipmentAlert} className="mt-3 space-y-2">
             <select
               value={equipmentName}
@@ -424,9 +416,6 @@ export function CrewLeadQuickActions({
           <h3 className="text-base font-semibold text-green-950">
             Today&apos;s Crew
           </h3>
-          <p className="mt-1 text-sm text-stone-500">
-            Members grouped by crew, with today&apos;s job/site assignments.
-          </p>
           <label className="mt-3 flex flex-col gap-1 text-sm text-stone-700 sm:max-w-xs">
             <span className="text-xs font-medium uppercase tracking-wide text-stone-500">
               Filter by crew
@@ -533,9 +522,6 @@ export function CrewLeadQuickActions({
           <h3 className="text-base font-semibold text-green-950">
             Field Exceptions Sent to Management
           </h3>
-          <p className="mt-1 text-sm text-stone-500">
-            Reports from visits (access issues, animals, equipment failures).
-          </p>
           {exceptions.length === 0 ? (
             <p className="mt-3 text-sm text-stone-500">
               No exception reports yet. Submit them from a scheduled visit&apos;s

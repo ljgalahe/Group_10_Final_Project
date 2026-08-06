@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
 import { Card, EmptyState, StatCard, StatusBadge } from "@/components/ui";
 import { chatHrefForEquipmentReplacement } from "@/lib/chat-demo";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -20,7 +21,6 @@ import {
 } from "./equipment-math";
 import {
   EQUIPMENT_CATEGORIES,
-  aggregateEquipmentRevenue,
   categoryIsDepreciable,
   categoryTracksUsefulLife,
   type CompletedVisitOption,
@@ -34,6 +34,9 @@ type Props = {
   report: EquipmentReportData;
   usage: EquipmentUsageRow[];
   visits: CompletedVisitOption[];
+  dateFrom: string;
+  dateTo: string;
+  companyRevenueInView: number;
 };
 
 type FormMode = "closed" | "create" | "edit";
@@ -281,8 +284,17 @@ function AssetForm({
   );
 }
 
-export function EquipmentReport({ report, usage, visits }: Props) {
-  const { assets, jobs, companyRevenue } = report;
+export function EquipmentReport({
+  report,
+  usage,
+  visits,
+  dateFrom,
+  dateTo,
+  companyRevenueInView,
+}: Props) {
+  const { assets, companyRevenue } = report;
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [category, setCategory] = useState<"All" | EquipmentCategory>("All");
   const [statusFilter, setStatusFilter] = useState<"All" | "active" | "retired">(
     "active"
@@ -293,8 +305,18 @@ export function EquipmentReport({ report, usage, visits }: Props) {
   const [logOpen, setLogOpen] = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string>("All");
   const [equipmentFilter, setEquipmentFilter] = useState<string>("All");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [hoursOpen, setHoursOpen] = useState(false);
+
+  function pushDateParams(nextFrom: string, nextTo: string) {
+    const params = new URLSearchParams();
+    if (nextFrom) params.set("from", nextFrom);
+    if (nextTo) params.set("to", nextTo);
+    const qs = params.toString();
+    startTransition(() => {
+      router.push(qs ? `/equipment?${qs}` : "/equipment");
+    });
+  }
 
   const companies = useMemo(() => {
     const names = new Set<string>();
@@ -331,18 +353,8 @@ export function EquipmentReport({ report, usage, visits }: Props) {
     });
   }, [usage, companyFilter, equipmentFilter, dateFrom, dateTo]);
 
-  const jobsInRange = useMemo(() => {
-    return jobs.filter((job) => {
-      if (dateFrom && job.visit_date < dateFrom) return false;
-      if (dateTo && job.visit_date > dateTo) return false;
-      return true;
-    });
-  }, [jobs, dateFrom, dateTo]);
-
-  const revenueAssets = useMemo(
-    () => aggregateEquipmentRevenue(assets, jobsInRange),
-    [assets, jobsInRange]
-  );
+  // Revenue metrics are pre-aggregated on the server for the selected date range.
+  const revenueAssets = assets;
 
   const allocatedRevenueTotal = useMemo(
     () =>
@@ -351,15 +363,6 @@ export function EquipmentReport({ report, usage, visits }: Props) {
       ) / 100,
     [revenueAssets]
   );
-
-  const companyRevenueInView = useMemo(() => {
-    // Job revenues in range sum to the invoice dollars attributed to those jobs.
-    return (
-      Math.round(
-        jobsInRange.reduce((sum, job) => sum + job.job_revenue, 0) * 100
-      ) / 100
-    );
-  }, [jobsInRange]);
 
   const enriched = useMemo(() => {
     return revenueAssets.map((a) => {
@@ -482,7 +485,7 @@ export function EquipmentReport({ report, usage, visits }: Props) {
               <input
                 type="date"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                onChange={(e) => pushDateParams(e.target.value, dateTo)}
                 className="mt-1 block rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
               />
             </label>
@@ -491,24 +494,21 @@ export function EquipmentReport({ report, usage, visits }: Props) {
               <input
                 type="date"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                onChange={(e) => pushDateParams(dateFrom, e.target.value)}
                 className="mt-1 block rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
               />
             </label>
             {dateFrom || dateTo ? (
               <button
                 type="button"
-                onClick={() => {
-                  setDateFrom("");
-                  setDateTo("");
-                }}
+                onClick={() => pushDateParams("", "")}
                 className="self-end pb-2 text-sm font-medium text-stone-600 underline-offset-2 hover:underline"
               >
                 Clear dates
               </button>
             ) : null}
           </div>
-          <p className="text-xs text-stone-500">
+          <p className={`text-xs text-stone-500 ${isPending ? "opacity-60" : ""}`}>
             Job revenue = share of billed invoices. Split across equipment by
             hours on each job (evenly if hours are missing). Allocated{" "}
             {formatCurrency(allocatedRevenueTotal)}
@@ -590,51 +590,6 @@ export function EquipmentReport({ report, usage, visits }: Props) {
             </p>
           )}
         </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="block text-sm">
-            <span className="text-stone-600">Category</span>
-            <select
-              value={category}
-              onChange={(e) =>
-                setCategory(e.target.value as "All" | EquipmentCategory)
-              }
-              className="mt-1 block min-w-[11rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="All">All categories</option>
-              {EQUIPMENT_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="text-stone-600">Status</span>
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(
-                  e.target.value as "All" | "active" | "retired"
-                )
-              }
-              className="mt-1 block min-w-[9rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="All">All</option>
-              <option value="active">Active</option>
-              <option value="retired">Retired</option>
-            </select>
-          </label>
-        </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="rounded-lg bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-900"
-        >
-          Add equipment
-        </button>
       </div>
 
       <AssetForm
@@ -760,125 +715,201 @@ export function EquipmentReport({ report, usage, visits }: Props) {
       ) : null}
 
       <Card className="mb-8 overflow-x-auto">
-        <h2 className="mb-1 text-lg font-semibold text-green-950">
-          Equipment Register
-        </h2>
-        <p className="mb-4 text-sm text-stone-500">
-          Sorted by allocated job revenue (highest first). Click a row for
-          contract detail.
-        </p>
-        {filtered.length === 0 ? (
-          <EmptyState message="No equipment matches these filters." />
-        ) : (
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
-              <tr>
-                <th className="px-2 py-2 font-medium">Name</th>
-                <th className="px-2 py-2 font-medium">Cost</th>
-                <th className="px-2 py-2 font-medium">Acc. Dep.</th>
-                <th className="px-2 py-2 font-medium">Book Value</th>
-                <th className="px-2 py-2 font-medium">Allocated Revenue</th>
-                <th className="px-2 py-2 font-medium">Jobs</th>
-                <th className="px-2 py-2 font-medium">Avg $/Job</th>
-                <th className="px-2 py-2 font-medium">Rev / Cost</th>
-                <th className="px-2 py-2 font-medium">Life Left</th>
-                <th className="px-2 py-2 font-medium">Status</th>
-                <th className="px-2 py-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {filtered.map((row) => (
-                <tr
-                  key={row.id}
-                  className="align-top cursor-pointer hover:bg-green-50/60"
-                  onClick={() => setDetailAsset(row)}
-                >
-                  <td className="px-2 py-2.5 font-medium text-stone-900">
-                    {row.name}
-                    <span className="mt-0.5 block text-xs font-normal text-stone-400">
-                      {row.category}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2.5 tabular-nums">
-                    {formatCurrency(row.cost)}
-                  </td>
-                  <td className="px-2 py-2.5 tabular-nums">
-                    {categoryIsDepreciable(row.category)
-                      ? formatCurrency(row.accum)
-                      : ""}
-                  </td>
-                  <td className="px-2 py-2.5 font-medium tabular-nums text-green-950">
-                    {formatCurrency(row.book)}
-                  </td>
-                  <td className="px-2 py-2.5 tabular-nums font-medium text-stone-800">
-                    {formatCurrency(row.revenue_produced)}
-                  </td>
-                  <td className="px-2 py-2.5 tabular-nums text-stone-700">
-                    {row.jobs_count}
-                  </td>
-                  <td className="px-2 py-2.5 tabular-nums text-stone-700">
-                    {row.jobs_count > 0
-                      ? formatCurrency(row.avg_revenue_per_job)
-                      : "—"}
-                  </td>
-                  <td className="px-2 py-2.5 tabular-nums text-stone-700">
-                    {row.cost > 0 ? `${row.revenue_per_cost.toFixed(2)}×` : "—"}
-                  </td>
-                  <td className="px-2 py-2.5">
-                    {categoryTracksUsefulLife(row.category) ? (
-                      <LifeRemainingRing
-                        remainingHours={row.remaining}
-                        estimatedHours={row.estimated_total_hours}
-                      />
-                    ) : null}
-                  </td>
-                  <td className="px-2 py-2.5">
-                    <StatusBadge status={row.status} />
-                  </td>
-                  <td
-                    className="px-2 py-2.5"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex flex-col gap-1">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(row)}
-                        className="text-left text-xs font-medium text-green-800 hover:underline"
+        <button
+          type="button"
+          onClick={() => setRegisterOpen((open) => !open)}
+          className="flex w-full items-start justify-between gap-3 text-left"
+          aria-expanded={registerOpen}
+        >
+          <div>
+            <h2 className="text-lg font-semibold text-green-950">
+              Equipment Register
+            </h2>
+            <p className="mt-0.5 text-sm text-stone-500">
+              Sorted by allocated job revenue (highest first). Click a row for
+              contract detail.
+            </p>
+          </div>
+          <span className="mt-1 shrink-0 text-sm font-medium text-stone-600">
+            {registerOpen ? "Hide" : "Show"}
+            <span className="ml-1 inline-block" aria-hidden>
+              {registerOpen ? "▾" : "▸"}
+            </span>
+          </span>
+        </button>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="block text-sm">
+            <span className="text-stone-600">Category</span>
+            <select
+              value={category}
+              onChange={(e) =>
+                setCategory(e.target.value as "All" | EquipmentCategory)
+              }
+              className="mt-1 block min-w-[11rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="All">All categories</option>
+              {EQUIPMENT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="text-stone-600">Status</span>
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(
+                  e.target.value as "All" | "active" | "retired"
+                )
+              }
+              className="mt-1 block min-w-[9rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="All">All</option>
+              <option value="active">Active</option>
+              <option value="retired">Retired</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="rounded-lg bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-900"
+          >
+            Add equipment
+          </button>
+        </div>
+
+        {registerOpen ? (
+          <div className="mt-4">
+            {filtered.length === 0 ? (
+              <EmptyState message="No equipment matches these filters." />
+            ) : (
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
+                  <tr>
+                    <th className="px-2 py-2 font-medium">Name</th>
+                    <th className="px-2 py-2 font-medium">Cost</th>
+                    <th className="px-2 py-2 font-medium">Acc. Dep.</th>
+                    <th className="px-2 py-2 font-medium">Book Value</th>
+                    <th className="px-2 py-2 font-medium">Allocated Revenue</th>
+                    <th className="px-2 py-2 font-medium">Jobs</th>
+                    <th className="px-2 py-2 font-medium">Avg $/Job</th>
+                    <th className="px-2 py-2 font-medium">Rev / Cost</th>
+                    <th className="px-2 py-2 font-medium">Life Left</th>
+                    <th className="px-2 py-2 font-medium">Status</th>
+                    <th className="px-2 py-2 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {filtered.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="align-top cursor-pointer hover:bg-green-50/60"
+                      onClick={() => setDetailAsset(row)}
+                    >
+                      <td className="px-2 py-2.5 font-medium text-stone-900">
+                        {row.name}
+                        <span className="mt-0.5 block text-xs font-normal text-stone-400">
+                          {row.category}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2.5 tabular-nums">
+                        {formatCurrency(row.cost)}
+                      </td>
+                      <td className="px-2 py-2.5 tabular-nums">
+                        {categoryIsDepreciable(row.category)
+                          ? formatCurrency(row.accum)
+                          : ""}
+                      </td>
+                      <td className="px-2 py-2.5 font-medium tabular-nums text-green-950">
+                        {formatCurrency(row.book)}
+                      </td>
+                      <td className="px-2 py-2.5 tabular-nums font-medium text-stone-800">
+                        {formatCurrency(row.revenue_produced)}
+                      </td>
+                      <td className="px-2 py-2.5 tabular-nums text-stone-700">
+                        {row.jobs_count}
+                      </td>
+                      <td className="px-2 py-2.5 tabular-nums text-stone-700">
+                        {row.jobs_count > 0
+                          ? formatCurrency(row.avg_revenue_per_job)
+                          : "—"}
+                      </td>
+                      <td className="px-2 py-2.5 tabular-nums text-stone-700">
+                        {row.cost > 0
+                          ? `${row.revenue_per_cost.toFixed(2)}×`
+                          : "—"}
+                      </td>
+                      <td className="px-2 py-2.5">
+                        {categoryTracksUsefulLife(row.category) ? (
+                          <LifeRemainingRing
+                            remainingHours={row.remaining}
+                            estimatedHours={row.estimated_total_hours}
+                          />
+                        ) : null}
+                      </td>
+                      <td className="px-2 py-2.5">
+                        <StatusBadge status={row.status} />
+                      </td>
+                      <td
+                        className="px-2 py-2.5"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        Edit
-                      </button>
-                      {row.status === "active" ? (
-                        <form action={retireEquipment}>
-                          <input type="hidden" name="id" value={row.id} />
+                        <div className="flex flex-col gap-1">
                           <button
-                            type="submit"
-                            className="text-left text-xs font-medium text-amber-800 hover:underline"
-                          >
-                            Retire
-                          </button>
-                        </form>
-                      ) : (
-                        <form action={reactivateEquipment}>
-                          <input type="hidden" name="id" value={row.id} />
-                          <button
-                            type="submit"
+                            type="button"
+                            onClick={() => openEdit(row)}
                             className="text-left text-xs font-medium text-green-800 hover:underline"
                           >
-                            Reactivate
+                            Edit
                           </button>
-                        </form>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                          {row.status === "active" ? (
+                            <form action={retireEquipment}>
+                              <input type="hidden" name="id" value={row.id} />
+                              <button
+                                type="submit"
+                                className="text-left text-xs font-medium text-amber-800 hover:underline"
+                              >
+                                Retire
+                              </button>
+                            </form>
+                          ) : (
+                            <form action={reactivateEquipment}>
+                              <input type="hidden" name="id" value={row.id} />
+                              <button
+                                type="submit"
+                                className="text-left text-xs font-medium text-green-800 hover:underline"
+                              >
+                                Reactivate
+                              </button>
+                            </form>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-stone-500">
+            {filtered.length === 1
+              ? "1 asset hidden — expand to view the register."
+              : `${filtered.length} assets hidden — expand to view the register.`}
+          </p>
         )}
       </Card>
 
       <Card>
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setHoursOpen((open) => !open)}
+          className="flex w-full items-start justify-between gap-3 text-left"
+          aria-expanded={hoursOpen}
+        >
           <div>
             <h2 className="text-lg font-semibold text-green-950">
               Hours Used During Visits
@@ -888,51 +919,58 @@ export function EquipmentReport({ report, usage, visits }: Props) {
               depreciation.
             </p>
           </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="block text-sm">
-              <span className="text-stone-600">Company</span>
-              <select
-                value={companyFilter}
-                onChange={(e) => setCompanyFilter(e.target.value)}
-                className="mt-1 block min-w-[14rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="All">All companies</option>
-                {companies.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="text-stone-600">Equipment</span>
-              <select
-                value={equipmentFilter}
-                onChange={(e) => setEquipmentFilter(e.target.value)}
-                className="mt-1 block min-w-[14rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="All">All equipment</option>
-                {usageEquipmentOptions.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={() => setLogOpen((o) => !o)}
-              className="rounded-lg border border-green-800 px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+          <span className="mt-1 shrink-0 text-sm font-medium text-stone-600">
+            {hoursOpen ? "Hide" : "Show"}
+            <span className="ml-1 inline-block" aria-hidden>
+              {hoursOpen ? "▾" : "▸"}
+            </span>
+          </span>
+        </button>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="block text-sm">
+            <span className="text-stone-600">Company</span>
+            <select
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              className="mt-1 block min-w-[14rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
             >
-              {logOpen ? "Hide log form" : "Log hours"}
-            </button>
-          </div>
+              <option value="All">All companies</option>
+              {companies.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="text-stone-600">Equipment</span>
+            <select
+              value={equipmentFilter}
+              onChange={(e) => setEquipmentFilter(e.target.value)}
+              className="mt-1 block min-w-[14rem] rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="All">All equipment</option>
+              {usageEquipmentOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setLogOpen((o) => !o)}
+            className="rounded-lg border border-green-800 px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+          >
+            {logOpen ? "Hide log form" : "Log hours"}
+          </button>
         </div>
 
         {logOpen ? (
           <form
             action={logEquipmentHours}
-            className="mb-6 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-2 lg:grid-cols-4"
+            className="mb-6 mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-2 lg:grid-cols-4"
           >
             <label className="block text-sm sm:col-span-2">
               <span className="text-stone-600">Equipment</span>
@@ -1001,50 +1039,60 @@ export function EquipmentReport({ report, usage, visits }: Props) {
           </form>
         ) : null}
 
-        {usage.length === 0 ? (
-          <EmptyState message="No equipment hours logged against visits yet." />
-        ) : filteredUsage.length === 0 ? (
-          <EmptyState message="No hours logged for these filters." />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
-                <tr>
-                  <th className="px-2 py-2 font-medium">Date</th>
-                  <th className="px-2 py-2 font-medium">Visit / Contract</th>
-                  <th className="px-2 py-2 font-medium">Equipment</th>
-                  <th className="px-2 py-2 font-medium">Hours</th>
-                  <th className="px-2 py-2 font-medium">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filteredUsage.map((row) => (
-                  <tr key={row.id}>
-                    <td className="px-2 py-2.5 tabular-nums text-stone-700">
-                      {formatDate(row.used_on)}
-                    </td>
-                    <td className="px-2 py-2.5">
-                      <span className="font-medium text-stone-900">
-                        {row.customer_name}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-stone-500">
-                        {row.contract_title}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5 text-stone-800">
-                      {row.equipment_name}
-                    </td>
-                    <td className="px-2 py-2.5 tabular-nums font-medium">
-                      {row.hours.toFixed(1)}
-                    </td>
-                    <td className="px-2 py-2.5 text-stone-500">
-                      {row.notes ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {hoursOpen ? (
+          <div className="mt-4">
+            {usage.length === 0 ? (
+              <EmptyState message="No equipment hours logged against visits yet." />
+            ) : filteredUsage.length === 0 ? (
+              <EmptyState message="No hours logged for these filters." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
+                    <tr>
+                      <th className="px-2 py-2 font-medium">Date</th>
+                      <th className="px-2 py-2 font-medium">Visit / Contract</th>
+                      <th className="px-2 py-2 font-medium">Equipment</th>
+                      <th className="px-2 py-2 font-medium">Hours</th>
+                      <th className="px-2 py-2 font-medium">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {filteredUsage.map((row) => (
+                      <tr key={row.id}>
+                        <td className="px-2 py-2.5 tabular-nums text-stone-700">
+                          {formatDate(row.used_on)}
+                        </td>
+                        <td className="px-2 py-2.5">
+                          <span className="font-medium text-stone-900">
+                            {row.customer_name}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-stone-500">
+                            {row.contract_title}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2.5 text-stone-800">
+                          {row.equipment_name}
+                        </td>
+                        <td className="px-2 py-2.5 tabular-nums font-medium">
+                          {row.hours.toFixed(1)}
+                        </td>
+                        <td className="px-2 py-2.5 text-stone-500">
+                          {row.notes ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
+        ) : (
+          <p className="mt-3 text-sm text-stone-500">
+            {filteredUsage.length === 1
+              ? "1 hour log hidden — expand to view."
+              : `${filteredUsage.length} hour logs hidden — expand to view.`}
+          </p>
         )}
       </Card>
     </>

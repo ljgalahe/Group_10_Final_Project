@@ -9,6 +9,11 @@ import {
   weeklyHourTarget,
   type DemoCrewId,
 } from "@/lib/demo-org";
+import {
+  demoConcernImage,
+  landscapePairById,
+  landscapePairByIndex,
+} from "@/lib/landscape-proof-photos";
 
 export const SEED_VISIT = {
   riverside1: "33333333-3333-3333-3333-333333333301",
@@ -174,44 +179,36 @@ export const PROOF_PACKAGES: ProofOverlay[] = [
   {
     visitId: SEED_VISIT.riverside1,
     arrival: "Gate camera arrival",
-    before: "North lawn before",
-    after: "North lawn after mow",
+    before: landscapePairById("lawn-mow").beforeLabel,
+    after: landscapePairById("lawn-mow").afterLabel,
     submittedAt: "2026-06-02T14:05:00.000Z",
     acknowledged: true,
-    beforeImage:
-      "https://images.unsplash.com/photo-1558904541-efa843a96f01?w=600&h=400&fit=crop",
-    afterImage:
-      "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=600&h=400&fit=crop",
-    concernImage:
-      "https://images.unsplash.com/photo-1466692476866-aef5c9b2e6d6?w=600&h=400&fit=crop",
+    beforeImage: landscapePairById("lawn-mow").beforeImage,
+    afterImage: landscapePairById("lawn-mow").afterImage,
+    concernImage: demoConcernImage(),
     concernLabel: "Potential concern — dry patch near walkway",
   },
   {
     visitId: SEED_VISIT.riverside2,
     arrival: "Entrance arrival",
-    before: "Hedges before trim",
-    after: "Hedges after trim",
+    before: landscapePairById("hedge-trim").beforeLabel,
+    after: landscapePairById("hedge-trim").afterLabel,
     submittedAt: "2026-06-09T15:35:00.000Z",
     acknowledged: true,
-    beforeImage:
-      "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600&h=400&fit=crop",
-    afterImage:
-      "https://images.unsplash.com/photo-1557429287-b2e26487fc22?w=600&h=400&fit=crop",
+    beforeImage: landscapePairById("hedge-trim").beforeImage,
+    afterImage: landscapePairById("hedge-trim").afterImage,
     concernLabel: "Potential concern — none noted",
   },
   {
     visitId: SEED_VISIT.summit1,
     arrival: "Lot arrival",
-    before: "Frontage before",
-    after: "Frontage after + debris cleared",
+    before: landscapePairById("leaf-cleanup").beforeLabel,
+    after: landscapePairById("leaf-cleanup").afterLabel,
     submittedAt: "2026-06-03T10:10:00.000Z",
     acknowledged: false,
-    beforeImage:
-      "https://images.unsplash.com/photo-1592419044706-39796d40f98c?w=600&h=400&fit=crop",
-    afterImage:
-      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&h=400&fit=crop",
-    concernImage:
-      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=600&h=400&fit=crop",
+    beforeImage: landscapePairById("leaf-cleanup").beforeImage,
+    afterImage: landscapePairById("leaf-cleanup").afterImage,
+    concernImage: demoConcernImage(),
     concernLabel: "Potential concern — storm debris near entrance",
   },
 ];
@@ -497,12 +494,9 @@ export function weatherOverlayForSample(
 }
 
 const PROOF_IMAGES = {
-  before:
-    "https://images.unsplash.com/photo-1558904541-efa843a96f01?w=600&h=400&fit=crop",
-  after:
-    "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=600&h=400&fit=crop",
-  concern:
-    "https://images.unsplash.com/photo-1466692476866-aef5c9b2e6d6?w=600&h=400&fit=crop",
+  before: landscapePairById("lawn-mow").beforeImage,
+  after: landscapePairById("lawn-mow").afterImage,
+  concern: demoConcernImage(),
 };
 
 function formatDateKey(d: Date) {
@@ -585,15 +579,16 @@ export function generateDailySampleJobs(): DailySampleJob[] {
 
       let proof: ProofOverlay | null = null;
       if (status === "completed" && dayIndex % 5 === 0 && slot === 0) {
+        const pair = landscapePairByIndex(dayIndex + slot);
         proof = {
           visitId,
           arrival: "Crew arrival photo",
-          before: `${jobLabel} before`,
-          after: `${jobLabel} after`,
+          before: pair.beforeLabel,
+          after: pair.afterLabel,
           submittedAt: `${dateStr}T16:00:00.000Z`,
           acknowledged: dayIndex % 10 === 0,
-          beforeImage: PROOF_IMAGES.before,
-          afterImage: PROOF_IMAGES.after,
+          beforeImage: pair.beforeImage,
+          afterImage: pair.afterImage,
           concernImage: dayIndex % 10 === 0 ? PROOF_IMAGES.concern : undefined,
           concernLabel:
             dayIndex % 10 === 0

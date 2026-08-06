@@ -80,7 +80,7 @@ export function CrewMemberVisitsBoard({
             >
               <option value="all">All Visits</option>
               <option value="completed">Completed</option>
-              <option value="incomplete">Pending</option>
+              <option value="incomplete">Scheduled</option>
             </select>
           </label>
 

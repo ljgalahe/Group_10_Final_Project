@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  demoPhotosFromPair,
+  landscapePairById,
+  landscapePairByIndex,
+  looksLikeStaleDemoPhotos,
+} from "@/lib/landscape-proof-photos";
 
-const PHOTOS_PREFIX = "greenscape-crew-visit-photos:";
+/** v3: local commercial /proof assets (clears cached Unsplash demos). */
+const PHOTOS_PREFIX = "greenscape-crew-visit-photos:v3:";
 const MAX_PHOTOS_PER_SIDE = 4;
 const MAX_DIMENSION = 960;
 const JPEG_QUALITY = 0.72;
@@ -35,86 +42,58 @@ export function saveVisitPhotos(jobId: string, photos: VisitPhotosState) {
   window.localStorage.setItem(PHOTOS_PREFIX + jobId, JSON.stringify(photos));
 }
 
-/** Curated landscaping before/after shots for seeded completed visits. */
+/**
+ * Matched before/after pairs per seeded visit — index 0 before ↔ index 0 after
+ * are the same place/job type (e.g. unmowed lawn → mowed lawn).
+ */
 const COMPLETED_DEMO_PHOTOS: Record<string, VisitPhotosState> = {
-  // Riverside grounds — mow & edge
-  "33333333-3333-3333-3333-333333333301": {
-    before: [
-      "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-    after: [
-      "https://images.unsplash.com/photo-1558904541-efa843a96f01?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1592419044706-39796d40f98c?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-  },
-  // Riverside — hedge trim at entrance
-  "33333333-3333-3333-3333-333333333302": {
-    before: [
-      "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-    after: [
-      "https://images.unsplash.com/photo-1558904541-efa843a96f01?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1592419044706-39796d40f98c?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-  },
-  // Summit retail frontage
-  "33333333-3333-3333-3333-333333333304": {
-    before: [
-      "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-    after: [
-      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1592419044706-39796d40f98c?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-  },
-  // Metro detention pond
-  "33333333-3333-3333-3333-333333333305": {
-    before: [
-      "https://images.unsplash.com/photo-1439066615861-d1af74d74000?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-    after: [
-      "https://images.unsplash.com/photo-1501785888041-af3ef6bd51238?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-  },
-  // Riverside irrigation / courtyard beds
-  "33333333-3333-3333-3333-333333333308": {
-    before: [
-      "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1466692476866-aef1dfb1e735?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-    after: [
-      "https://images.unsplash.com/photo-1466692476866-aef1dfb1e735?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1558904541-efa843a96f01?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-  },
-  // Riverside parking lot islands
-  "33333333-3333-3333-3333-333333333310": {
-    before: [
-      "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-    after: [
-      "https://images.unsplash.com/photo-1558904541-efa843a96f01?auto=format&fit=crop&w=800&h=600&q=80",
-      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&h=600&q=80",
-    ],
-  },
+  // Riverside grounds — mow + plant flower bed
+  "33333333-3333-3333-3333-333333333301": demoPhotosFromPair(
+    landscapePairById("lawn-mow"),
+    landscapePairById("flower-bed")
+  ),
+  // Riverside — hedge trim + mulch bed
+  "33333333-3333-3333-3333-333333333302": demoPhotosFromPair(
+    landscapePairById("hedge-trim"),
+    landscapePairById("mulch-bed")
+  ),
+  // Summit retail frontage — leaf cleanup + lawn mow
+  "33333333-3333-3333-3333-333333333304": demoPhotosFromPair(
+    landscapePairById("leaf-cleanup"),
+    landscapePairById("lawn-mow")
+  ),
+  // Metro detention / grounds — sod + leaf cleanup
+  "33333333-3333-3333-3333-333333333305": demoPhotosFromPair(
+    landscapePairById("sod-install"),
+    landscapePairById("leaf-cleanup")
+  ),
+  // Riverside irrigation / courtyard beds — flower bed + mulch
+  "33333333-3333-3333-3333-333333333308": demoPhotosFromPair(
+    landscapePairById("flower-bed"),
+    landscapePairById("mulch-bed")
+  ),
+  // Riverside parking lot islands — mulch + hedge
+  "33333333-3333-3333-3333-333333333310": demoPhotosFromPair(
+    landscapePairById("mulch-bed"),
+    landscapePairById("hedge-trim")
+  ),
 };
 
+function hashJobId(jobId: string): number {
+  let h = 0;
+  for (let i = 0; i < jobId.length; i++) {
+    h = (h * 31 + jobId.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
 function demoPhotosForCompletedVisit(jobId: string): VisitPhotosState {
-  return (
-    COMPLETED_DEMO_PHOTOS[jobId] ?? {
-      before: [
-        "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=800&h=600&q=80",
-      ],
-      after: [
-        "https://images.unsplash.com/photo-1558904541-efa843a96f01?auto=format&fit=crop&w=800&h=600&q=80",
-      ],
-    }
+  const seeded = COMPLETED_DEMO_PHOTOS[jobId];
+  if (seeded) return seeded;
+  const i = hashJobId(jobId);
+  return demoPhotosFromPair(
+    landscapePairByIndex(i),
+    landscapePairByIndex(i + 1)
   );
 }
 
@@ -258,16 +237,29 @@ export function CrewVisitPhotos({
   useEffect(() => {
     const saved = loadVisitPhotos(jobId);
     const hasSaved = saved.before.length > 0 || saved.after.length > 0;
+    const hasUserUpload = [...saved.before, ...saved.after].some((u) =>
+      u.startsWith("data:")
+    );
 
-    if (hasSaved) {
+    if (hasSaved && hasUserUpload) {
       setPhotos(saved);
       return;
     }
 
     if (isCompleted) {
+      // Always refresh seeded demos so proof assets stay current.
       const demo = demoPhotosForCompletedVisit(jobId);
-      saveVisitPhotos(jobId, demo);
-      setPhotos(demo);
+      if (!hasSaved || looksLikeStaleDemoPhotos(saved)) {
+        saveVisitPhotos(jobId, demo);
+        setPhotos(demo);
+        return;
+      }
+      setPhotos(saved);
+      return;
+    }
+
+    if (hasSaved) {
+      setPhotos(saved);
       return;
     }
 

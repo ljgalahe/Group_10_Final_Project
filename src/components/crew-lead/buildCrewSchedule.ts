@@ -1,6 +1,6 @@
 import type { ScheduleJob } from "@/components/crew-lead/schedule-types";
 import { customerNotesForCrew } from "@/lib/customer-notes";
-import { DEMO_SITES } from "@/lib/demo-org";
+import { DEMO_SITES, DEMO_TODAY } from "@/lib/demo-org";
 import {
   OXFORD_CUSTOMER_COORDS,
   generateDailySampleJobs,
@@ -158,11 +158,11 @@ function servicesFrom(
 export function buildCrewSchedule(
   contracts: ContractRow[],
   visits: VisitRow[],
-  today = new Date()
+  _today = new Date()
 ): ScheduleJob[] {
-  const start = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
-  );
+  void _today;
+  const demoToday = DEMO_TODAY;
+  const start = new Date(`${demoToday}T00:00:00.000Z`);
   const end = addDays(start, 90);
   const jobs: ScheduleJob[] = [];
   const seen = new Set<string>();
@@ -173,7 +173,9 @@ export function buildCrewSchedule(
     if (!contract || !customer) return;
 
     const date = visit.scheduled_date.slice(0, 10);
-    if (date < toDateOnly(start) || date > toDateOnly(end)) return;
+    if (date < toDateOnly(addDays(start, -14)) || date > toDateOnly(end)) {
+      return;
+    }
 
     const key = `${contract.id}:${date}`;
     seen.add(key);
@@ -183,7 +185,7 @@ export function buildCrewSchedule(
       id: visit.id,
       contractId: contract.id,
       scheduledDate: date,
-      status: visit.status,
+      status: scheduleAlignedVisitStatus(visit.status, date, demoToday),
       customerId: customer.id,
       customerName: customer.name,
       customerIdShort: customer.id.slice(-4),
@@ -262,4 +264,26 @@ export function todayDateOnly(today = new Date()): string {
       Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
     )
   );
+}
+
+/**
+ * Align stored visit status with the schedule demo calendar:
+ * past work → completed, today/future → scheduled (unless cancelled / on hold).
+ */
+export function scheduleAlignedVisitStatus(
+  status: string,
+  scheduledDate: string,
+  today = todayDateOnly()
+): string {
+  const day = scheduledDate.slice(0, 10);
+  const normalized = status.trim().toLowerCase();
+  if (
+    normalized === "cancelled" ||
+    normalized === "on_hold" ||
+    normalized === "weather_delayed"
+  ) {
+    return status;
+  }
+  if (day < today) return "completed";
+  return "scheduled";
 }
