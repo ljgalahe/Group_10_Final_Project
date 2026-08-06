@@ -1,0 +1,7 @@
+﻿# Keep Cursor indexing off generated / huge artifacts (team-wide IDE speed)
+.next/
+node_modules/
+*.tsbuildinfo
+scripts/seed.sql
+.next/dev/
+.next/cache/
