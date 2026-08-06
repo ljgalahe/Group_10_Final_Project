@@ -136,6 +136,13 @@ export function StatusBadge({ status }: { status: string }) {
     seasonal: "border-stone-500 text-stone-800",
     pending: "border-amber-800/40 text-amber-950",
     waiting_for_approval: "border-amber-800/40 text-amber-950",
+    pending_manager_approval: "border-amber-800/40 text-amber-950",
+    pending_customer: "border-amber-800/40 text-amber-950",
+    needs_review_and_signature: "border-amber-800/40 text-amber-950",
+    needs_scheduling: "border-amber-800/40 text-amber-950",
+    survey_scheduled: "border-sky-700/40 text-sky-950",
+    budgeted: "border-stone-500 text-stone-800",
+    new: "border-stone-500 text-stone-800",
     changes_requested: "border-orange-800/40 text-orange-950",
     current: "gs-complete-badge",
     expiring: "border-amber-800/40 text-amber-950",
@@ -157,7 +164,11 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export function EmptyState({ message }: { message: string }) {
+export function EmptyState({
+  message,
+}: {
+  message: React.ReactNode;
+}) {
   return (
     <div className="border border-dashed border-stone-300 bg-white px-6 py-10 text-center">
       <p className="gs-help mx-auto">{message}</p>

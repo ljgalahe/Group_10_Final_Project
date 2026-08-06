@@ -68,6 +68,8 @@ import { fetchAccountantDashboardData } from "@/app/dashboard/accountant-dashboa
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
+    case "proposed_contract":
+      return "Approve & Sign";
     case "overdue_invoice":
     case "open_invoice":
       return "Pay";

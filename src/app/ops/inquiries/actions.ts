@@ -8,6 +8,7 @@ import {
   getViewRole,
   roleCanViewInquiriesInbox,
 } from "@/lib/demo-role";
+import { catalogSnapshotForAcres } from "@/lib/service-pricing";
 
 const INQUIRY_STATUSES = new Set([
   "New",
@@ -27,10 +28,20 @@ const PROPERTY_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+/** Parse existing-client inquiry messages (from customer "Request a quote"). */
 const RELATED_CONTRACT_RE =
   /Related contract:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
 const EXISTING_SERVICE_RE =
   /^Existing client new service request:\s*(.+)$/im;
+
+export function isExistingCustomerInquiry(inquiry: {
+  converted_customer_id?: string | null;
+  message?: string | null;
+}) {
+  if (inquiry.converted_customer_id) return true;
+  const message = inquiry.message ?? "";
+  return EXISTING_SERVICE_RE.test(message) || RELATED_CONTRACT_RE.test(message);
+}
 
 export async function updateInquiryStatus(formData: FormData) {
   await requireAppAccess();
@@ -51,13 +62,20 @@ export async function updateInquiryStatus(formData: FormData) {
   revalidatePath("/ops/inquiries");
 }
 
-export async function convertInquiryToQuote(formData: FormData) {
+/**
+ * Creates a site_surveys row + optional survey visit, marks inquiry scheduled.
+ */
+export async function scheduleInquirySiteSurvey(formData: FormData) {
   await requireAppAccess();
   if (!roleCanViewInquiriesInbox(await getViewRole())) {
     redirect("/dashboard");
   }
 
   const id = String(formData.get("id") ?? "").trim();
+  const scheduledDate =
+    String(formData.get("scheduled_date") ?? "").trim() ||
+    new Date().toISOString().slice(0, 10);
+
   if (!id) {
     redirect("/ops/inquiries?error=missing");
   }
@@ -73,47 +91,28 @@ export async function convertInquiryToQuote(formData: FormData) {
     redirect("/ops/inquiries?error=notfound");
   }
 
-  if (inquiry.status === "Converted to quote" && inquiry.quote_id) {
-    redirect(`/quotes/${inquiry.quote_id}`);
+  if (inquiry.survey_id && inquiry.survey_status === "scheduled") {
+    redirect(`/ops/site-surveys/${inquiry.survey_id}`);
+  }
+  if (inquiry.survey_id && inquiry.survey_status === "completed") {
+    redirect(`/ops/site-surveys/${inquiry.survey_id}`);
   }
 
-  const propertyLabel =
-    PROPERTY_LABELS[inquiry.property_type] ?? inquiry.property_type;
-  const services = ((inquiry.services_interested as string[]) ?? [])
-    .map((s) => SERVICE_LABELS[s] ?? s)
-    .join(", ");
+  const acres = inquiry.acres != null ? Number(inquiry.acres) : null;
+  const interested = (inquiry.services_interested as string[]) ?? [];
 
-  const message = (inquiry.message as string | null) ?? "";
-  const existingServiceMatch = message.match(EXISTING_SERVICE_RE);
-  const relatedContractMatch = message.match(RELATED_CONTRACT_RE);
-  const relatedContractId = relatedContractMatch?.[1] ?? null;
-  const linkedCustomerId =
-    (inquiry.converted_customer_id as string | null) ?? null;
-
-  const serviceDescription = existingServiceMatch
-    ? existingServiceMatch[1].trim()
-    : [
-        `New commercial prospect: ${inquiry.company_name}`,
-        `Property type: ${propertyLabel}`,
-        services ? `Services: ${services}` : null,
-      ]
-        .filter(Boolean)
-        .join(". ");
-
-  const notes = [
-    `Contact: ${inquiry.contact_name} · ${inquiry.contact_email}`,
-    inquiry.contact_phone ? `Phone: ${inquiry.contact_phone}` : null,
-    message ? `Message: ${message}` : null,
-    `Source: Inquiries pipeline (${inquiry.id})`,
-    linkedCustomerId ? "Type: Existing client new service inquiry" : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  let customerId = linkedCustomerId;
-
+  let customerId = (inquiry.converted_customer_id as string | null) ?? null;
+  // Prefer demo customer for Lakeside click-path under Customer role.
+  if (
+    !customerId &&
+    String(inquiry.company_name).includes("Lakeside")
+  ) {
+    customerId = "11111111-1111-1111-1111-111111111101";
+  }
   if (!customerId) {
-    const { data: customer, error: customerError } = await supabase
+    const propertyLabel =
+      PROPERTY_LABELS[inquiry.property_type] ?? inquiry.property_type;
+    const { data: customer } = await supabase
       .from("customers")
       .insert({
         name: inquiry.company_name,
@@ -124,45 +123,129 @@ export async function convertInquiryToQuote(formData: FormData) {
       })
       .select("id")
       .single();
-
-    if (customerError || !customer) {
-      redirect(
-        `/ops/inquiries?error=${encodeURIComponent(customerError?.message ?? "customer")}`
-      );
-    }
-    customerId = customer.id;
+    customerId = customer?.id ?? null;
   }
 
-  const { data: quote, error: quoteError } = await supabase
-    .from("quote_requests")
+  // Staging contract so survey visits satisfy service_visits.contract_id FK.
+  let contractId: string | null = null;
+  if (customerId) {
+    const { data: existing } = await supabase
+      .from("contracts")
+      .select("id")
+      .eq("customer_id", customerId)
+      .limit(1)
+      .maybeSingle();
+    contractId = existing?.id ?? null;
+
+    if (!contractId) {
+      const { data: staging } = await supabase
+        .from("contracts")
+        .insert({
+          customer_id: customerId,
+          title: `Survey Staging — ${inquiry.company_name}`,
+          status: "draft",
+          approval_state: "draft",
+          season_start: scheduledDate,
+          season_end: scheduledDate,
+          monthly_fee: null,
+          visits_per_week: 0,
+          billing_method: "per_visit",
+          notes: "Temporary contract row for pre-service site survey.",
+          drafted_by_role: "operations",
+        })
+        .select("id")
+        .single();
+      contractId = staging?.id ?? null;
+    }
+  }
+
+  let visitId: string | null = null;
+  if (contractId) {
+    const { data: visit } = await supabase
+      .from("service_visits")
+      .insert({
+        contract_id: contractId,
+        scheduled_date: scheduledDate,
+        status: "scheduled",
+        visit_kind: "survey",
+        crew_lead_name: "Operations",
+        crew_notes: `Pre-service site survey for ${inquiry.company_name}`,
+      })
+      .select("id")
+      .single();
+    visitId = visit?.id ?? null;
+  }
+
+  const { data: survey, error: surveyError } = await supabase
+    .from("site_surveys")
     .insert({
+      inquiry_id: id,
       customer_id: customerId,
-      service_description: serviceDescription,
-      notes,
       property_address: inquiry.property_address,
-      related_contract_id: relatedContractId,
-      status: "new",
+      acres,
+      interested_services: interested,
+      proposed_services: [],
+      catalog_snapshot: catalogSnapshotForAcres(acres ?? 1),
+      status: "draft",
+      scheduled_visit_id: visitId,
     })
     .select("id")
     .single();
 
-  if (quoteError || !quote) {
+  if (surveyError || !survey) {
     redirect(
-      `/ops/inquiries?error=${encodeURIComponent(quoteError?.message ?? "quote")}`
+      `/ops/inquiries?error=${encodeURIComponent(surveyError?.message ?? "survey")}`
     );
   }
 
   await supabase
     .from("inquiries")
     .update({
-      status: "Converted to quote",
-      quote_id: quote.id,
+      survey_id: survey.id,
+      survey_status: "scheduled",
       converted_customer_id: customerId,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
 
   revalidatePath("/ops/inquiries");
-  revalidatePath("/quotes");
-  redirect(`/quotes/${quote.id}`);
+  revalidatePath("/ops/site-surveys");
+  revalidatePath("/visits");
+  revalidatePath("/schedule");
+  redirect(`/ops/site-surveys/${survey.id}`);
+}
+
+/**
+ * Quotes are drafted from a completed Site Survey only.
+ * Kept as a redirect shim so old forms cannot skip the survey step.
+ */
+export async function convertInquiryToQuote(formData: FormData) {
+  await requireAppAccess();
+  if (!roleCanViewInquiriesInbox(await getViewRole())) {
+    redirect("/dashboard");
+  }
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) {
+    redirect("/ops/inquiries?error=missing");
+  }
+
+  const supabase = await createDataClient();
+  const { data: inquiry, error: loadError } = await supabase
+    .from("inquiries")
+    .select("id, survey_id, survey_status, quote_id, status")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (loadError || !inquiry) {
+    redirect("/ops/inquiries?error=notfound");
+  }
+
+  if (inquiry.survey_status === "completed" && inquiry.quote_id) {
+    redirect(`/quotes/${inquiry.quote_id}`);
+  }
+  if (inquiry.survey_id) {
+    redirect(`/ops/site-surveys/${inquiry.survey_id}`);
+  }
+  redirect("/ops/inquiries?error=survey_required");
 }

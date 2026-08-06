@@ -26,35 +26,18 @@ export async function approveContractDraft(formData: FormData): Promise<void> {
   if (!contract) redirect("/contracts");
 
   const now = new Date().toISOString();
-  const patch: Record<string, unknown> = {};
-
-  if (role === "manager") {
-    patch.manager_approved_at = now;
-  }
-  if (role === "accountant") {
-    patch.accountant_approved_at = now;
-  }
-
-  const managerOk =
-    role === "manager" ? true : Boolean(contract.manager_approved_at);
-  const accountantOk =
-    role === "accountant" ? true : Boolean(contract.accountant_approved_at);
-
-  if (managerOk && accountantOk) {
-    patch.approval_state = "approved";
-    patch.status = "active";
-  } else {
-    patch.approval_state = "pending_approvals";
-  }
+  // Manager approval alone releases the contract to the customer.
+  const patch: Record<string, unknown> = {
+    manager_approved_at: now,
+    approval_state: "approved",
+    status: "active",
+  };
 
   await supabase.from("contracts").update(patch).eq("id", contractId);
 
   await supabase.from("contract_audit_logs").insert({
     contract_id: contractId,
-    action:
-      managerOk && accountantOk
-        ? "contract_dual_approved"
-        : `contract_approved_by_${role}`,
+    action: "contract_approved_by_manager",
     actor_role: role,
     details: patch,
   });

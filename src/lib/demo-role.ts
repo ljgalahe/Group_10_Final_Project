@@ -45,12 +45,31 @@ export function roleCanDraftContracts(role: UserRole) {
   return role === "operations";
 }
 
+/**
+ * Legacy Manager contract-approval path (retired for the survey→quote pipeline).
+ * Prefer roleCanApproveQuotes + customer signature for new Ops drafts.
+ */
 export function roleCanApproveContracts(role: UserRole) {
-  return role === "manager" || role === "accountant";
+  return role === "manager";
+}
+
+/** Manager approves Ops quotes; customer signs the resulting contract. */
+export function roleCanApproveQuotes(role: UserRole) {
+  return role === "manager";
 }
 
 export function roleCanManageQuotes(role: UserRole) {
   return role === "operations";
+}
+
+/** Customer signs proposed contracts from the Ops pipeline. */
+export function roleCanSignContracts(role: UserRole) {
+  return role === "customer";
+}
+
+/** Prospective customer marketing / inquiry start page (legacy demo role). */
+export function roleIsInquiries(role: UserRole | string) {
+  return role === "inquiries";
 }
 
 /** Operations inbox: create quotes from new-client or existing-client inquiries. */

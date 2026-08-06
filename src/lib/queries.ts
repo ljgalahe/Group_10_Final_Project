@@ -41,9 +41,14 @@ export async function fetchContracts() {
   const { data, error } = await query;
   let rows = data ?? [];
   if (customerId) {
-    // Dual-approval gate: customers only see fully approved contracts.
+    // Customer sees proposed (pending signature) + signed/approved contracts.
     rows = rows.filter((c) =>
-      isContractFullyApproved(c as { approval_state?: string | null })
+      isContractFullyApproved(
+        c as {
+          approval_state?: string | null;
+          customer_signed_at?: string | null;
+        }
+      )
     );
   }
   return { data: rows, error };
@@ -1580,7 +1585,12 @@ export async function fetchCustomerContractsForSelect(customerId: string) {
 
 export type CustomerAttentionItem = {
   id: string;
-  kind: "overdue_invoice" | "open_invoice" | "support" | "renewal";
+  kind:
+    | "proposed_contract"
+    | "overdue_invoice"
+    | "open_invoice"
+    | "support"
+    | "renewal";
   title: string;
   detail: string;
   href: string;
@@ -1596,7 +1606,7 @@ export async function fetchCustomerNeedsAttention(customerId: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [invoicesRes, supportRes, renewalsRes] = await Promise.all([
+  const [invoicesRes, supportRes, renewalsRes, proposedRes] = await Promise.all([
     supabase
       .from("invoices")
       .select("id, invoice_number, due_date, total, amount_paid, status")
@@ -1611,9 +1621,27 @@ export async function fetchCustomerNeedsAttention(customerId: string) {
       .order("created_at", { ascending: false })
       .limit(5),
     fetchContractsApproachingRenewal(customerId),
+    supabase
+      .from("contracts")
+      .select("id, title, monthly_fee, season_start, season_end")
+      .eq("customer_id", customerId)
+      .eq("approval_state", "pending_customer")
+      .is("customer_signed_at", null)
+      .order("created_at", { ascending: false }),
   ]);
 
   const items: CustomerAttentionItem[] = [];
+
+  for (const contract of proposedRes.data ?? []) {
+    items.push({
+      id: `proposed-${contract.id}`,
+      kind: "proposed_contract",
+      title: `Proposed Contract: ${contract.title}`,
+      detail: "Needs Your Review And Signature.",
+      href: `/contracts/${contract.id}`,
+      contractId: contract.id,
+    });
+  }
 
   const openInvoices = (invoicesRes.data ?? []).filter(
     (inv) =>
@@ -1679,12 +1707,13 @@ export async function fetchCustomerNeedsAttention(customerId: string) {
     });
   }
 
-  // Priority: overdue (highest balance first) → open balance → support → renewals
+  // Priority: proposed contracts → overdue → open balance → support → renewals
   const rank: Record<CustomerAttentionItem["kind"], number> = {
-    overdue_invoice: 0,
-    open_invoice: 1,
-    support: 2,
-    renewal: 3,
+    proposed_contract: 0,
+    overdue_invoice: 1,
+    open_invoice: 2,
+    support: 3,
+    renewal: 4,
   };
   items.sort((a, b) => {
     const rankDiff = rank[a.kind] - rank[b.kind];
@@ -1699,7 +1728,7 @@ export async function fetchCustomerNeedsAttention(customerId: string) {
 
   return {
     data: items.slice(0, 6),
-    error: invoicesRes.error ?? supportRes.error,
+    error: invoicesRes.error ?? supportRes.error ?? proposedRes.error,
   };
 }
 
@@ -1803,6 +1832,64 @@ export async function fetchPendingContractApprovals() {
     .select("*, customers(name, address)")
     .eq("approval_state", "pending_approvals")
     .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+
+export async function fetchQuotesPendingApproval() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("quote_requests")
+    .select("*, customers(name, address)")
+    .eq("status", "pending_manager_approval")
+    .order("created_at", { ascending: false });
+  if (error) {
+    // Pre-migration / missing enum value — return empty rather than crash Manager Contracts.
+    return { data: [] as never[], error };
+  }
+  return { data: data ?? [], error };
+}
+
+export async function fetchApprovedQuotesForDraft() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("quote_requests")
+    .select("*, customers(name, address)")
+    .eq("status", "approved")
+    .is("draft_contract_id", null)
+    .order("created_at", { ascending: false });
+  if (error) {
+    return { data: [] as never[], error };
+  }
+  return { data: data ?? [], error };
+}
+
+export async function fetchProposedContractsForCustomer() {
+  const supabase = await createDataClient();
+  const customerId = await getScopedCustomerId(await getViewRole());
+  let query = supabase
+    .from("contracts")
+    .select("*, customers(name, address)")
+    .eq("approval_state", "pending_customer")
+    .is("customer_signed_at", null)
+    .order("created_at", { ascending: false });
+  if (customerId) {
+    query = query.eq("customer_id", customerId);
+  }
+  const { data, error } = await query;
+  if (error) {
+    return { data: [] as never[], error };
+  }
+  return { data: data ?? [], error };
+}
+
+export async function fetchSignedContractsReadyToSchedule() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("contracts")
+    .select("*, customers(name, address)")
+    .eq("status", "active")
+    .not("customer_signed_at", "is", null)
+    .order("customer_signed_at", { ascending: false });
   return { data: data ?? [], error };
 }
 

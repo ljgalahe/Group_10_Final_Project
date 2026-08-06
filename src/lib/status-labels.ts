@@ -52,6 +52,13 @@ const STATUS_LABELS: Record<string, string> = {
   ready: "Ready",
   posted: "Posted",
   pending_approval: "Pending Approval",
+  pending_manager_approval: "Pending Manager Approval",
+  pending_customer: "Pending Customer",
+  needs_review_and_signature: "Needs Review And Signature",
+  needs_scheduling: "Needs Scheduling",
+  survey_scheduled: "Survey Scheduled",
+  budgeted: "Budgeted",
+  new: "New",
   billable: "Billable",
   missing_labor: "Missing Labor Entry",
 };

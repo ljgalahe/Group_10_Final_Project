@@ -277,9 +277,24 @@ export function ProspectInquiryForm({
             />
           </div>
         </div>
+        <div>
+          <label htmlFor="acres" className={labelClass}>
+            Acres
+          </label>
+          <input
+            id="acres"
+            name="acres"
+            type="number"
+            step="0.1"
+            min="0.1"
+            className={inputClass}
+            placeholder="e.g. 4.5"
+            defaultValue={draft?.acres}
+          />
+        </div>
         <fieldset className="sm:col-span-2">
           <legend className={labelClass}>
-            Services interested <span className="text-red-600">*</span>
+            Services Interested <span className="text-red-600">*</span>
           </legend>
           <div
             className={

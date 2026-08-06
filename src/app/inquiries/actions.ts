@@ -33,6 +33,7 @@ export type InquiryFormValues = {
   property_type: string;
   message: string;
   other_service: string;
+  acres: string;
   services_interested: string[];
 };
 
@@ -68,6 +69,7 @@ function readFormValues(formData: FormData): InquiryFormValues {
     property_type: String(formData.get("property_type") ?? "").trim(),
     message: String(formData.get("message") ?? "").trim(),
     other_service: String(formData.get("other_service") ?? "").trim(),
+    acres: String(formData.get("acres") ?? "").trim(),
     services_interested: formData
       .getAll("services_interested")
       .map((v) => String(v))
@@ -99,8 +101,11 @@ export async function submitProspectInquiry(
     property_type,
     message,
     other_service,
+    acres: acresRaw,
     services_interested,
   } = values;
+  const acres =
+    acresRaw && Number.isFinite(Number(acresRaw)) ? Number(acresRaw) : null;
 
   if (
     !company_name ||
@@ -159,6 +164,8 @@ export async function submitProspectInquiry(
     services_interested: toLegacyServiceValues(services_interested),
     message: combinedMessage,
     status: "New",
+    acres,
+    survey_status: "needs_scheduling",
   });
 
   if (error) {

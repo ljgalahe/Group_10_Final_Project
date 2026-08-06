@@ -32,6 +32,9 @@ type InquiryRow = {
   status: string;
   quote_id: string | null;
   converted_customer_id: string | null;
+  acres: number | null;
+  survey_status: string | null;
+  survey_id: string | null;
   created_at: string;
 };
 
@@ -58,116 +61,162 @@ export default async function OpsInquiriesPage({
 
   const params = await searchParams;
   const supabase = await createDataClient();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("inquiries")
     .select(
-      "id, company_name, contact_name, contact_email, contact_phone, property_address, property_type, services_interested, message, status, quote_id, converted_customer_id, created_at"
+      "id, company_name, contact_name, contact_email, contact_phone, property_address, property_type, services_interested, message, status, quote_id, converted_customer_id, acres, survey_status, survey_id, created_at"
     )
     .order("created_at", { ascending: false });
 
+  // Pre-migration fallback so the inbox still loads.
+  if (
+    error &&
+    (error.message.includes("acres") ||
+      error.message.includes("survey_status") ||
+      error.message.includes("survey_id") ||
+      error.code === "42703" ||
+      error.code === "PGRST204")
+  ) {
+    const fallback = await supabase
+      .from("inquiries")
+      .select(
+        "id, company_name, contact_name, contact_email, contact_phone, property_address, property_type, services_interested, message, status, quote_id, converted_customer_id, created_at"
+      )
+      .order("created_at", { ascending: false });
+    data = (fallback.data ?? []).map((row) => ({
+      ...row,
+      acres: null,
+      survey_status: "needs_scheduling",
+      survey_id: null,
+    }));
+    error = fallback.error;
+  }
+
   const inquiries = (data ?? []) as InquiryRow[];
-  const newCount = inquiries.filter((i) => i.status === "New").length;
+  const needsSurvey = inquiries.filter(
+    (i) =>
+      !i.survey_id ||
+      (i.survey_status ?? "needs_scheduling") === "needs_scheduling"
+  ).length;
 
   return (
     <AppShell>
-      <PageHeader
-        title="Inquiries"
-        description="Create quotes from customer inquiries here — new commercial prospects or existing clients requesting new services. After you create a quote, track its status on Quotes (survey, budget, contract draft)."
-      />
+      <PageHeader title="Inquiries" />
 
       {params.error ? (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Could not complete that action: {params.error}
+          {params.error === "survey_required"
+            ? "Complete The Site Survey Before Creating A Quote."
+            : `Could Not Complete That Action: ${params.error}`}
         </div>
       ) : null}
 
       <div className="mb-6 flex flex-wrap gap-3 text-sm text-stone-600">
         <span className="rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm">
-          <span className="font-semibold text-green-900">{newCount}</span> new
+          <span className="font-semibold text-green-900">{needsSurvey}</span>{" "}
+          Needs Survey
         </span>
         <span className="rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm">
           <span className="font-semibold text-green-900">
             {inquiries.length}
           </span>{" "}
-          total
+          Total
         </span>
       </div>
 
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-          Could not load inquiries. {error.message}
+          Could Not Load Inquiries. {error.message}
         </div>
       ) : inquiries.length === 0 ? (
-        <EmptyState message="No inquiries yet. New prospects submit from the welcome page Request a quote form; existing clients use Request a quote — both land here for Ops to create a quote." />
+        <EmptyState message="No Inquiries Yet." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
               <tr>
-                <th className="px-4 py-3 font-medium">Company / Contact</th>
+                <th className="px-4 py-3 font-medium">Company Name</th>
                 <th className="px-4 py-3 font-medium">Property</th>
                 <th className="px-4 py-3 font-medium">Services</th>
                 <th className="px-4 py-3 font-medium">Message</th>
-                <th className="px-4 py-3 font-medium">Received</th>
-                <th className="px-4 py-3 font-medium">Create Quote</th>
+                <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium">Site Survey</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {inquiries.map((row) => (
-                <tr key={row.id} className="align-top hover:bg-stone-50/80">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-green-950">
-                      {row.company_name}
-                    </p>
-                    <p className="text-stone-700">{row.contact_name}</p>
-                    <p className="text-xs text-stone-500">{row.contact_email}</p>
-                    {row.contact_phone ? (
+              {inquiries.map((row) => {
+                return (
+                  <tr key={row.id} className="align-top hover:bg-stone-50/80">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-green-950">
+                        {row.company_name}
+                      </p>
+                      <p className="text-stone-700">{row.contact_name}</p>
                       <p className="text-xs text-stone-500">
-                        {row.contact_phone}
+                        {row.contact_email}
                       </p>
-                    ) : null}
-                    {row.converted_customer_id &&
-                    row.status !== "Converted to quote" ? (
-                      <p className="mt-1 text-xs font-medium text-amber-800">
-                        Existing client · new service
-                      </p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-stone-800">
-                      {PROPERTY_LABELS[row.property_type] ?? row.property_type}
-                    </p>
-                    <p className="mt-0.5 text-xs text-stone-500">
-                      {row.property_address}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {(row.services_interested ?? []).map((s) => (
-                        <span
-                          key={s}
-                          className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-900"
-                        >
-                          {SERVICE_LABELS[s] ?? s}
+                      {row.contact_phone ? (
+                        <p className="text-xs text-stone-500">
+                          {row.contact_phone}
+                        </p>
+                      ) : null}
+                      {row.converted_customer_id ||
+                      /Existing client new service request:/i.test(
+                        row.message ?? ""
+                      ) ||
+                      /Related contract:/i.test(row.message ?? "") ? (
+                        <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                          Existing Customer
                         </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="max-w-xs px-4 py-3 text-xs text-stone-600">
-                    {row.message?.trim() || "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs text-stone-500">
-                    {formatWhen(row.created_at)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <InquiryStatusControl
-                      inquiryId={row.id}
-                      currentStatus={row.status}
-                      quoteId={row.quote_id}
-                    />
-                  </td>
-                </tr>
-              ))}
+                      ) : (
+                        <span className="mt-1 inline-flex rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-700">
+                          New Customer
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-stone-800">
+                        {PROPERTY_LABELS[row.property_type] ??
+                          row.property_type}
+                      </p>
+                      <p className="mt-0.5 text-xs text-stone-500">
+                        {row.property_address}
+                      </p>
+                      {row.acres != null ? (
+                        <p className="mt-0.5 text-xs font-medium text-stone-700">
+                          {Number(row.acres)} Acres
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {(row.services_interested ?? []).map((s) => (
+                          <span
+                            key={s}
+                            className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-900"
+                          >
+                            {SERVICE_LABELS[s] ?? s}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="max-w-xs px-4 py-3 text-xs text-stone-600">
+                      {row.message?.trim() || "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-stone-500">
+                      {formatWhen(row.created_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <InquiryStatusControl
+                        inquiryId={row.id}
+                        quoteId={row.quote_id}
+                        surveyStatus={row.survey_status}
+                        surveyId={row.survey_id}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

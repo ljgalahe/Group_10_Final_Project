@@ -11,7 +11,6 @@ export function ContractDualApprovalPanel({
   contractId,
   approvalState,
   managerApprovedAt,
-  accountantApprovedAt,
   role,
 }: {
   contractId: string;
@@ -29,32 +28,29 @@ export function ContractDualApprovalPanel({
     return null;
   }
 
-  const canApprove = role === "manager" || role === "accountant";
-  const alreadyApproved =
-    (role === "manager" && Boolean(managerApprovedAt)) ||
-    (role === "accountant" && Boolean(accountantApprovedAt));
+  const canApprove = role === "manager";
+  // Keep Approve available while pending so Manager can finalize rows that
+  // were stamped under the old dual-approval flow.
+  const showApproveButton = canApprove && pending;
 
   return (
     <Card>
       <h2 className="text-lg font-semibold text-green-950">
-        Dual Approval (Manager + Accountant)
+        Management Approval
       </h2>
-      <p className="mt-1 text-sm text-stone-600">
-        Operations drafts the contract. Both Manager and Accountant must approve
-        before it is sent to the customer.
-      </p>
       <ul className="mt-4 space-y-2 text-sm">
         <li className="flex items-center gap-2">
           <span
-            className={`h-2.5 w-2.5 rounded-full ${managerApprovedAt ? "bg-green-600" : "bg-stone-300"}`}
+            className={`h-2.5 w-2.5 rounded-full ${
+              approvalState === "approved" && managerApprovedAt
+                ? "bg-green-600"
+                : "bg-stone-300"
+            }`}
           />
-          Manager {managerApprovedAt ? "approved" : "pending"}
-        </li>
-        <li className="flex items-center gap-2">
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${accountantApprovedAt ? "bg-green-600" : "bg-stone-300"}`}
-          />
-          Accountant {accountantApprovedAt ? "approved" : "pending"}
+          Manager{" "}
+          {approvalState === "approved" && managerApprovedAt
+            ? "approved"
+            : "pending"}
         </li>
         <li className="text-stone-600">
           State:{" "}
@@ -63,29 +59,28 @@ export function ContractDualApprovalPanel({
               ? "Waiting For Approval"
               : approvalState === "changes_requested"
                 ? "Changes Requested"
-                : (approvalState ?? "approved")}
+                : approvalState === "approved"
+                  ? "Approved"
+                  : (approvalState ?? "approved")}
           </span>
         </li>
       </ul>
 
-      {canApprove && pending ? (
+      {showApproveButton ? (
         <div className="mt-4 flex flex-wrap gap-3">
-          {!alreadyApproved ? (
-            <form action={approveContractDraft}>
-              <input type="hidden" name="contract_id" value={contractId} />
-              <button
-                type="submit"
-                className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
-              >
-                Approve as {role === "manager" ? "Manager" : "Accountant"}
-              </button>
-            </form>
-          ) : (
-            <p className="text-sm text-green-800">
-              Your approval is recorded. Waiting on the other role.
-            </p>
-          )}
-          <form action={requestContractDraftChanges} className="flex flex-wrap items-end gap-2">
+          <form action={approveContractDraft}>
+            <input type="hidden" name="contract_id" value={contractId} />
+            <button
+              type="submit"
+              className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+            >
+              Approve as Manager
+            </button>
+          </form>
+          <form
+            action={requestContractDraftChanges}
+            className="flex flex-wrap items-end gap-2"
+          >
             <input type="hidden" name="contract_id" value={contractId} />
             <input
               name="change_notes"

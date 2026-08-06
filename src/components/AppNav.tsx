@@ -4,7 +4,11 @@ import { AppNavLinks } from "@/components/AppNavLinks";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { getViewRole } from "@/lib/demo-role";
 
-const navItems = [
+const navItems: {
+  href: string;
+  label: string;
+  roles: string[];
+}[] = [
   {
     href: "/chat",
     label: "Chat",
@@ -22,10 +26,21 @@ const navItems = [
       "customer",
     ],
   },
-  // Ops primary order: Dashboard → Inquiries → Quotes → Contracts → Schedule → Visits → Chat
+  // Ops: Dashboard → Inquiries → Site Survey → Quotes → Contracts → Scheduling → Visits → Chat → Customer Support
+  {
+    href: "/inquiries",
+    label: "Home",
+    // Legacy MaryGaston prospect role (not in active DEMO_ROLES).
+    roles: ["inquiries"],
+  },
   {
     href: "/ops/inquiries",
     label: "Inquiries",
+    roles: ["operations"],
+  },
+  {
+    href: "/ops/site-surveys",
+    label: "Site Survey",
     roles: ["operations"],
   },
   {
@@ -97,6 +112,7 @@ const navItems = [
 const OPERATIONS_NAV_HREF_ORDER = [
   "/dashboard",
   "/ops/inquiries",
+  "/ops/site-surveys",
   "/quotes",
   "/contracts",
   "/schedule",

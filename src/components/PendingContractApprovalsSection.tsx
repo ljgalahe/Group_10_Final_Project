@@ -23,14 +23,16 @@ export function PendingContractApprovalsSection({
   emptyMessage,
 }: {
   title: string;
-  description: string;
+  description?: string;
   contracts: PendingContract[];
   emptyMessage?: string;
 }) {
   return (
     <section className="mb-6 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-4 shadow-sm">
       <h2 className="text-lg font-semibold text-green-950">{title}</h2>
-      <p className="mt-1 text-sm text-stone-600">{description}</p>
+      {description ? (
+        <p className="mt-1 text-sm text-stone-600">{description}</p>
+      ) : null}
 
       {contracts.length === 0 ? (
         <p className="mt-3 text-sm text-stone-500">
@@ -57,16 +59,12 @@ export function PendingContractApprovalsSection({
                     {customerName ? `${customerName} · ` : ""}
                     {contract.season_start && contract.season_end
                       ? `${formatDate(contract.season_start)} – ${formatDate(contract.season_end)}`
-                      : "Open dual approval on the contract detail page"}
+                      : "Open approval on the contract detail page"}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-stone-600">
                     <span>
                       Manager:{" "}
                       {contract.manager_approved_at ? "Approved" : "Pending"}
-                    </span>
-                    <span>
-                      Accountant:{" "}
-                      {contract.accountant_approved_at ? "Approved" : "Pending"}
                     </span>
                   </div>
                 </div>

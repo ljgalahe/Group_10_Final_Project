@@ -2,19 +2,25 @@ import Link from "next/link";
 import { AccountantContractsView } from "@/components/AccountantContractsView";
 import { AppShell } from "@/components/AppShell";
 import { ManagerContractsDashboard } from "@/components/contracts/ManagerContractsDashboard";
+import { DraftContractsSection } from "@/components/DraftContractsSection";
+import { ProposedContractSection } from "@/components/ProposedContractSection";
+import { QuotesPendingApprovalSection } from "@/components/QuotesPendingApprovalSection";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
 import { buildContractProgress } from "@/lib/contract-controls";
+import { getContractDisplayStatus } from "@/lib/contract-status";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   fetchAccountantContractBilling,
+  fetchApprovedQuotesForDraft,
   fetchContractAuditLogs,
   fetchContractProfitabilityMap,
   fetchContracts,
   fetchContractsDetailed,
-  fetchPendingContractApprovals,
   fetchPendingContractChangeRequests,
+  fetchProposedContractsForCustomer,
+  fetchQuotesPendingApproval,
   fetchVisits,
 } from "@/lib/queries";
 import type { ServiceVisit } from "@/lib/types";
@@ -70,7 +76,7 @@ function SimpleContractsTable({
                 {contract.visits_per_week ?? "—"}
               </td>
               <td className="px-4 py-3">
-                <StatusBadge status={contract.status} />
+                <StatusBadge status={getContractDisplayStatus(contract)} />
               </td>
             </tr>
           ))}
@@ -80,9 +86,14 @@ function SimpleContractsTable({
   );
 }
 
-export default async function ContractsPage() {
+export default async function ContractsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ declined?: string }>;
+}) {
   await requireAppAccess();
 
+  const flash = searchParams ? await searchParams : {};
   const role = await getViewRole();
 
   if (roleCanEditContractDetails(role)) {
@@ -92,14 +103,12 @@ export default async function ContractsPage() {
       { data: pendingRequests },
       { data: auditLogs },
       billing,
-      { data: pendingApprovals },
     ] = await Promise.all([
       fetchContractsDetailed(),
       fetchContractProfitabilityMap(),
       fetchPendingContractChangeRequests(),
       fetchContractAuditLogs(),
       fetchAccountantContractBilling(),
-      fetchPendingContractApprovals(),
     ]);
     const unprofitableIds = [...profitMap.entries()]
       .filter(([, info]) => info.unprofitable)
@@ -112,31 +121,14 @@ export default async function ContractsPage() {
           title="Contracts"
           description="Internal controls for approvals, renewals, and auditability."
           action={
-            <Link href="/contracts/new" className="gs-text-link border border-stone-300 px-4 py-2 hover:border-[var(--champagne)]">
+            <Link
+              href="/contracts/new"
+              className="gs-text-link border border-stone-300 px-4 py-2 hover:border-[var(--champagne)]"
+            >
               Add Contract →
             </Link>
           }
         />
-        {pendingApprovals.length > 0 ? (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            <p className="font-semibold">
-              {pendingApprovals.length} Operations draft
-              {pendingApprovals.length === 1 ? "" : "s"} need your approval
-            </p>
-            <ul className="mt-2 list-disc pl-5">
-              {pendingApprovals.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    href={`/contracts/${c.id}`}
-                    className="font-medium text-green-900 hover:underline"
-                  >
-                    {c.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
         <AccountantContractsView
           contracts={contracts}
           unprofitableIds={unprofitableIds}
@@ -150,14 +142,21 @@ export default async function ContractsPage() {
   }
 
   const { data: contracts } = await fetchContracts();
-  const pendingApprovals =
-    role === "manager" || role === "operations"
-      ? (await fetchPendingContractApprovals()).data
-      : [];
 
-  // Customer (and crew) see the simple agreement list — not manager ops dashboards.
   if (role === "customer" || role === "crew_lead" || role === "crew_member") {
     const isCustomer = role === "customer";
+    const proposed = isCustomer
+      ? (await fetchProposedContractsForCustomer()).data
+      : [];
+    const activeList = isCustomer
+      ? contracts.filter(
+          (c) =>
+            (c as { approval_state?: string | null }).approval_state !==
+              "pending_customer" ||
+            (c as { customer_signed_at?: string | null }).customer_signed_at
+        )
+      : contracts;
+
     return (
       <AppShell>
         <PageHeader
@@ -165,36 +164,45 @@ export default async function ContractsPage() {
           title="Contracts"
           description={
             isCustomer
-              ? "Your seasonal agreements, terms, and included services."
+              ? "Review proposed contracts and your signed agreements."
               : "Seasonal agreements with service terms, billing rules, and included services."
           }
         />
 
-        {contracts.length === 0 ? (
+        {isCustomer && flash.declined === "1" ? (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            Proposed Contract Declined. Ops Will Review Your Questions Or
+            Concerns.
+          </p>
+        ) : null}
+
+        {isCustomer ? <ProposedContractSection contracts={proposed} /> : null}
+
+        {activeList.length === 0 && (!isCustomer || proposed.length === 0) ? (
           <EmptyState
             message={
               isCustomer
-                ? "No contracts on file for this property."
-                : "No contracts yet. Run the seed script in Supabase to load demo data."
+                ? "No Contracts On File For This Property."
+                : "No Contracts Yet."
             }
           />
-        ) : (
+        ) : activeList.length > 0 ? (
           <SimpleContractsTable
-            contracts={contracts}
+            contracts={activeList}
             showCustomerColumn={!isCustomer}
           />
-        )}
+        ) : null}
       </AppShell>
     );
   }
 
-  // Operations: simple drafts list + pending dual-approval (no manager analytics charts).
   if (role === "operations") {
+    const { data: approvedQuotes } = await fetchApprovedQuotesForDraft();
     return (
       <AppShell>
         <PageHeader
           title="Contracts"
-          description="Draft contracts from quotes. Manager and Accountant must both approve before customers see them."
+          description="Create draft contracts from approved quotes, then send to the customer for signature."
           action={
             <Link
               href="/quotes"
@@ -204,28 +212,9 @@ export default async function ContractsPage() {
             </Link>
           }
         />
-        {pendingApprovals.length > 0 ? (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            <p className="font-semibold">
-              {pendingApprovals.length} contract
-              {pendingApprovals.length === 1 ? "" : "s"} awaiting dual approval
-            </p>
-            <ul className="mt-2 list-disc pl-5">
-              {pendingApprovals.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    href={`/contracts/${c.id}`}
-                    className="font-medium text-green-900 hover:underline"
-                  >
-                    {c.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+        <DraftContractsSection quotes={approvedQuotes} />
         {contracts.length === 0 ? (
-          <EmptyState message="No contracts yet. Draft one from a quote in the Quotes inbox." />
+          <EmptyState message="No Contracts Yet. Create One From An Approved Quote Above." />
         ) : (
           <SimpleContractsTable contracts={contracts} showCustomerColumn />
         )}
@@ -233,7 +222,10 @@ export default async function ContractsPage() {
     );
   }
 
-  const { data: visits } = await fetchVisits();
+  const [{ data: pendingQuotes }, { data: visits }] = await Promise.all([
+    fetchQuotesPendingApproval(),
+    fetchVisits(),
+  ]);
 
   const visitsByContract = new Map<string, ServiceVisit[]>();
   for (const visit of visits as ServiceVisit[]) {
@@ -268,7 +260,8 @@ export default async function ContractsPage() {
     status: contract.status,
     season_start: contract.season_start,
     season_end: contract.season_end,
-    monthly_fee: contract.monthly_fee != null ? Number(contract.monthly_fee) : null,
+    monthly_fee:
+      contract.monthly_fee != null ? Number(contract.monthly_fee) : null,
     visits_per_week: contract.visits_per_week,
     customerName:
       (contract.customers as { name?: string } | null)?.name ?? "Customer",
@@ -306,32 +299,13 @@ export default async function ContractsPage() {
       <PageHeader
         kicker="Portfolio"
         title="Contracts"
-        description="Completion rates, promise vs actual, company agreements, and pending approvals."
+        description="Approve Ops quotes, then track completion and promise vs actual work."
       />
 
-      {pendingApprovals.length > 0 ? (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-semibold">
-            {pendingApprovals.length} contract
-            {pendingApprovals.length === 1 ? "" : "s"} awaiting dual approval
-          </p>
-          <ul className="mt-2 list-disc pl-5">
-            {pendingApprovals.map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`/contracts/${c.id}`}
-                  className="font-medium text-green-900 hover:underline"
-                >
-                  {c.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <QuotesPendingApprovalSection quotes={pendingQuotes} />
 
       {contracts.length === 0 ? (
-        <EmptyState message="No contracts yet. Run the seed script in Supabase to load demo data." />
+        <EmptyState message="No Contracts Yet." />
       ) : (
         <ManagerContractsDashboard
           progressList={progressList}
