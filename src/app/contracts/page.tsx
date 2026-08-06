@@ -4,7 +4,6 @@ import { AppShell } from "@/components/AppShell";
 import { ManagerContractsDashboard } from "@/components/contracts/ManagerContractsDashboard";
 import { DraftContractsSection } from "@/components/DraftContractsSection";
 import { ProposedContractSection } from "@/components/ProposedContractSection";
-import { QuotesPendingApprovalSection } from "@/components/QuotesPendingApprovalSection";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
 import { buildContractProgress } from "@/lib/contract-controls";
@@ -243,10 +242,12 @@ export default async function ContractsPage({
     );
   }
 
-  const [{ data: pendingQuotes }, { data: visits }] = await Promise.all([
-    fetchQuotesPendingApproval(),
-    fetchVisits(),
-  ]);
+  const [{ data: pendingQuotes }, { data: visits }, { data: approvedQuotesOut }] =
+    await Promise.all([
+      fetchQuotesPendingApproval(),
+      fetchVisits(),
+      fetchApprovedQuotesForDraft(),
+    ]);
 
   const visitsByContract = new Map<string, ServiceVisit[]>();
   for (const visit of visits as ServiceVisit[]) {
@@ -255,64 +256,100 @@ export default async function ContractsPage({
     visitsByContract.set(visit.contract_id, list);
   }
 
-  const progressList = contracts.map((contract) =>
-    buildContractProgress(contract, visitsByContract.get(contract.id) ?? [])
-  );
-  const extraWork = contracts.flatMap((contract) =>
-    ((contract.extra_work_orders ?? []) as {
+  // Completion chart uses active/completed work only — drafts stay out.
+  const progressList = contracts
+    .filter((contract) => contract.status !== "draft")
+    .map((contract) =>
+      buildContractProgress(contract, visitsByContract.get(contract.id) ?? [])
+    );
+  const extraWork = contracts
+    .filter((contract) => contract.status !== "draft")
+    .flatMap((contract) =>
+      ((contract.extra_work_orders ?? []) as {
+        id: string;
+        contract_id: string;
+        title: string;
+        status: string;
+      }[]).map((order) => ({
+        id: order.id,
+        contract_id: order.contract_id || contract.id,
+        title: order.title,
+        status: order.status,
+      }))
+    );
+
+  const directoryContracts = [
+    ...contracts.map((contract) => ({
+      id: contract.id,
+      title: contract.title,
+      status: contract.status,
+      season_start: contract.season_start,
+      season_end: contract.season_end,
+      monthly_fee:
+        contract.monthly_fee != null ? Number(contract.monthly_fee) : null,
+      visits_per_week: contract.visits_per_week,
+      customerName:
+        (contract.customers as { name?: string } | null)?.name ?? "Customer",
+      kind: "contract" as const,
+    })),
+    // Approved quotes still out for contracting — show under Drafts.
+    ...((approvedQuotesOut ?? []) as {
       id: string;
-      contract_id: string;
-      title: string;
+      service_description: string;
+      monthly_fee?: number | null;
+      visits_per_week?: number | null;
+      season_start?: string | null;
+      season_end?: string | null;
+      customers?: { name?: string } | null;
+    }[]).map((quote) => ({
+      id: quote.id,
+      title: quote.service_description.slice(0, 100),
+      status: "draft",
+      season_start: quote.season_start ?? "",
+      season_end: quote.season_end ?? "",
+      monthly_fee:
+        quote.monthly_fee != null ? Number(quote.monthly_fee) : null,
+      visits_per_week: quote.visits_per_week ?? null,
+      customerName: quote.customers?.name ?? "Customer",
+      kind: "quote_draft" as const,
+      href: `/quotes/${quote.id}`,
+    })),
+  ];
+
+  const quoteApprovals = (
+    (pendingQuotes ?? []) as {
+      id: string;
+      service_description: string;
       status: string;
-    }[]).map((order) => ({
-      id: order.id,
-      contract_id: order.contract_id || contract.id,
-      title: order.title,
-      status: order.status,
-    }))
-  );
-
-  const { data: pendingChangeRequests } =
-    await fetchPendingContractChangeRequests();
-
-  const directoryContracts = contracts.map((contract) => ({
-    id: contract.id,
-    title: contract.title,
-    status: contract.status,
-    season_start: contract.season_start,
-    season_end: contract.season_end,
-    monthly_fee:
-      contract.monthly_fee != null ? Number(contract.monthly_fee) : null,
-    visits_per_week: contract.visits_per_week,
-    customerName:
-      (contract.customers as { name?: string } | null)?.name ?? "Customer",
-  }));
-
-  const pendingChangeApprovals = (
-    pendingChangeRequests as {
-      id: string;
-      contract_id: string;
-      customer_id: string | null;
-      summary: string | null;
+      monthly_fee?: number | null;
+      submitted_for_approval_at?: string | null;
       created_at: string;
-      requested_by_role: string;
-      proposed_contract: {
-        monthly_fee?: number | null;
-        season_start?: string;
-        season_end?: string;
-        title?: string;
-      };
-      proposed_customer?: { name?: string } | null;
+      season_start?: string | null;
+      season_end?: string | null;
+      notes?: string | null;
+      property_address?: string | null;
+      visits_per_week?: number | null;
+      visit_frequency_notes?: string | null;
+      line_items?: unknown;
+      customers?: { name?: string | null; address?: string | null } | null;
     }[]
-  ).map((request) => ({
-    id: request.id,
-    contract_id: request.contract_id,
-    customer_id: request.customer_id,
-    summary: request.summary,
-    created_at: request.created_at,
-    requested_by_role: request.requested_by_role,
-    proposed_contract: request.proposed_contract ?? {},
-    proposed_customer: request.proposed_customer ?? null,
+  ).map((quote) => ({
+    id: quote.id,
+    service_description: quote.service_description,
+    status: quote.status,
+    monthly_fee: quote.monthly_fee,
+    submitted_for_approval_at: quote.submitted_for_approval_at,
+    created_at: quote.created_at,
+    season_start: quote.season_start,
+    season_end: quote.season_end,
+    notes: quote.notes,
+    property_address: quote.property_address,
+    visits_per_week: quote.visits_per_week,
+    visit_frequency_notes: quote.visit_frequency_notes,
+    line_items: quote.line_items,
+    customers: quote.customers,
+    companyName: quote.customers?.name ?? "Customer",
+    quoteTitle: quote.service_description.slice(0, 80),
   }));
 
   return (
@@ -323,18 +360,12 @@ export default async function ContractsPage({
         description="Approve Ops quotes, then track completion and promise vs actual work."
       />
 
-      <QuotesPendingApprovalSection quotes={pendingQuotes} />
-
-      {contracts.length === 0 ? (
-        <EmptyState message="No Contracts Yet." />
-      ) : (
-        <ManagerContractsDashboard
-          progressList={progressList}
-          extraWork={extraWork}
-          contracts={directoryContracts}
-          pendingApprovals={pendingChangeApprovals}
-        />
-      )}
+      <ManagerContractsDashboard
+        progressList={progressList}
+        extraWork={extraWork}
+        contracts={directoryContracts}
+        pendingQuotes={quoteApprovals}
+      />
     </AppShell>
   );
 }

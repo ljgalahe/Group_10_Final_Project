@@ -1,3 +1,4 @@
+import { buildInvoiceListItem } from "@/app/invoices/lib/build-invoice-list-item";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requestContractRenewal } from "@/app/actions/support";
@@ -27,6 +28,7 @@ import {
   buildCustomerServiceHolds,
   type CustomerServiceHold,
 } from "@/lib/service-hold";
+import type { InvoiceListItem } from "@/lib/invoice-list";
 import {
   fetchEquipment,
   fetchEquipmentUsage,
@@ -277,6 +279,7 @@ export default async function DashboardPage({
   let serviceHolds: CustomerServiceHold[] = [];
   let managerAlerts: ManagerAlert[] = [];
   let managerKpis: ManagerKpi[] = [];
+  let managerPaymentInvoices: InvoiceListItem[] = [];
   let operationsDashboard: OperationsDashboardData | null = null;
   let pendingQuotes: Awaited<
     ReturnType<typeof fetchQuotesPendingApproval>
@@ -414,6 +417,23 @@ export default async function DashboardPage({
       heldCustomerIds: serviceHolds.map((hold) => hold.customerId),
     });
 
+    managerPaymentInvoices = invoices.map((invoice) =>
+      buildInvoiceListItem(
+        {
+          id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          issue_date: invoice.issue_date,
+          due_date: invoice.due_date,
+          total: invoice.total,
+          amount_paid: invoice.amount_paid,
+          status: invoice.status,
+          customers: invoice.customers as { name?: string } | null,
+          contracts: invoice.contracts as { title?: string } | null,
+        },
+        today
+      )
+    );
+
     managerAlerts = buildManagerAlerts({
       today,
       serviceHolds,
@@ -473,6 +493,7 @@ export default async function DashboardPage({
           status: contract.status,
         })),
       }),
+      paymentConcernInvoices: managerPaymentInvoices,
     });
 
     // Approvals panel labels — reuse visits already loaded above instead of
@@ -882,7 +903,11 @@ export default async function DashboardPage({
         <div className="mt-6 space-y-5">
           <ServiceHoldAuditSync holds={serviceHolds} />
           <ManagerKpiStrip kpis={managerKpis} />
-          <ManagerAlertsCenter alerts={managerAlerts} />
+          <ManagerAlertsCenter
+            alerts={managerAlerts}
+            paymentConcernInvoices={managerPaymentInvoices}
+            asOfDate={today}
+          />
           <CompanyPerformanceLeaderboard
             categories={performanceCategories}
             initialCategory={initialPerfCategory}

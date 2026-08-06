@@ -10,6 +10,8 @@ import {
   type CompanyCapacity,
 } from "@/lib/company-capacity";
 import { chatHrefForInventoryReorder } from "@/lib/chat-demo";
+import type { InvoiceListItem } from "@/lib/invoice-list";
+import { buildCompanyPaymentConcerns } from "@/lib/invoice-payment-concerns";
 import { isLowStock } from "@/lib/inventory";
 import { isOpenInvoiceStatus } from "@/lib/payment-utils";
 import {
@@ -116,6 +118,8 @@ export type ManagerAlertsInput = {
   inventory: AlertInventoryItem[];
   pendingChangeRequests: PendingChange[];
   capacity?: CompanyCapacity | null;
+  /** Same invoice list used for payment-concern cards on Invoices. */
+  paymentConcernInvoices?: InvoiceListItem[];
 };
 
 function daysUntilDue(dueDate: string, today: string): number {
@@ -160,13 +164,37 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
     inventory,
     pendingChangeRequests,
     capacity,
+    paymentConcernInvoices = [],
   } = input;
 
   const alerts: ManagerAlert[] = [];
   const open = openInvoices(invoices);
   const heldIds = new Set(serviceHolds.map((hold) => hold.customerId));
 
-  // 0. Company capacity critically booked
+  // 0a. Payment concerns (past due / hold-jobs) — same topic as Invoices
+  const paymentConcerns = buildCompanyPaymentConcerns(
+    paymentConcernInvoices,
+    today
+  );
+  if (paymentConcerns.length > 0) {
+    const holdJobs = paymentConcerns.filter((c) =>
+      c.flags.includes("consider_hold")
+    ).length;
+    alerts.push({
+      id: "payment-concerns",
+      title: "Payment concerns",
+      explanation:
+        holdJobs > 0
+          ? "Some accounts may need visits paused until payment clears."
+          : "Open past-due accounts that need a closer look.",
+      priority: holdJobs > 0 ? "critical" : "high",
+      count: paymentConcerns.length,
+      href: "/dashboard#payment-concerns",
+      icon: "invoice",
+    });
+  }
+
+  // 0b. Company capacity critically booked
   if (capacity?.isLow) {
     alerts.push({
       id: "company-capacity",

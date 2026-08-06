@@ -363,8 +363,6 @@ export default async function VisitsPage({
         <VisitsSummaryBlocks
           scheduled={summary.scheduled}
           completed={summary.completed}
-          weatherAffected={summary.weatherAffected}
-          weatherCount={summary.weatherCount}
           periodLabelText={periodLabel(period)}
           afterSummary={
             <section className="gs-section">

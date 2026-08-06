@@ -98,16 +98,18 @@ export function InvoicePaymentConcernAlerts({
   invoices,
   asOfDate,
   onSelectCompany,
+  defaultOpen = false,
 }: {
   invoices: InvoiceListItem[];
   asOfDate: string;
   onSelectCompany?: (companyName: string) => void;
+  defaultOpen?: boolean;
 }) {
   const concerns = useMemo(
     () => buildCompanyPaymentConcerns(invoices, asOfDate),
     [invoices, asOfDate]
   );
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   if (concerns.length === 0) return null;
 
@@ -126,7 +128,10 @@ export function InvoicePaymentConcernAlerts({
       : "Open past-due accounts that need a closer look.";
 
   return (
-    <section className="rounded-xl border border-rose-200 bg-rose-50/90 shadow-sm">
+    <section
+      id="payment-concerns"
+      className="scroll-mt-24 rounded-xl border border-rose-200 bg-rose-50/90 shadow-sm"
+    >
       <button
         type="button"
         aria-expanded={open}
