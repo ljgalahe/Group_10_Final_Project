@@ -166,7 +166,7 @@ export default async function ContractsPage() {
           description={
             isCustomer
               ? "Your seasonal agreements, terms, and included services."
-              : "Seasonal agreements with service terms, billing rules, and included services."
+              : undefined
           }
         />
 

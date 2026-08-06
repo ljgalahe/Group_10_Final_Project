@@ -2,6 +2,7 @@ import { AppShell } from "@/components/AppShell";
 import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { PageHeader } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
+import { getViewRole } from "@/lib/demo-role";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -15,13 +16,19 @@ export default async function ChatPage({
   searchParams: Promise<SearchParams>;
 }) {
   await requireAppAccess();
+  const role = await getViewRole();
   const params = await searchParams;
+  const hideBlurb = role === "crew_lead" || role === "crew_member";
 
   return (
     <AppShell>
       <PageHeader
         title="Chat"
-        description="Announcements for the team, plus direct messages with crew leads and others."
+        description={
+          hideBlurb
+            ? undefined
+            : "Announcements for the team, plus direct messages with crew leads and others."
+        }
       />
       <ChatWorkspace
         initialWith={first(params.with)}

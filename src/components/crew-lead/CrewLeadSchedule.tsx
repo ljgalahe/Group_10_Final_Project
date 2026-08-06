@@ -358,10 +358,6 @@ export function CrewLeadSchedule({
             <h2 className="text-2xl font-bold text-green-950">
               Today&apos;s Route
             </h2>
-            <p className="mt-1 text-sm text-stone-600">
-              Filter by crew lead to see their road route from the yard, stop
-              order, and who is on the crew ({formatDisplayDate(today)}).
-            </p>
           </div>
           <label className="flex flex-col gap-1 text-sm text-stone-700">
             <span className="font-medium text-green-950">Crew lead</span>
@@ -568,10 +564,6 @@ export function CrewLeadSchedule({
 
       <Card>
         <h3 className="text-lg font-semibold text-green-950">Schedule</h3>
-        <p className="mt-1 text-sm text-stone-500">
-          Filter by company, employee, job, or status (green = completed, orange
-          = pending), then click a day.
-        </p>
         {calendarJobs.length === 0 ? (
           <p className="mt-4 text-sm text-stone-400">
             No jobs in this range to show on the calendar.

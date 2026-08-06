@@ -2,16 +2,6 @@ import { Card } from "@/components/ui";
 import type { ScheduleJob } from "@/components/crew-lead/schedule-types";
 import { addDays } from "@/components/crew-lead/dateHelpers";
 
-function formatShort(isoDate: string) {
-  const [y, m, d] = isoDate.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-}
-
 /** Dashboard card previewing tomorrow's crew stops. */
 export function CrewLeadTomorrowPreview({
   jobs,
@@ -30,9 +20,6 @@ export function CrewLeadTomorrowPreview({
       <h3 className="text-base font-semibold text-green-950">
         Tomorrow Preview
       </h3>
-      <p className="mt-1 text-sm text-stone-500">
-        Prep for {formatShort(tomorrow)}
-      </p>
       <p className="mt-3 gs-metric-value text-3xl text-green-900">
         {stops.length} stop{stops.length === 1 ? "" : "s"}
       </p>
