@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
@@ -30,6 +31,7 @@ import {
   fetchEquipment,
   fetchEquipmentUsage,
 } from "@/app/equipment/queries";
+import { fetchInventoryItems } from "@/app/inventory/queries";
 import { filterJobsForCrewMember } from "@/lib/crew-member";
 import type { VisitLaborEntry } from "@/lib/crew-hours";
 import { buildCollectionRisk } from "@/lib/collection-risk";
@@ -63,11 +65,6 @@ import {
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
 import { AccountantDashboardPanel } from "@/app/dashboard/components/AccountantDashboardPanel";
 import { fetchAccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
-import {
-  fetchOperationsDashboardData,
-  type OperationsDashboardData,
-} from "@/app/dashboard/operations-dashboard-data";
-import { OperationsDashboardPanel } from "@/app/dashboard/components/OperationsDashboardPanel";
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
@@ -211,27 +208,39 @@ export default async function DashboardPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  const stats = await fetchDashboardStats();
-  const accountantDashboard =
-    role === "accountant" ? await fetchAccountantDashboardData() : null;
+  // Inquiries is a prospect start page only — never the internal KPI dashboard.
+  if (role === "inquiries") {
+    redirect("/inquiries");
+  }
+  // Managers load invoices/visits below for KPIs — skip the duplicate
+  // fetchDashboardStats() pass (full invoices + scheduled visits again).
+  const [stats, accountantDashboard] = await Promise.all([
+    role === "manager"
+      ? Promise.resolve({
+          activeContracts: 0,
+          scheduledVisits: 0,
+          totalBilled: 0,
+          totalCollected: 0,
+          outstanding: 0,
+          overdueCount: 0,
+        })
+      : fetchDashboardStats(),
+    role === "accountant"
+      ? fetchAccountantDashboardData()
+      : Promise.resolve(null),
+  ]);
   const params = await searchParams;
   const initialPerfCategory = parsePerfCategory(params.perf);
 
   const roleTitles: Record<string, { title: string; description: string }> = {
     manager: {
       title: "Manager Dashboard",
-      description:
-        "Summary hub for collections, holds, alerts, and performance — open a section for detail.",
+      description: "",
     },
     accountant: {
       title: "Accounting Dashboard",
       description:
         "Track billing, outstanding balances, and contract profitability.",
-    },
-    operations: {
-      title: "Operations Dashboard",
-      description:
-        "Upcoming visits and site surveys, plus quick links — create quotes from Inquiries, track status on Quotes.",
     },
     crew_lead: {
       title: "Crew Lead Dashboard",
@@ -278,6 +287,7 @@ export default async function DashboardPage({
       { data: visitCosts },
       equipment,
       equipmentUsage,
+      inventoryItems,
       { data: invoices },
       { data: payments },
       profitability,
@@ -288,6 +298,7 @@ export default async function DashboardPage({
       fetchAllVisitCosts(),
       fetchEquipment().then((data) => data.assets),
       fetchEquipmentUsage(),
+      fetchInventoryItems(),
       fetchInvoices(),
       fetchPayments(),
       fetchProfitabilityReport(),
@@ -433,12 +444,65 @@ export default async function DashboardPage({
         estimated_total_hours: Number(asset.estimated_total_hours),
         hours_used: Number(asset.hours_used),
       })),
+      inventory: inventoryItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        unit: item.unit,
+        quantity_on_hand: item.quantity_on_hand,
+        par_level: item.par_level,
+      })),
       pendingChangeRequests: pendingChangeRequests.map((row) => ({
         id: row.id,
         contract_id: row.contract_id,
         status: row.status,
       })),
     });
+
+    // Approvals panel labels — reuse visits already loaded above instead of
+    // a second full contracts/visits schedule query (manager UI does not
+    // render the crew schedule on this page).
+    for (const visit of visits) {
+      const contractRaw = visit.contracts as
+        | {
+            title: string;
+            customers: { name: string } | { name: string }[] | null;
+          }
+        | {
+            title: string;
+            customers: { name: string } | { name: string }[] | null;
+          }[]
+        | null;
+      const contract = Array.isArray(contractRaw)
+        ? contractRaw[0]
+        : contractRaw;
+      const customerRaw = contract?.customers;
+      const customer = Array.isArray(customerRaw)
+        ? customerRaw[0]
+        : customerRaw;
+      if (customer?.name) {
+        visitLabels[visit.id] =
+          `${customer.name} · ${contract?.title ?? "Visit"}`;
+      }
+    }
+
+    const totalBilled = invoices.reduce(
+      (sum, invoice) => sum + Number(invoice.total),
+      0
+    );
+    const totalCollected = invoices.reduce(
+      (sum, invoice) => sum + Number(invoice.amount_paid),
+      0
+    );
+    const outstanding = totalBilled - totalCollected;
+    const overdueCount = invoices.filter((invoice) => {
+      const balance = Number(invoice.amount_paid) < Number(invoice.total);
+      return (
+        invoice.status === "overdue" ||
+        invoice.status === "past_due" ||
+        (invoice.status === "sent" && balance) ||
+        (invoice.status === "partially_paid" && balance)
+      );
+    }).length;
 
     const totalRevenue = profitability.reduce((sum, row) => sum + row.revenue, 0);
     const totalMargin = profitability.reduce((sum, row) => sum + row.margin, 0);
@@ -454,15 +518,15 @@ export default async function DashboardPage({
       {
         id: "collected",
         label: "Revenue collected",
-        value: formatCurrency(stats.totalCollected),
-        hint: `YTD against ${formatCurrency(stats.totalBilled)} billed`,
+        value: formatCurrency(totalCollected),
+        hint: `YTD against ${formatCurrency(totalBilled)} billed`,
         href: "/payments",
       },
       {
         id: "ar",
         label: "Outstanding AR",
-        value: formatCurrency(stats.outstanding),
-        hint: `${stats.overdueCount} open invoice(s) need follow-up`,
+        value: formatCurrency(outstanding),
+        hint: `${overdueCount} open invoice(s) need follow-up`,
         href: "/reports/ar-aging",
       },
       {
@@ -492,8 +556,18 @@ export default async function DashboardPage({
     ];
   }
 
-  if (role === "crew_lead" || role === "manager" || role === "crew_member") {
+  if (role === "crew_lead" || role === "crew_member") {
     const supabase = await createDataClient();
+    const windowStart = (() => {
+      const d = new Date(`${today}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() - 14);
+      return d.toISOString().slice(0, 10);
+    })();
+    const windowEnd = (() => {
+      const d = new Date(`${today}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + 90);
+      return d.toISOString().slice(0, 10);
+    })();
     const [{ data: contracts }, { data: visits }, { data: extraWorkRows }] =
       await Promise.all([
         supabase
@@ -507,6 +581,8 @@ export default async function DashboardPage({
           .select(
             "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
           )
+          .gte("scheduled_date", windowStart)
+          .lte("scheduled_date", windowEnd)
           .order("scheduled_date", { ascending: true }),
         role === "crew_member"
           ? supabase
@@ -588,11 +664,6 @@ export default async function DashboardPage({
   if (role === "crew_lead") {
     const { data } = await fetchCrewApplicableSupportRequests();
     crewSupportRequests = data;
-  }
-
-  let operationsDashboard: OperationsDashboardData | null = null;
-  if (role === "operations") {
-    operationsDashboard = await fetchOperationsDashboardData();
   }
 
   const customerId =
@@ -746,7 +817,7 @@ export default async function DashboardPage({
 
           <div className="mt-8 rounded-xl border border-green-800/15 bg-green-50/60 px-5 py-4">
             <p className="text-sm font-semibold text-green-950">
-              Quick Actions
+              Quick actions
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
@@ -792,7 +863,6 @@ export default async function DashboardPage({
 
       {role !== "customer" &&
       role !== "crew_member" &&
-      role !== "operations" &&
       role !== "manager" &&
       role !== "accountant"
         ? staffStatsRow
@@ -808,7 +878,7 @@ export default async function DashboardPage({
             initialCategory={initialPerfCategory}
           />
           <DashboardCollapsibleSection
-            title="Service Hold details"
+            title="Service Hold Details"
             summary={
               serviceHolds.length === 0
                 ? "No customers currently on hold"
@@ -819,48 +889,13 @@ export default async function DashboardPage({
             <ServiceHoldDashboardCard holds={serviceHolds} embedded />
           </DashboardCollapsibleSection>
           <DashboardCollapsibleSection
-            title="Approvals & crew alerts"
+            title="Approvals & Crew Alerts"
             summary="Field concerns, extra-work approvals, and visit comments"
             defaultOpen={false}
           >
             <ManagerApprovalsPanel visitLabels={visitLabels} hideIntro />
           </DashboardCollapsibleSection>
-          <Card className="p-4 sm:p-5">
-            <h2 className="text-base font-semibold text-green-950">
-              Quick Actions
-            </h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                href="/reports/ar-aging"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                AR Aging
-              </Link>
-              <Link
-                href="/reports/profitability"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Profitability
-              </Link>
-              <Link
-                href="/payments"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Payments
-              </Link>
-              <Link
-                href="/support"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Support
-              </Link>
-            </div>
-          </Card>
         </div>
-      ) : null}
-
-      {role === "operations" && operationsDashboard ? (
-        <OperationsDashboardPanel data={operationsDashboard} />
       ) : null}
 
       {role === "crew_lead" ? (
@@ -868,9 +903,6 @@ export default async function DashboardPage({
           <CrewLeadTomorrowPreview jobs={scheduleJobs} today={today} />
           <CrewLeadCustomerRequests requests={crewSupportRequests} />
           <Card>
-            <h2 className="mb-4 text-lg font-semibold text-green-950">
-              Crew Lead Quick Actions
-            </h2>
             <CrewLeadQuickActions
               todaysJobs={scheduleJobs.filter(
                 (job) =>

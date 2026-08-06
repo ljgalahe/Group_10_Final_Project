@@ -357,12 +357,9 @@ export async function ensureCompletedVisitLaborSynced(
     synced += 1;
   }
 
-  if (synced > 0) {
-    revalidatePath("/visits");
-    revalidatePath("/dashboard");
-    revalidatePath("/contracts");
-    revalidatePath("/reports/profitability");
-  }
+  // Callers that sync during page render already refetch when synced > 0.
+  // Avoid revalidatePath fan-out here — it retriggers heavy RSC routes while
+  // the visits page is still loading.
 
   return { synced };
 }

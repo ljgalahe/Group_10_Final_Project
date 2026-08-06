@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { approveExtraWork, generateInvoice } from "@/app/actions/business";
+import {
+  approveExtraWork,
+  declineExtraWork,
+  generateInvoice,
+} from "@/app/actions/business";
 import {
   declineCustomerContract,
   sendContractToCustomer,
@@ -9,18 +13,11 @@ import {
 import { AccountantContractDetail } from "@/components/AccountantContractDetail";
 import { AppShell } from "@/components/AppShell";
 import { CustomerContractSelfService } from "@/components/CustomerContractSelfService";
-import {
-  ContractProgressChart,
-  ContractPromiseSummary,
-  PromiseVsActualTable,
-} from "@/components/contracts/ContractPromiseUI";
-import { OutOfScopeWorkWatch } from "@/components/contracts/OutOfScopeWorkWatch";
+import { ContractProgressChart } from "@/components/contracts/ContractPromiseUI";
+import { ContractPromiseDetailPanel } from "@/components/contracts/ContractPromiseDetailPanel";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
-import {
-  buildContractProgress,
-  buildScopeCreepAlerts,
-} from "@/lib/contract-controls";
+import { buildContractProgress } from "@/lib/contract-controls";
 import {
   getContractDisplayStatus,
   isContractFullyApproved,
@@ -69,12 +66,12 @@ export default async function ContractDetailPage({
     );
   }
 
-  const showManagerDashboard = role === "manager";
+  const showOpsDashboard = role === "manager";
   const flash = searchParams ? await searchParams : {};
 
   const [{ data: contract }, visitsResult] = await Promise.all([
     fetchContract(id),
-    showManagerDashboard
+    showOpsDashboard
       ? fetchVisits()
       : Promise.resolve({ data: [] as ServiceVisit[] }),
   ]);
@@ -124,12 +121,9 @@ export default async function ContractDetailPage({
   const contractVisits = ((visitsResult.data ?? []) as ServiceVisit[]).filter(
     (v) => v.contract_id === id
   );
-  const progress = showManagerDashboard
+  const progress = showOpsDashboard
     ? buildContractProgress(contract, contractVisits)
     : null;
-  const scopeAlerts = showManagerDashboard
-    ? buildScopeCreepAlerts([contract]).filter((a) => a.contractId === id)
-    : [];
 
   const pendingCustomer = isContractPendingCustomer(
     contract as {
@@ -152,7 +146,7 @@ export default async function ContractDetailPage({
     <AppShell>
       <PageHeader
         title={contract.title}
-        description={`${customer.name} · ${customer.property_type ?? "Commercial Property"}`}
+        description={`${customer.name} · ${customer.property_type ?? "Commercial property"}`}
         action={
           roleCanManageBilling(role) ? (
             <form action={generateInvoice}>
@@ -303,11 +297,11 @@ export default async function ContractDetailPage({
       ) : null}
 
       <div className="space-y-6">
-        {showManagerDashboard && progress ? (
+        {showOpsDashboard && progress ? (
           <>
             <Card>
               <h3 className="text-lg font-semibold text-green-950">
-                Contract Completion
+                Contract completion
               </h3>
               <div className="mt-6">
                 <ContractProgressChart
@@ -323,17 +317,16 @@ export default async function ContractDetailPage({
 
             <Card>
               <h3 className="text-lg font-semibold text-green-950">
-                Contract Promise Vs Actual Work Map
+                Contract promise vs actual
               </h3>
-              <ContractPromiseSummary progress={progress} />
-              <PromiseVsActualTable rows={progress.rows} />
-            </Card>
-
-            <Card>
-              <h3 className="text-lg font-semibold text-green-950">
-                Out-Of-Scope Work Watch
-              </h3>
-              <OutOfScopeWorkWatch alerts={scopeAlerts} />
+              <p className="mt-1 text-sm text-stone-500">
+                Review promised vs actual work. Your action is approving extra
+                work — operations schedules crews after approval when needed.
+              </p>
+              <ContractPromiseDetailPanel
+                progress={progress}
+                extraWork={extraWork}
+              />
             </Card>
           </>
         ) : null}
@@ -369,7 +362,7 @@ export default async function ContractDetailPage({
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-stone-500">Visit Frequency</dt>
-                <dd>{contract.visits_per_week} Visits Per Week</dd>
+                <dd>{contract.visits_per_week} visits per week</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-stone-500">Billing Method</dt>
@@ -417,6 +410,10 @@ export default async function ContractDetailPage({
           <h2 className="text-lg font-semibold text-green-950">
             Extra Work Orders
           </h2>
+          <p className="mt-1 text-sm text-stone-500">
+            Quoted extras for this contract. Approve here or from each extra row
+            in promise vs actual above.
+          </p>
           {extraWork.length === 0 ? (
             <p className="mt-4 text-sm text-stone-500">
               No Extra Work On This Contract.
@@ -438,19 +435,34 @@ export default async function ContractDetailPage({
                     </span>
                     <StatusBadge status={work.status} />
                     {roleCanManageBilling(role) && work.status === "quoted" && (
-                      <form action={approveExtraWork}>
-                        <input
-                          type="hidden"
-                          name="extra_work_id"
-                          value={work.id}
-                        />
-                        <button
-                          type="submit"
-                          className="rounded-md bg-green-800 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
-                        >
-                          Approve
-                        </button>
-                      </form>
+                      <div className="flex flex-wrap gap-2">
+                        <form action={approveExtraWork}>
+                          <input
+                            type="hidden"
+                            name="extra_work_id"
+                            value={work.id}
+                          />
+                          <button
+                            type="submit"
+                            className="gs-btn-approve rounded-md px-3 py-1 text-xs font-medium"
+                          >
+                            Approve
+                          </button>
+                        </form>
+                        <form action={declineExtraWork}>
+                          <input
+                            type="hidden"
+                            name="extra_work_id"
+                            value={work.id}
+                          />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-red-700 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-50"
+                          >
+                            Decline
+                          </button>
+                        </form>
+                      </div>
                     )}
                   </div>
                 </div>

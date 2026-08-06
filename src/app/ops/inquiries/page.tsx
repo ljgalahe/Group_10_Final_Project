@@ -3,24 +3,20 @@ import { AppShell } from "@/components/AppShell";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { InquiryStatusControl } from "@/app/ops/inquiries/InquiryStatusControl";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
+import { SERVICE_LABELS } from "@/lib/commercial-services";
 import {
   getViewRole,
   roleCanViewInquiriesInbox,
 } from "@/lib/demo-role";
+import { isExistingCustomerInquiry } from "@/lib/inquiry-customer";
 
 const PROPERTY_LABELS: Record<string, string> = {
   office_park: "Office Park",
   retail_center: "Retail Center",
+  hospitality: "Hotel / Hospitality",
+  institutional: "Campus / Science & Cultural",
   industrial: "Industrial",
-  multifamily: "Multifamily",
-  other: "Other",
-};
-
-const SERVICE_LABELS: Record<string, string> = {
-  mowing: "Mowing",
-  irrigation: "Irrigation",
-  seasonal_color: "Seasonal Color",
-  snow_removal: "Snow Removal",
+  multifamily: "Residential Community",
   other: "Other",
 };
 
@@ -150,8 +146,6 @@ export default async function OpsInquiriesPage({
             </thead>
             <tbody className="divide-y divide-stone-100">
               {inquiries.map((row) => {
-                const surveyDone =
-                  row.survey_status === "completed" && Boolean(row.quote_id);
                 return (
                   <tr key={row.id} className="align-top hover:bg-stone-50/80">
                     <td className="px-4 py-3">
@@ -167,11 +161,15 @@ export default async function OpsInquiriesPage({
                           {row.contact_phone}
                         </p>
                       ) : null}
-                      {row.converted_customer_id && !surveyDone ? (
-                        <p className="mt-1 text-xs font-medium text-amber-800">
-                          Existing Client · New Service
-                        </p>
-                      ) : null}
+                      {isExistingCustomerInquiry(row) ? (
+                        <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                          Existing Customer
+                        </span>
+                      ) : (
+                        <span className="mt-1 inline-flex rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-700">
+                          New Customer
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-stone-800">

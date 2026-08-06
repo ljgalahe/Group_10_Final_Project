@@ -167,12 +167,14 @@ export function gpsTimes(scheduledDate: string, completedAt: string | null) {
     const departed = completed.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
+      timeZone: "UTC",
     });
     const arrivedDate = new Date(completed.getTime() - 3 * 60 * 60 * 1000);
     return {
       arrived: arrivedDate.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
+        timeZone: "UTC",
       }),
       departed,
     };

@@ -94,7 +94,7 @@ export default async function ProfitabilityPage({
   return (
     <AppShell>
       <PageHeader
-        title="Contract Profitability"
+        title="Profitability"
         description={
           isAccountant
             ? "Revenue billed minus visit costs — scheduled visits use estimated cost; completed visits use actual cost."
@@ -193,33 +193,22 @@ export default async function ProfitabilityPage({
         </>
       )}
 
-      <Card className="mt-8">
-        <h2 className="text-lg font-semibold text-green-950">
-          How to Read This Report
-        </h2>
-        <p className="mt-2 text-sm text-stone-600">
-          <strong>Revenue</strong> comes from invoices billed on each contract.
-          {isAccountant ? (
-            <>
-              {" "}
-              <strong> Visit costs</strong> match the Visits tab: scheduled
-              visits use estimated cost; completed visits use actual labor,
-              materials, and equipment. Use{" "}
-              <strong>Estimated vs. actual job cost</strong> to spot visits that
-              blew past their quote, then Performance analysis for contract-level
-              leaks and recommendations before renewal.
-            </>
-          ) : (
-            <>
-              {" "}
-              <strong> Direct costs</strong> are labor, materials, and equipment
-              logged on service visits. Use Contract Performance Analysis to
-              select a contract, review estimated profit leaks, and act on
-              manager recommendations before renewal.
-            </>
-          )}
-        </p>
-      </Card>
+      {isAccountant ? (
+        <Card className="mt-8">
+          <h2 className="text-lg font-semibold text-green-950">
+            How to Read This Report
+          </h2>
+          <p className="mt-2 text-sm text-stone-600">
+            <strong>Revenue</strong> comes from invoices billed on each contract.{" "}
+            <strong> Visit costs</strong> match the Visits tab: scheduled
+            visits use estimated cost; completed visits use actual labor,
+            materials, and equipment. Use{" "}
+            <strong>Estimated vs. actual job cost</strong> to spot visits that
+            blew past their quote, then Performance analysis for contract-level
+            leaks and recommendations before renewal.
+          </p>
+        </Card>
+      ) : null}
     </AppShell>
   );
 }

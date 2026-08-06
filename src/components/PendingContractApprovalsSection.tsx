@@ -2,11 +2,12 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/ui";
 import { getContractDisplayStatus } from "@/lib/contract-status";
 import { formatDate } from "@/lib/format";
+import type { ContractStatus } from "@/lib/types";
 
 type PendingContract = {
   id: string;
   title: string;
-  status: string;
+  status: ContractStatus;
   approval_state?: string | null;
   season_start?: string | null;
   season_end?: string | null;
@@ -68,7 +69,12 @@ export function PendingContractApprovalsSection({
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <StatusBadge status={getContractDisplayStatus(contract)} />
+                  <StatusBadge
+                    status={getContractDisplayStatus({
+                      status: contract.status,
+                      approval_state: contract.approval_state ?? null,
+                    })}
+                  />
                   <Link
                     href={`/contracts/${contract.id}`}
                     className="rounded-md bg-green-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-800"

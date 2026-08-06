@@ -91,6 +91,8 @@ export function PaymentsManagerClient({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  // Keep the large history table collapsed until the manager filters or expands it.
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   function openPaymentPanel(payment: Payment) {
     // Clicking the active row again closes the panel.
@@ -163,6 +165,10 @@ export function PaymentsManagerClient({
     customerFilter || methodFilter || statusFilter || dateFrom || dateTo
   );
 
+  useEffect(() => {
+    if (filtersActive) setHistoryOpen(true);
+  }, [filtersActive]);
+
   function clearFilters() {
     setCustomerFilter("");
     setMethodFilter("");
@@ -203,9 +209,6 @@ export function PaymentsManagerClient({
           <h2 className="text-lg font-semibold text-green-950">
             Payment Dashboard
           </h2>
-          <p className="text-sm text-stone-500">
-            Snapshot of collections and outstanding balances.
-          </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <DashboardStatCard
@@ -278,7 +281,8 @@ export function PaymentsManagerClient({
               Filter Payment History
             </h2>
             <p className="text-xs text-stone-500">
-              Narrow the payment table below. This does not record a payment.
+              Set filters first — matching payments open in Payment History
+              below. This does not record a payment.
             </p>
           </div>
           {filtersActive ? (
@@ -355,74 +359,106 @@ export function PaymentsManagerClient({
         </div>
       </div>
 
-      {filteredPayments.length === 0 ? (
-        <EmptyState message="No payments match the current filters." />
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead className="bg-stone-50 text-left text-stone-600">
-              <tr>
-                <th className="px-4 py-3 font-medium">Payment Date</th>
-                <th className="px-4 py-3 font-medium">Payment / Ref #</th>
-                <th className="px-4 py-3 font-medium">Invoice</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Method</th>
-                <th className="px-4 py-3 font-medium">Amount</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Recorded By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPayments.map((payment) => {
-                const isSelected = selectedPayment?.id === payment.id;
-                return (
-                  <tr
-                    key={payment.id}
-                    data-payment-row="true"
-                    tabIndex={0}
-                    role="button"
-                    aria-pressed={isSelected && panelOpen}
-                    aria-label={`View payment details for ${paymentInvoiceNumber(payment)}`}
-                    onClick={() => openPaymentPanel(payment)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openPaymentPanel(payment);
-                      }
-                    }}
-                    className={`cursor-pointer border-t border-stone-100 transition-colors outline-none focus-visible:bg-green-50 ${
-                      isSelected && panelOpen
-                        ? "bg-green-50"
-                        : "hover:bg-green-50/60"
-                    }`}
-                  >
-                    <td className="px-4 py-3">{formatDate(payment.payment_date)}</td>
-                    <td className="px-4 py-3">
-                      {payment.reference_number ||
-                        payment.payment_number ||
-                        "—"}
-                    </td>
-                    <td className="px-4 py-3">{paymentInvoiceNumber(payment)}</td>
-                    <td className="px-4 py-3">{paymentCustomerName(payment)}</td>
-                    <td className="px-4 py-3">
-                      {paymentMethodLabel(payment.payment_method)}
-                    </td>
-                    <td className="px-4 py-3 font-medium">
-                      {formatCurrency(Number(payment.amount))}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={payment.status ?? "applied"} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {payment.recorded_by_name || "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <section className="rounded-xl border border-stone-200 bg-white shadow-sm">
+        <button
+          type="button"
+          onClick={() => setHistoryOpen((value) => !value)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5"
+          aria-expanded={historyOpen}
+        >
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-green-950">
+              Payment History
+            </h2>
+            <p className="mt-0.5 text-sm text-stone-500">
+              {filtersActive
+                ? `${filteredPayments.length} matching payment${filteredPayments.length === 1 ? "" : "s"}`
+                : `${payments.length} payment${payments.length === 1 ? "" : "s"} · collapsed until you filter or expand`}
+            </p>
+          </div>
+          <span className="shrink-0 text-xs font-medium text-stone-500">
+            {historyOpen ? "Collapse" : "Expand"}
+          </span>
+        </button>
+        {historyOpen ? (
+          <div className="border-t border-stone-100 px-4 py-4 sm:px-5">
+            {filteredPayments.length === 0 ? (
+              <EmptyState message="No payments match the current filters." />
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-stone-50 text-left text-stone-600">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Payment Date</th>
+                      <th className="px-4 py-3 font-medium">Payment / Ref #</th>
+                      <th className="px-4 py-3 font-medium">Invoice</th>
+                      <th className="px-4 py-3 font-medium">Customer</th>
+                      <th className="px-4 py-3 font-medium">Method</th>
+                      <th className="px-4 py-3 font-medium">Amount</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Recorded By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPayments.map((payment) => {
+                      const isSelected = selectedPayment?.id === payment.id;
+                      return (
+                        <tr
+                          key={payment.id}
+                          data-payment-row="true"
+                          tabIndex={0}
+                          role="button"
+                          aria-pressed={isSelected && panelOpen}
+                          aria-label={`View payment details for ${paymentInvoiceNumber(payment)}`}
+                          onClick={() => openPaymentPanel(payment)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              openPaymentPanel(payment);
+                            }
+                          }}
+                          className={`cursor-pointer border-t border-stone-100 transition-colors outline-none focus-visible:bg-green-50 ${
+                            isSelected && panelOpen
+                              ? "bg-green-50"
+                              : "hover:bg-green-50/60"
+                          }`}
+                        >
+                          <td className="px-4 py-3">
+                            {formatDate(payment.payment_date)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {payment.reference_number ||
+                              payment.payment_number ||
+                              "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            {paymentInvoiceNumber(payment)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {paymentCustomerName(payment)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {paymentMethodLabel(payment.payment_method)}
+                          </td>
+                          <td className="px-4 py-3 font-medium">
+                            {formatCurrency(Number(payment.amount))}
+                          </td>
+                          <td className="px-4 py-3">
+                            <StatusBadge status={payment.status ?? "applied"} />
+                          </td>
+                          <td className="px-4 py-3">
+                            {payment.recorded_by_name || "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </section>
 
       {selectedPayment ? (
         <PaymentDetailPanel
@@ -540,7 +576,7 @@ function PaymentDetailPanel({
               Close
             </button>
           </div>
-          <p className="mt-4 text-3xl font-bold">
+          <p className="mt-4 gs-metric-value text-3xl">
             {formatCurrency(Number(payment.amount))}
           </p>
           <div className="mt-3">
@@ -640,11 +676,6 @@ function CollectionRiskSection({
     <section id="collection-risk" className="scroll-mt-24 space-y-3">
       <div>
         <h2 className="text-lg font-semibold text-green-950">Collection Risk</h2>
-        <p className="text-sm text-stone-500">
-          Customers ranked by overdue exposure, outstanding balance, and each
-          account&apos;s own Average Days to Pay from invoice and payment
-          history. Service Hold appears when any invoice is 30+ days overdue.
-        </p>
         {highRiskOnly ? (
           <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
             Showing{" "}
@@ -787,7 +818,7 @@ function DashboardStatCard({
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-stone-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-green-900">{value}</p>
+      <p className="mt-2 gs-metric-value text-3xl text-green-900">{value}</p>
       {hint ? <p className="mt-1 text-xs text-stone-400">{hint}</p> : null}
     </div>
   );

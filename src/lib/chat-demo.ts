@@ -2,7 +2,8 @@ export type ChatCategory =
   | "announcement"
   | "fyi"
   | "question"
-  | "direct";
+  | "direct"
+  | "group";
 
 export type ChatPerson = {
   id: string;
@@ -82,6 +83,7 @@ export function categoryLabel(category: ChatCategory): string {
   if (category === "announcement") return "Announcement";
   if (category === "fyi") return "FYI";
   if (category === "question") return "Question";
+  if (category === "group") return "Group chat";
   return "Direct";
 }
 
@@ -89,6 +91,7 @@ export function categoryEmoji(category: ChatCategory): string {
   if (category === "announcement") return "📢";
   if (category === "fyi") return "✨";
   if (category === "question") return "👋";
+  if (category === "group") return "👥";
   return "💬";
 }
 
@@ -212,6 +215,29 @@ function seedThreads(): ChatThread[] {
           authorId: "taylor-brooks",
           body: "Summit frontage is clear after storm cleanup. Photos uploaded on the visit.",
           createdAt: new Date(now - 1000 * 60 * 60 * 20).toISOString(),
+        },
+      ],
+    },
+    {
+      id: "group-ops-leads",
+      category: "group",
+      title: "Ops · Crew leads",
+      preview: "Weather holds this week — flag any reschedules here.",
+      authorId: "manager",
+      participantIds: [
+        "manager",
+        "alex-rivera",
+        "taylor-brooks",
+        "sam-ortiz",
+      ],
+      createdAt: new Date(now - 1000 * 60 * 60 * 40).toISOString(),
+      updatedAt: new Date(now - 1000 * 60 * 60 * 12).toISOString(),
+      messages: [
+        {
+          id: "m7",
+          authorId: "manager",
+          body: "Weather holds this week — flag any reschedules here so we can update the directory.",
+          createdAt: new Date(now - 1000 * 60 * 60 * 12).toISOString(),
         },
       ],
     },
@@ -354,7 +380,7 @@ export function postChatMessage(
 export function createAnnouncement(opts: {
   title: string;
   body: string;
-  category: Exclude<ChatCategory, "direct">;
+  category: Exclude<ChatCategory, "direct" | "group">;
   authorId?: string;
 }): ChatThread {
   const authorId = opts.authorId ?? "manager";
@@ -383,8 +409,129 @@ export function createAnnouncement(opts: {
   return thread;
 }
 
+/** Create a named group chat with multiple people. */
+export function createGroupThread(opts: {
+  title: string;
+  memberIds: string[];
+  fromPersonId?: string;
+  seedMessage?: string;
+}): ChatThread {
+  const fromId = opts.fromPersonId ?? "manager";
+  const others = [
+    ...new Set(opts.memberIds.filter((id) => id && id !== fromId)),
+  ];
+  if (others.length < 1) {
+    throw new Error("Pick at least one other person for a group chat.");
+  }
+
+  const participantIds = [fromId, ...others];
+  const title =
+    opts.title.trim() ||
+    participantIds
+      .map((id) => personById(id)?.name?.split(" ")[0] ?? id)
+      .slice(0, 3)
+      .join(", ") + (participantIds.length > 3 ? "…" : "");
+
+  const now = new Date().toISOString();
+  const names = others
+    .map((id) => personById(id)?.name ?? id)
+    .join(", ");
+  const seedBody =
+    opts.seedMessage?.trim() ||
+    `Started group chat with ${names}.`;
+
+  const thread: ChatThread = {
+    id: `group-${Date.now()}`,
+    category: "group",
+    title,
+    preview: seedBody,
+    authorId: fromId,
+    participantIds,
+    createdAt: now,
+    updatedAt: now,
+    messages: [
+      {
+        id: `msg-${Date.now()}`,
+        authorId: fromId,
+        body: seedBody,
+        createdAt: now,
+      },
+    ],
+  };
+
+  writeThreads([thread, ...readThreads()]);
+  return thread;
+}
+
 /** Default demo crew lead when messaging as that role. */
 export const DEFAULT_CREW_LEAD_PERSON_ID = "alex-rivera";
+
+export const OPS_CREW_LEADS_THREAD_ID = "group-ops-leads";
+
+/**
+ * Post a reschedule request to the Ops · Crew leads group for a past-due company.
+ */
+export function notifyOpsToReschedule(opts: {
+  companyName: string;
+  overdueCount: number;
+  overdueBalance: number;
+  maxDaysOverdue: number;
+  fromPersonId?: string;
+}): ChatThread {
+  const fromId = opts.fromPersonId ?? "manager";
+  const body = [
+    `Please reschedule work for ${opts.companyName}.`,
+    `${opts.overdueCount} unpaid invoice${opts.overdueCount === 1 ? "" : "s"} · $${opts.overdueBalance.toFixed(2)} · ${opts.maxDaysOverdue} days late.`,
+    "Hold visits until payment clears.",
+  ].join("\n");
+
+  const threads = readThreads();
+  const idx = threads.findIndex((t) => t.id === OPS_CREW_LEADS_THREAD_ID);
+  const now = new Date().toISOString();
+  const msg: ChatMessage = {
+    id: `msg-${Date.now()}`,
+    authorId: fromId,
+    body,
+    createdAt: now,
+  };
+
+  if (idx >= 0) {
+    const next: ChatThread = {
+      ...threads[idx],
+      messages: [...threads[idx].messages, msg],
+      preview: body.split("\n")[0] ?? body,
+      updatedAt: now,
+      companyName: opts.companyName,
+    };
+    threads[idx] = next;
+    writeThreads(threads);
+    return next;
+  }
+
+  const thread: ChatThread = {
+    id: OPS_CREW_LEADS_THREAD_ID,
+    category: "group",
+    title: "Ops · Crew leads",
+    preview: body.split("\n")[0] ?? body,
+    authorId: fromId,
+    participantIds: ["manager", "alex-rivera", "taylor-brooks", "sam-ortiz"],
+    createdAt: now,
+    updatedAt: now,
+    companyName: opts.companyName,
+    messages: [msg],
+  };
+  writeThreads([thread, ...threads]);
+  return thread;
+}
+
+/** Deep-link into Chat with the Ops group selected after a reschedule notify. */
+export function chatHrefForOpsReschedule(companyName: string): string {
+  const params = new URLSearchParams({
+    thread: OPS_CREW_LEADS_THREAD_ID,
+    company: companyName,
+  });
+  return `/chat?${params.toString()}`;
+}
 
 /** Build a Chat deep-link to message a crew lead about a concern. */
 export function chatHrefForCrewLead(opts: {
@@ -407,6 +554,48 @@ export function chatHrefForCrewLead(opts: {
     job: opts.jobLabel,
     company: opts.companyName,
     concern: opts.concernLabel,
+  });
+  return `/chat?${params.toString()}`;
+}
+
+/** Build a Chat deep-link for low-stock material reorder requests. */
+export function chatHrefForInventoryReorder(
+  items: Array<{
+    name: string;
+    quantity_on_hand: number;
+    par_level: number;
+    unit: string;
+  }>
+): string {
+  const lines = items.map((item) => {
+    const pct =
+      item.par_level > 0
+        ? ((item.quantity_on_hand / item.par_level) * 100).toFixed(0)
+        : "0";
+    const suggested = Math.max(
+      0,
+      Math.ceil(item.par_level - item.quantity_on_hand)
+    );
+    return `• ${item.name} — ${item.quantity_on_hand} ${item.unit} on hand (${pct}% of par ${item.par_level}); suggest ordering ~${suggested} ${item.unit}`;
+  });
+
+  const title =
+    items.length === 1
+      ? `Reorder materials: ${items[0].name}`
+      : `Materials reorder needed (${items.length} items)`;
+
+  const body = [
+    "The following materials are at or below 25% of par level and should be reordered:",
+    "",
+    ...lines,
+    "",
+    "Please confirm vendor, timing, and budget so we can restock before crews run short.",
+  ].join("\n");
+
+  const params = new URLSearchParams({
+    composeTitle: title,
+    composeBody: body,
+    composeCategory: "announcement",
   });
   return `/chat?${params.toString()}`;
 }

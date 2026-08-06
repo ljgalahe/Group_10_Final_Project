@@ -104,6 +104,39 @@ export async function approveExtraWork(formData: FormData): Promise<void> {
   revalidatePath(`/contracts/${order.contract_id}`);
 }
 
+export async function declineExtraWork(formData: FormData): Promise<void> {
+  const extraWorkId = formData.get("extra_work_id") as string;
+  const role = await getViewRole();
+  const supabase = await createDataClient();
+  const { data: order, error } = await supabase
+    .from("extra_work_orders")
+    .update({
+      status: "declined",
+      approved_at: null,
+    })
+    .eq("id", extraWorkId)
+    .select("id, contract_id, title, quoted_amount")
+    .single();
+
+  if (error || !order) return;
+
+  if (role === "accountant") {
+    await supabase.from("contract_audit_logs").insert({
+      contract_id: order.contract_id,
+      action: "change_order_declined",
+      actor_role: role,
+      details: {
+        extra_work_id: order.id,
+        title: order.title,
+        quoted_amount: order.quoted_amount,
+      },
+    });
+  }
+
+  revalidatePath("/contracts");
+  revalidatePath(`/contracts/${order.contract_id}`);
+}
+
 export type ScopeCreepAction = "change_order" | "renewal" | "goodwill";
 
 export async function markScopeCreepAction(
@@ -165,22 +198,23 @@ export async function markScopeCreepAction(
 
 export async function generateInvoice(formData: FormData): Promise<void> {
   const role = await getViewRole();
+  if (role !== "accountant") {
+    return;
+  }
   const contractId = formData.get("contract_id") as string;
   const supabase = await createDataClient();
 
   // Internal control (accountant contracts): no invoice until visits are complete
-  if (role === "accountant") {
-    const { data: openVisits } = await supabase
-      .from("service_visits")
-      .select("id")
-      .eq("contract_id", contractId)
-      .eq("status", "scheduled");
+  const { data: openVisits } = await supabase
+    .from("service_visits")
+    .select("id")
+    .eq("contract_id", contractId)
+    .eq("status", "scheduled");
 
-    if ((openVisits?.length ?? 0) > 0) {
-      redirect(
-        `/contracts/${contractId}?invoiceError=incomplete_visits&openVisits=${openVisits?.length ?? 0}`
-      );
-    }
+  if ((openVisits?.length ?? 0) > 0) {
+    redirect(
+      `/contracts/${contractId}?invoiceError=incomplete_visits&openVisits=${openVisits?.length ?? 0}`
+    );
   }
 
   const { data: contract } = await supabase
@@ -253,14 +287,12 @@ export async function generateInvoice(formData: FormData): Promise<void> {
     );
   }
 
-  if (role === "accountant") {
-    await supabase.from("contract_audit_logs").insert({
-      contract_id: contractId,
-      action: "invoice_generated",
-      actor_role: role,
-      details: { invoice_id: invoice.id, invoice_number: invoiceNumber },
-    });
-  }
+  await supabase.from("contract_audit_logs").insert({
+    contract_id: contractId,
+    action: "invoice_generated",
+    actor_role: role,
+    details: { invoice_id: invoice.id, invoice_number: invoiceNumber },
+  });
 
   revalidatePath("/invoices");
   revalidatePath("/reports/ar-aging");
@@ -425,7 +457,7 @@ export async function approveContractChangeRequest(
   formData: FormData
 ): Promise<void> {
   const role = await getViewRole();
-  if (!roleCanEditContractDetails(role)) {
+  if (role !== "manager" && role !== "accountant") {
     return;
   }
 
@@ -466,17 +498,16 @@ export async function approveContractChangeRequest(
     .update({
       status: "approved",
       reviewed_at: new Date().toISOString(),
-      reviewed_by_role: "manager",
+      reviewed_by_role: role,
     })
     .eq("id", requestId);
 
   await supabase.from("contract_audit_logs").insert({
     contract_id: request.contract_id,
     action: "edit_approved_by_manager",
-    actor_role: "manager",
+    actor_role: role,
     details: {
       request_id: requestId,
-      applied_by_demo_role: role,
       proposedContract,
       proposedCustomer,
     },
@@ -492,7 +523,7 @@ export async function rejectContractChangeRequest(
   formData: FormData
 ): Promise<void> {
   const role = await getViewRole();
-  if (!roleCanEditContractDetails(role)) {
+  if (role !== "manager" && role !== "accountant") {
     return;
   }
 
@@ -504,7 +535,7 @@ export async function rejectContractChangeRequest(
     .update({
       status: "rejected",
       reviewed_at: new Date().toISOString(),
-      reviewed_by_role: "manager",
+      reviewed_by_role: role,
     })
     .eq("id", requestId)
     .eq("status", "pending")
@@ -516,8 +547,8 @@ export async function rejectContractChangeRequest(
   await supabase.from("contract_audit_logs").insert({
     contract_id: request.contract_id,
     action: "edit_rejected_by_manager",
-    actor_role: "manager",
-    details: { request_id: requestId, applied_by_demo_role: role },
+    actor_role: role,
+    details: { request_id: requestId },
   });
 
   revalidatePath("/contracts");
@@ -967,4 +998,308 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
   revalidatePath("/invoices");
   revalidatePath("/dashboard");
   revalidatePath("/profile");
+}
+
+/** Persist hub actions on the related contract notes (invoices have no notes column in v1). */
+async function appendInvoiceNote(
+  invoiceId: string,
+  line: string
+): Promise<{ ok: boolean; message: string }> {
+  const supabase = await createDataClient();
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("id, invoice_number, contract_id, contracts(id, notes)")
+    .eq("id", invoiceId)
+    .single();
+
+  if (!invoice) {
+    return { ok: false, message: "Invoice not found." };
+  }
+
+  const contract = invoice.contracts as
+    | { id: string; notes: string | null }
+    | { id: string; notes: string | null }[]
+    | null;
+  const contractRow = Array.isArray(contract) ? contract[0] : contract;
+  if (!contractRow) {
+    return { ok: false, message: "Contract not found for invoice." };
+  }
+
+  const tagged = `[${invoice.invoice_number}] ${line}`;
+  const nextNotes = contractRow.notes
+    ? `${contractRow.notes}\n${tagged}`
+    : tagged;
+
+  const { error } = await supabase
+    .from("contracts")
+    .update({ notes: nextNotes })
+    .eq("id", invoice.contract_id);
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath(`/contracts/${invoice.contract_id}`);
+  return { ok: true, message: "Saved." };
+}
+
+export async function createDraftInvoice(
+  contractId: string
+): Promise<{ ok: boolean; message: string; invoiceId?: string }> {
+  const role = await getViewRole();
+  if (role !== "accountant") {
+    return { ok: false, message: "Only accountants can create invoices." };
+  }
+
+  const supabase = await createDataClient();
+
+  const { data: contract } = await supabase
+    .from("contracts")
+    .select("*, customers(*)")
+    .eq("id", contractId)
+    .single();
+
+  if (!contract) {
+    return { ok: false, message: "Contract not found." };
+  }
+
+  const { count } = await supabase
+    .from("invoices")
+    .select("*", { count: "exact", head: true });
+
+  const invoiceNumber = `INV-${String((count ?? 0) + 1).padStart(4, "0")}`;
+  const issueDate = new Date();
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 30);
+
+  const amount = Number(contract.monthly_fee ?? 0);
+  const { data: invoice, error } = await supabase
+    .from("invoices")
+    .insert({
+      contract_id: contractId,
+      customer_id: contract.customer_id,
+      invoice_number: invoiceNumber,
+      issue_date: issueDate.toISOString().slice(0, 10),
+      due_date: dueDate.toISOString().slice(0, 10),
+      status: "draft",
+      subtotal: amount,
+      total: amount,
+      amount_paid: 0,
+    })
+    .select()
+    .single();
+
+  if (error || !invoice) {
+    return { ok: false, message: error?.message ?? "Could not create draft." };
+  }
+
+  if (amount > 0) {
+    await supabase.from("invoice_lines").insert({
+      invoice_id: invoice.id,
+      description: `Monthly maintenance — ${contract.title}`,
+      amount,
+      line_type: "recurring",
+    });
+  }
+
+  const stamp = issueDate.toISOString().slice(0, 10);
+  const draftNote = `[${invoiceNumber}] [${stamp}] Draft created from Invoice Management.`;
+  const nextNotes = contract.notes
+    ? `${contract.notes}\n${draftNote}`
+    : draftNote;
+  await supabase
+    .from("contracts")
+    .update({ notes: nextNotes })
+    .eq("id", contractId);
+
+  revalidatePath("/invoices");
+  revalidatePath(`/contracts/${contractId}`);
+  return {
+    ok: true,
+    message: `Draft ${invoiceNumber} created.`,
+    invoiceId: invoice.id,
+  };
+}
+
+export async function markInvoiceReviewed(
+  invoiceId: string
+): Promise<{ ok: boolean; message: string }> {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const result = await appendInvoiceNote(
+    invoiceId,
+    `[${stamp}] Manager reviewed invoice.`
+  );
+  return result.ok
+    ? { ok: true, message: "Marked as reviewed." }
+    : result;
+}
+
+export async function approveInvoice(
+  invoiceId: string
+): Promise<{ ok: boolean; message: string }> {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const result = await appendInvoiceNote(
+    invoiceId,
+    `[${stamp}] Invoice APPROVED by manager.`
+  );
+  return result.ok
+    ? { ok: true, message: "Invoice approved." }
+    : result;
+}
+
+export async function rejectInvoice(
+  invoiceId: string,
+  reason?: string
+): Promise<{ ok: boolean; message: string }> {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const detail = reason?.trim() ? ` Reason: ${reason.trim()}` : "";
+  const result = await appendInvoiceNote(
+    invoiceId,
+    `[${stamp}] Invoice REJECTED by manager.${detail}`
+  );
+  return result.ok
+    ? { ok: true, message: "Invoice rejected." }
+    : result;
+}
+
+export async function sendInvoice(
+  invoiceId: string
+): Promise<{ ok: boolean; message: string }> {
+  const { buildManagerInvoiceRow, invoiceSendBlockReason } = await import(
+    "@/lib/invoice-controls"
+  );
+  const supabase = await createDataClient();
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("*, customers(name, address), contracts(title), invoice_lines(*)")
+    .eq("id", invoiceId)
+    .single();
+
+  if (!invoice) {
+    return { ok: false, message: "Invoice not found." };
+  }
+
+  const row = buildManagerInvoiceRow(invoice);
+  const block = invoiceSendBlockReason(row);
+  if (block) {
+    return { ok: false, message: block };
+  }
+
+  const { error } = await supabase
+    .from("invoices")
+    .update({ status: "sent" })
+    .eq("id", invoiceId);
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  await appendInvoiceNote(invoiceId, `[${stamp}] Invoice sent to customer.`);
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/reports/ar-aging");
+  return { ok: true, message: "Invoice sent." };
+}
+
+export async function addUnbilledWorkToInvoice(input: {
+  invoiceId?: string;
+  contractId: string;
+  description: string;
+  amount: number;
+  unbilledId?: string;
+}): Promise<{ ok: boolean; message: string; invoiceId?: string }> {
+  const supabase = await createDataClient();
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, message: "Invalid amount." };
+  }
+
+  let invoiceId = input.invoiceId;
+
+  if (!invoiceId) {
+    const created = await createDraftInvoice(input.contractId);
+    if (!created.ok || !created.invoiceId) {
+      return { ok: false, message: created.message };
+    }
+    invoiceId = created.invoiceId;
+  }
+
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("id", invoiceId)
+    .single();
+
+  if (!invoice) {
+    return { ok: false, message: "Invoice not found." };
+  }
+
+  const { error: lineError } = await supabase.from("invoice_lines").insert({
+    invoice_id: invoiceId,
+    description: input.description,
+    amount,
+    line_type: "extra_work",
+  });
+
+  if (lineError) {
+    return { ok: false, message: lineError.message };
+  }
+
+  const newTotal = Number(invoice.total) + amount;
+  await supabase
+    .from("invoices")
+    .update({
+      subtotal: Number(invoice.subtotal) + amount,
+      total: newTotal,
+    })
+    .eq("id", invoiceId);
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  const noteTag = input.unbilledId ? ` (${input.unbilledId})` : "";
+  await appendInvoiceNote(
+    invoiceId,
+    `[${stamp}] Added unbilled work${noteTag}: ${input.description} — $${amount.toFixed(2)}`
+  );
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoiceId}`);
+  return {
+    ok: true,
+    message: "Unbilled work added to invoice.",
+    invoiceId,
+  };
+}
+
+export async function recordPaymentPromise(input: {
+  invoiceId: string;
+  amount: number;
+  promisedDate: string;
+  contact: string;
+  notes?: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const line = `[${stamp}] PAYMENT_PROMISE amount=${input.amount} date=${input.promisedDate} contact=${input.contact}${input.notes ? ` notes=${input.notes}` : ""}`;
+  const result = await appendInvoiceNote(input.invoiceId, line);
+  return result.ok
+    ? { ok: true, message: "Payment promise recorded." }
+    : result;
+}
+
+export async function resolveInvoiceException(
+  invoiceId: string,
+  resolution: string
+): Promise<{ ok: boolean; message: string }> {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const detail = resolution.trim() || "Resolved";
+  const result = await appendInvoiceNote(
+    invoiceId,
+    `[${stamp}] EXCEPTION_RESOLVED: ${detail}`
+  );
+  return result.ok
+    ? { ok: true, message: "Exception marked resolved." }
+    : result;
 }

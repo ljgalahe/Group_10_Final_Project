@@ -12,8 +12,10 @@ import {
 
 export function ContractCompletionChart({
   progressList,
+  showCompanyFilter = true,
 }: {
   progressList: ContractProgress[];
+  showCompanyFilter?: boolean;
 }) {
   const [company, setCompany] = useState("overall");
 
@@ -24,32 +26,34 @@ export function ContractCompletionChart({
   }, [progressList]);
 
   const filtered = useMemo(() => {
-    if (company === "overall") return progressList;
+    if (!showCompanyFilter || company === "overall") return progressList;
     return progressList.filter((p) => p.customerName === company);
-  }, [progressList, company]);
+  }, [progressList, company, showCompanyFilter]);
 
   const portfolio = portfolioSummary(filtered);
   const single = filtered.length === 1 ? filtered[0] : null;
 
   return (
     <div>
-      <label className="block text-sm text-stone-600">
-        Filter by company
-        <select
-          className="mt-1 block w-full max-w-md rounded-md border border-stone-300 bg-white px-3 py-2 text-stone-900"
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-        >
-          <option value="overall">Overall — all companies</option>
-          {companies.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
+      {showCompanyFilter ? (
+        <label className="block text-sm text-stone-600">
+          Filter by company
+          <select
+            className="mt-1 block w-full max-w-md rounded-md border border-stone-300 bg-white px-3 py-2 text-stone-900"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+          >
+            <option value="overall">Overall — all companies</option>
+            {companies.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
-      <div className="mt-6">
+      <div className={showCompanyFilter ? "mt-6" : undefined}>
         {filtered.length === 0 ? (
           <p className="text-sm text-stone-500">No contracts for this company.</p>
         ) : single ? (

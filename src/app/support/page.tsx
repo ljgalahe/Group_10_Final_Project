@@ -9,6 +9,7 @@ import { requireAppAccess } from "@/lib/auth-access";
 import { getViewRole } from "@/lib/demo-role";
 import { formatDate } from "@/lib/format";
 import { fetchAllSupportRequests } from "@/lib/queries";
+import { supportPhotoPublicUrl } from "@/lib/support-photos";
 import { SUPPORT_CATEGORIES } from "@/lib/types";
 
 const STATUS_OPTIONS = ["Open", "In Progress", "Resolved"] as const;
@@ -40,7 +41,7 @@ export default async function CustomerSupportPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  if (role !== "manager") {
+  if (role !== "operations") {
     redirect("/dashboard");
   }
 
@@ -51,7 +52,7 @@ export default async function CustomerSupportPage({
     <AppShell>
       <PageHeader
         title="Customer Support"
-        description="Review customer questions, concerns, complaints, billing disputes, and renewal requests. Service quote requests are handled by Operations."
+        description="Review customer questions, concerns, complaints, billing disputes, and renewal requests."
       />
 
       {params.updated === "1" ? (
@@ -112,6 +113,20 @@ export default async function CustomerSupportPage({
                 <p className="mt-4 rounded-lg bg-stone-50 p-3 text-sm text-stone-700">
                   {req.message}
                 </p>
+
+                {supportPhotoPublicUrl(req.photo_path) ? (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                      Customer photo
+                    </p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={supportPhotoPublicUrl(req.photo_path)!}
+                      alt={`Photo for ${req.customer_name} support request`}
+                      className="mt-2 max-h-64 w-full max-w-md rounded-lg border border-stone-200 object-contain bg-stone-50"
+                    />
+                  </div>
+                ) : null}
 
                 <div className="mt-4 flex flex-col gap-3 border-t border-stone-100 pt-4">
                   <form

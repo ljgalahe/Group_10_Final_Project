@@ -1,4 +1,43 @@
-import type { ReactNode } from "react";
+import { formatStatusLabel, normalizeStatusKey } from "@/lib/status-labels";
+
+export function SectionMark({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <p className={`gs-mark ${className}`}>{children}</p>;
+}
+
+export function SectionHeading({
+  mark,
+  title,
+  italic,
+  description,
+  action,
+}: {
+  mark?: string;
+  title: string;
+  /** @deprecated Prefer description for readable help text */
+  italic?: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
+  const help = description ?? italic;
+  return (
+    <div className="gs-section-head flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0 max-w-2xl">
+        {mark ? <SectionMark className="mb-1">{mark}</SectionMark> : null}
+        <h3 className="font-display text-xl font-semibold tracking-tight text-green-950 sm:text-2xl">
+          {title}
+        </h3>
+        {help ? <p className="gs-help">{help}</p> : null}
+      </div>
+      {action}
+    </div>
+  );
+}
 
 export function StatCard({
   label,
@@ -15,19 +54,21 @@ export function StatCard({
 }) {
   return (
     <div
-      className={`rounded-xl border border-stone-200 bg-white shadow-sm ${
-        compact ? "p-4" : "p-5"
+      className={`border border-stone-200 bg-white ${
+        compact ? "p-3.5" : "px-4 py-4"
       }`}
     >
-      <p className="text-sm font-medium text-stone-500">{label}</p>
+      <p className="gs-mark">{label}</p>
       <p
-        className={`mt-1 font-bold ${valueClassName ?? "text-green-900"} ${
-          compact ? "text-xl leading-snug" : "mt-2 text-3xl"
-        }`}
+        className={`gs-metric-value mt-1.5 text-green-950 ${
+          compact ? "text-xl leading-snug" : "text-[1.65rem] leading-none"
+        } ${valueClassName ?? ""}`}
       >
         {value}
       </p>
-      {hint ? <p className="mt-1 text-xs text-stone-400">{hint}</p> : null}
+      {hint ? (
+        <p className="mt-1.5 text-xs leading-relaxed text-stone-600">{hint}</p>
+      ) : null}
     </div>
   );
 }
@@ -35,19 +76,22 @@ export function StatCard({
 export function PageHeader({
   title,
   description,
+  kicker,
   action,
 }: {
   title: string;
   description?: string;
+  kicker?: string;
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 className="text-3xl font-bold text-green-950">{title}</h1>
-        {description ? (
-          <p className="mt-2 max-w-2xl text-stone-600">{description}</p>
-        ) : null}
+    <div className="gs-page-header gs-reveal flex flex-wrap items-end justify-between gap-4">
+      <div className="max-w-2xl">
+        {kicker ? <SectionMark className="mb-1.5">{kicker}</SectionMark> : null}
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-green-950 sm:text-4xl">
+          {title}
+        </h1>
+        {description ? <p className="gs-help mt-2">{description}</p> : null}
       </div>
       {action}
     </div>
@@ -55,56 +99,67 @@ export function PageHeader({
 }
 
 export function StatusBadge({ status }: { status: string }) {
+  const key = normalizeStatusKey(status);
   const colors: Record<string, string> = {
-    active: "bg-green-100 text-green-800",
-    retired: "bg-stone-200 text-stone-700",
-    draft: "bg-gray-100 text-gray-800",
-    sent: "bg-blue-100 text-blue-800",
-    paid: "bg-green-100 text-green-800",
-    overdue: "bg-red-100 text-red-800",
-    past_due: "bg-red-100 text-red-800",
-    partially_paid: "bg-amber-100 text-amber-900",
-    partial: "bg-amber-100 text-amber-900",
-    canceled: "bg-stone-200 text-stone-700",
-    voided: "bg-stone-200 text-stone-700",
-    applied: "bg-green-100 text-green-800",
-    void: "bg-stone-200 text-stone-700",
-    disputed: "bg-orange-100 text-orange-900",
-    open: "bg-blue-100 text-blue-800",
-    "in progress": "bg-yellow-100 text-yellow-800",
-    resolved: "bg-green-100 text-green-800",
-    scheduled: "bg-yellow-100 text-yellow-800",
-    on_hold: "bg-red-100 text-red-800",
-    "service hold": "bg-red-100 text-red-800",
-    completed: "bg-green-100 text-green-800",
-    cancelled: "bg-gray-100 text-gray-800",
-    rescheduled: "bg-orange-100 text-orange-800",
-    closed: "bg-stone-200 text-stone-800",
-    approved: "bg-green-100 text-green-800",
-    quoted: "bg-purple-100 text-purple-800",
-    routine: "bg-stone-100 text-stone-700",
-    high: "bg-amber-100 text-amber-900",
-    emergency: "bg-red-100 text-red-800",
-    seasonal: "bg-blue-100 text-blue-800",
-    pending: "bg-amber-100 text-amber-900",
-    waiting_for_approval: "bg-amber-100 text-amber-900",
-    changes_requested: "bg-orange-100 text-orange-900",
-    current: "bg-green-100 text-green-800",
-    expiring: "bg-amber-100 text-amber-900",
-    expired: "bg-red-100 text-red-800",
-    controls_breached: "bg-red-100 text-red-800",
-    unprofitable: "bg-red-100 text-red-800",
-    ready: "bg-amber-100 text-amber-900",
-    posted: "bg-green-100 text-green-800",
+    active: "gs-complete-badge",
+    retired: "border-stone-400 text-stone-600",
+    draft: "border-stone-400 text-stone-600",
+    upcoming: "border-sky-700/40 text-sky-950",
+    sent: "border-stone-500 text-stone-800",
+    due_now: "border-amber-800/40 text-amber-950",
+    paid: "gs-complete-badge",
+    overdue: "border-red-800/50 text-red-900",
+    past_due: "border-red-800/50 text-red-900",
+    partially_paid: "border-amber-800/40 text-amber-950",
+    partial: "border-amber-800/40 text-amber-950",
+    canceled: "border-stone-400 text-stone-600",
+    voided: "border-stone-400 text-stone-600",
+    applied: "gs-complete-badge",
+    unapplied: "border-amber-800/40 text-amber-950",
+    void: "border-stone-400 text-stone-600",
+    disputed: "border-orange-800/40 text-orange-950",
+    open: "border-stone-500 text-stone-800",
+    "in progress": "border-amber-800/40 text-amber-950",
+    resolved: "gs-complete-badge",
+    scheduled: "border-amber-800/40 text-amber-950",
+    on_hold: "border-red-800/50 text-red-900",
+    "service hold": "border-red-800/50 text-red-900",
+    completed: "gs-complete-badge",
+    cancelled: "border-stone-400 text-stone-600",
+    rescheduled: "border-orange-800/40 text-orange-950",
+    closed: "border-stone-400 text-stone-600",
+    approved: "gs-complete-badge",
+    quoted: "border-champagne text-stone-800",
+    routine: "border-stone-400 text-stone-600",
+    high: "border-amber-800/40 text-amber-950",
+    emergency: "border-red-800/50 text-red-900",
+    seasonal: "border-stone-500 text-stone-800",
+    pending: "border-amber-800/40 text-amber-950",
+    waiting_for_approval: "border-amber-800/40 text-amber-950",
+    pending_manager_approval: "border-amber-800/40 text-amber-950",
+    pending_customer: "border-amber-800/40 text-amber-950",
+    needs_review_and_signature: "border-amber-800/40 text-amber-950",
+    needs_scheduling: "border-amber-800/40 text-amber-950",
+    survey_scheduled: "border-sky-700/40 text-sky-950",
+    budgeted: "border-stone-500 text-stone-800",
+    new: "border-stone-500 text-stone-800",
+    changes_requested: "border-orange-800/40 text-orange-950",
+    current: "gs-complete-badge",
+    expiring: "border-amber-800/40 text-amber-950",
+    expired: "border-red-800/50 text-red-900",
+    controls_breached: "border-red-800/50 text-red-900",
+    unprofitable: "border-red-800/50 text-red-900",
+    ready: "border-amber-800/40 text-amber-950",
+    posted: "gs-complete-badge",
+    ok: "gs-complete-badge",
+    "low stock": "border-amber-800/40 text-amber-950",
   };
 
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[status] ?? "bg-gray-100 text-gray-800"}`}
+      className={`inline-flex border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${colors[key] ?? "border-stone-400 bg-transparent text-stone-700"}`}
     >
-      {status
-        .replaceAll("_", " ")
-        .replace(/\b\w/g, (char) => char.toUpperCase())}
+      {formatStatusLabel(status)}
     </span>
   );
 }
@@ -112,11 +167,11 @@ export function StatusBadge({ status }: { status: string }) {
 export function EmptyState({
   message,
 }: {
-  message: ReactNode;
+  message: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-stone-300 bg-white p-10 text-center text-stone-500">
-      {message}
+    <div className="border border-dashed border-stone-300 bg-white px-6 py-10 text-center">
+      <p className="gs-help mx-auto">{message}</p>
     </div>
   );
 }
@@ -131,10 +186,7 @@ export function Card({
   id?: string;
 }) {
   return (
-    <div
-      id={id}
-      className={`rounded-xl border border-stone-200 bg-white p-6 shadow-sm ${className}`}
-    >
+    <div id={id} className={`gs-section-panel ${className}`}>
       {children}
     </div>
   );

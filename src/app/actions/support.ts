@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createDataClient } from "@/lib/auth-access";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
+import { uploadSupportPhoto } from "@/lib/support-photos";
 import type { SupportCategory, SupportLinkType } from "@/lib/types";
 
 const CATEGORIES = new Set<SupportCategory>([
@@ -29,6 +30,7 @@ export async function submitSupportRequest(
   const categoryRaw = (formData.get("category") as string) || "";
   const message = ((formData.get("message") as string) || "").trim();
   const linkedRaw = ((formData.get("linked_record") as string) || "").trim();
+  const photo = formData.get("photo");
 
   if (!CATEGORIES.has(categoryRaw as SupportCategory) || !message) {
     redirect("/contact?error=invalid");
@@ -48,6 +50,15 @@ export async function submitSupportRequest(
     }
   }
 
+  let photo_path: string | null = null;
+  if (photo instanceof File && photo.size > 0) {
+    const uploaded = await uploadSupportPhoto(customerId, photo);
+    if (uploaded.error) {
+      redirect(`/contact?error=${encodeURIComponent(uploaded.error)}`);
+    }
+    photo_path = uploaded.path;
+  }
+
   const supabase = await createDataClient();
   await supabase.from("support_requests").insert({
     customer_id: customerId,
@@ -55,6 +66,7 @@ export async function submitSupportRequest(
     message,
     linked_type,
     linked_id,
+    photo_path,
     status: "Open",
   });
 
@@ -69,7 +81,7 @@ export async function updateSupportRequestStatus(
   formData: FormData
 ): Promise<void> {
   const role = await getViewRole();
-  if (role !== "manager") {
+  if (role !== "operations") {
     redirect("/dashboard");
   }
 
@@ -100,7 +112,7 @@ export async function updateSupportRequestStatus(
 
 export async function markInvoiceDisputed(formData: FormData): Promise<void> {
   const role = await getViewRole();
-  if (role !== "manager") {
+  if (role !== "operations") {
     redirect("/dashboard");
   }
 

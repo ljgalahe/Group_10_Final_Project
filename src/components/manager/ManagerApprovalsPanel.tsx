@@ -226,7 +226,7 @@ export function ManagerApprovalsPanel({
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         decision === "approved"
-                          ? "bg-green-100 text-green-800"
+                          ? "gs-complete-badge"
                           : decision === "on_hold"
                             ? "bg-amber-100 text-amber-900"
                             : "bg-rose-100 text-rose-900"
@@ -249,7 +249,7 @@ export function ManagerApprovalsPanel({
                       onClick={() =>
                         setConcernStatus(concern.visitId, "approved")
                       }
-                      className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                      className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
                     >
                       Approve & clear
                     </button>
@@ -334,7 +334,7 @@ export function ManagerApprovalsPanel({
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         request.status === "approved"
-                          ? "bg-green-100 text-green-800"
+                          ? "gs-complete-badge"
                           : request.status === "declined"
                             ? "bg-red-100 text-red-800"
                             : "bg-amber-100 text-amber-900"
@@ -350,7 +350,7 @@ export function ManagerApprovalsPanel({
                         onClick={() =>
                           setExtraRequestStatus(request.id, "approved")
                         }
-                        className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                        className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
                       >
                         Approve
                       </button>
@@ -401,7 +401,7 @@ export function ManagerApprovalsPanel({
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         note.status === "approved"
-                          ? "bg-green-100 text-green-800"
+                          ? "gs-complete-badge"
                           : note.status === "declined"
                             ? "bg-red-100 text-red-800"
                             : "bg-amber-100 text-amber-900"
@@ -418,7 +418,7 @@ export function ManagerApprovalsPanel({
                         onClick={() =>
                           setVisitNoteStatus(note.jobId, note.id, "approved")
                         }
-                        className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                        className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
                       >
                         Approve
                       </button>

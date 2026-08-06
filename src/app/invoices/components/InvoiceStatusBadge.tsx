@@ -1,18 +1,27 @@
-import { formatInvoiceStatus, getDisplayInvoiceStatus } from "@/app/invoices/lib/accounting";
+"use client";
+
+import {
+  formatInvoiceStatus,
+  getDisplayInvoiceStatus,
+  type DisplayInvoiceStatus,
+} from "@/app/invoices/lib/accounting";
 
 const colors: Record<string, string> = {
-  draft: "bg-stone-100 text-stone-700",
-  approved: "bg-indigo-100 text-indigo-800",
-  sent: "bg-blue-100 text-blue-800",
-  partially_paid: "bg-amber-100 text-amber-900",
-  paid: "bg-green-100 text-green-800",
-  past_due: "bg-red-100 text-red-800",
-  voided: "bg-stone-200 text-stone-500 line-through",
-  disputed: "bg-orange-100 text-orange-900",
+  draft: "border-stone-300 bg-stone-100 text-stone-700",
+  approved: "gs-complete-badge",
+  sent: "border-sky-200 bg-sky-100 text-sky-900",
+  partially_paid: "border-amber-200 bg-amber-100 text-amber-900",
+  paid: "gs-complete-badge",
+  past_due: "border-red-200 bg-red-100 text-red-800",
+  overdue: "border-red-200 bg-red-100 text-red-800",
+  voided: "border-stone-300 bg-stone-200 text-stone-500 line-through",
+  disputed: "border-orange-200 bg-orange-100 text-orange-900",
 };
 
 export function InvoiceStatusBadge({
   invoice,
+  asOfDate,
+  displayStatus: displayStatusProp,
 }: {
   invoice: {
     status: string;
@@ -20,11 +29,18 @@ export function InvoiceStatusBadge({
     amount_paid: number;
     due_date: string;
   };
+  /** YYYY-MM-DD from the server so SSR and client match. */
+  asOfDate?: string;
+  displayStatus?: DisplayInvoiceStatus | string;
 }) {
-  const displayStatus = getDisplayInvoiceStatus(invoice);
+  const asOf = asOfDate
+    ? new Date(asOfDate + "T12:00:00")
+    : new Date();
+  const displayStatus =
+    displayStatusProp ?? getDisplayInvoiceStatus(invoice, asOf);
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[displayStatus] ?? "bg-gray-100 text-gray-800"}`}
+      className={`inline-flex border rounded-md px-2.5 py-0.5 text-xs font-medium ${colors[displayStatus] ?? "border-stone-300 bg-stone-100 text-stone-800"}`}
     >
       {formatInvoiceStatus(displayStatus)}
     </span>

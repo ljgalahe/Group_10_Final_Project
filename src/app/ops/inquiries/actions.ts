@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
+import { SERVICE_LABELS } from "@/lib/commercial-services";
 import {
   getViewRole,
   roleCanViewInquiriesInbox,
 } from "@/lib/demo-role";
+import { relatedContractIdFromMessage } from "@/lib/inquiry-customer";
 import { catalogSnapshotForAcres } from "@/lib/service-pricing";
 
 const INQUIRY_STATUSES = new Set([
@@ -20,8 +22,10 @@ const INQUIRY_STATUSES = new Set([
 const PROPERTY_LABELS: Record<string, string> = {
   office_park: "Office Park",
   retail_center: "Retail Center",
+  hospitality: "Hotel / Hospitality",
+  institutional: "Campus / Science & Cultural",
   industrial: "Industrial",
-  multifamily: "Multifamily",
+  multifamily: "Residential Community",
   other: "Other",
 };
 
@@ -90,6 +94,20 @@ export async function scheduleInquirySiteSurvey(formData: FormData) {
     String(inquiry.company_name).includes("Lakeside")
   ) {
     customerId = "11111111-1111-1111-1111-111111111101";
+  }
+  // Existing-client inquiry message may reference a related contract.
+  if (!customerId) {
+    const relatedId = relatedContractIdFromMessage(
+      inquiry.message as string | null
+    );
+    if (relatedId) {
+      const { data: related } = await supabase
+        .from("contracts")
+        .select("customer_id")
+        .eq("id", relatedId)
+        .maybeSingle();
+      customerId = related?.customer_id ?? null;
+    }
   }
   if (!customerId) {
     const propertyLabel =

@@ -5,14 +5,19 @@ import {
   InvoiceStatusFilter,
   type InvoiceStatusFilterValue,
 } from "@/components/InvoiceStatusFilter";
+import { InvoicesDashboard } from "@/components/invoices/InvoicesDashboard";
+import { buildInvoiceListItem } from "@/app/invoices/lib/build-invoice-list-item";
 import { CustomerPayButton } from "@/components/customer/CustomerPayButton";
 import { DownloadInvoiceReceiptButton } from "@/components/customer/DownloadInvoiceReceiptButton";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
-import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
+import {
+  getViewCustomerId,
+  getViewRole,
+  roleCanManageBilling,
+} from "@/lib/demo-role";
 import { formatCurrency, formatDate, getDisplayInvoiceStatus } from "@/lib/format";
-import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
-import { invoiceJournalReadyReason } from "@/lib/journal";
+import type { JournalStatus } from "@/lib/journal";
 import {
   fetchCustomerPaymentMethods,
   fetchInvoice,
@@ -20,7 +25,6 @@ import {
   fetchJournalSourceStates,
 } from "@/lib/queries";
 import { getOutstandingBalance } from "@/app/invoices/lib/accounting";
-import { InvoiceStatusBadge } from "@/app/invoices/components/InvoiceStatusBadge";
 import { AddInvoiceButton } from "@/app/invoices/components/AddInvoiceButton";
 import { AccountantPaymentsSection } from "@/app/invoices/components/AccountantPaymentsSection";
 import { fetchContractsForInvoice } from "@/app/invoices/queries";
@@ -90,7 +94,7 @@ function parseStatusFilter(raw?: string): InvoiceStatusFilterValue {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; due?: string }>;
+  searchParams: Promise<{ status?: string }>;
 }) {
   await requireAppAccess();
 
@@ -98,17 +102,31 @@ export default async function InvoicesPage({
   if (role === "crew_member") redirect("/dashboard");
   const isCustomer = role === "customer";
   const isAccountant = role === "accountant";
+  const showAccountantLayout = roleCanManageBilling(role);
   const params = await searchParams;
-  const dueSoonOnly = params.due === "soon";
-  const statusFilter = dueSoonOnly ? "due" : parseStatusFilter(params.status);
-  const { data: invoices } = await fetchInvoices();
-  const journalStates = isAccountant ? await fetchJournalSourceStates() : null;
-  const invoiceJournalStates = journalStates?.invoice ?? new Map();
-  const paymentJournalStates = journalStates?.payment ?? new Map();
-  const accountantPayments = isAccountant
-    ? (await fetchPaymentsForAccountant()).data
-    : [];
-  const contracts = isAccountant ? await fetchContractsForInvoice() : [];
+  const statusFilter = parseStatusFilter(params.status);
+  const [{ data: invoices }, journalStates, contracts, accountantPaymentsResult] =
+    await Promise.all([
+      fetchInvoices(),
+      showAccountantLayout
+        ? fetchJournalSourceStates()
+        : Promise.resolve(null),
+      isAccountant
+        ? fetchContractsForInvoice()
+        : Promise.resolve(
+            [] as Awaited<ReturnType<typeof fetchContractsForInvoice>>
+          ),
+      isAccountant
+        ? fetchPaymentsForAccountant()
+        : Promise.resolve({ data: [] as Awaited<
+            ReturnType<typeof fetchPaymentsForAccountant>
+          >["data"] }),
+    ]);
+  const invoiceJournalStates =
+    journalStates?.invoice ?? new Map<string, JournalStatus | null>();
+  const paymentJournalStates =
+    journalStates?.payment ?? new Map<string, JournalStatus | null>();
+  const accountantPayments = accountantPaymentsResult.data;
   const customerId = isCustomer ? await getViewCustomerId() : null;
   const paymentMethods =
     customerId != null
@@ -123,25 +141,79 @@ export default async function InvoicesPage({
     return new Date(dueDate + "T00:00:00") < today;
   }
 
-  function daysUntilDue(dueDate: string) {
-    const due = new Date(dueDate + "T00:00:00");
-    return Math.floor(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  // Manager / accountant: company filter + status + circle tracker
+  if (!isCustomer) {
+    const asOfDate = new Date().toISOString().slice(0, 10);
+    const listItems = invoices.map((invoice) =>
+      buildInvoiceListItem(
+        {
+          id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          issue_date: invoice.issue_date,
+          due_date: invoice.due_date,
+          total: invoice.total,
+          amount_paid: invoice.amount_paid,
+          status: invoice.status,
+          customers: invoice.customers as { name?: string } | null,
+          contracts: invoice.contracts as { title?: string } | null,
+        },
+        asOfDate
+      )
+    );
+
+    const journalRecord: Record<string, JournalStatus | null> = {};
+    for (const [id, status] of invoiceJournalStates.entries()) {
+      journalRecord[id] = status;
+    }
+
+    return (
+      <AppShell>
+        <PageHeader
+          kicker="Ledger"
+          title="Invoices"
+          description={
+            role === "manager"
+              ? "Invoices from contract terms and approved extra work. Filter by company and status."
+              : "Bills from contract terms and approved extra work."
+          }
+          action={
+            isAccountant ? <AddInvoiceButton contracts={contracts} /> : null
+          }
+        />
+
+        {listItems.length === 0 ? (
+          <EmptyState
+            message={
+              role === "manager"
+                ? "No invoices to review yet."
+                : "No invoices yet. Generate one from a contract detail page."
+            }
+          />
+        ) : (
+          <InvoicesDashboard
+            invoices={listItems}
+            asOfDate={asOfDate}
+            journalStates={journalRecord}
+            showJournal={showAccountantLayout}
+            isAccountant={isAccountant}
+          />
+        )}
+
+        {isAccountant ? (
+          <AccountantPaymentsSection
+            payments={accountantPayments}
+            paymentJournalStates={paymentJournalStates}
+          />
+        ) : null}
+      </AppShell>
     );
   }
 
   const filteredInvoices = invoices
     .filter((invoice) => {
       const balance = Number(invoice.total) - Number(invoice.amount_paid);
-      if (statusFilter === "due") {
-        if (balance <= 0.001) return false;
-      } else if (statusFilter === "paid") {
-        if (balance > 0.001) return false;
-      }
-      if (dueSoonOnly) {
-        const until = daysUntilDue(invoice.due_date);
-        return until >= 0 && until <= 7;
-      }
+      if (statusFilter === "due") return balance > 0.001;
+      if (statusFilter === "paid") return balance <= 0.001;
       return true;
     })
     .sort((a, b) => {
@@ -156,53 +228,20 @@ export default async function InvoicesPage({
       return b.issue_date.localeCompare(a.issue_date);
     });
 
-  const emptyMessage = dueSoonOnly
-    ? "No open invoices are due within the next 7 days."
-    : statusFilter === "due"
-      ? isCustomer
-        ? "No open invoices right now. Switch to Paid to see settled bills."
-        : "No open invoices. Switch to Paid or All invoices to see the rest."
+  const emptyMessage =
+    statusFilter === "due"
+      ? "No open invoices right now. Switch to Paid to see settled bills."
       : statusFilter === "paid"
-        ? isCustomer
-          ? "No paid invoices yet."
-          : "No fully paid invoices found."
-        : isCustomer
-          ? "No invoices for your account yet."
-          : "No invoices yet. Generate one from a contract detail page.";
+        ? "No paid invoices yet."
+        : "No invoices for your account yet.";
 
   return (
     <AppShell>
       <PageHeader
         title="Invoices"
-        description={
-          isCustomer
-            ? "Your bills from GreenScape. Pay open invoices, review payment history, and download PDF receipts after payment."
-            : "Bills generated from contract terms and approved extra work."
-        }
-        action={
-          isAccountant ? (
-            <AddInvoiceButton contracts={contracts} />
-          ) : (
-            <InvoiceStatusFilter value={statusFilter} />
-          )
-        }
+        description="Your bills from GreenScape. Pay open invoices, review payment history, and download PDF receipts after payment."
+        action={<InvoiceStatusFilter value={statusFilter} />}
       />
-
-      {dueSoonOnly ? (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Showing{" "}
-          {filteredInvoices.length === 1
-            ? "1 open invoice"
-            : `${filteredInvoices.length} open invoices`}{" "}
-          due within 7 days.{" "}
-          <a
-            href="/invoices"
-            className="font-medium text-green-800 underline hover:text-green-950"
-          >
-            Clear filter
-          </a>
-        </div>
-      ) : null}
 
       {filteredInvoices.length === 0 ? (
         <EmptyState message={emptyMessage} />
@@ -212,22 +251,13 @@ export default async function InvoicesPage({
             <thead className="bg-stone-50 text-left text-stone-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Invoice #</th>
-                {!isCustomer ? (
-                  <th className="px-4 py-3 font-medium">Customer</th>
-                ) : null}
                 <th className="px-4 py-3 font-medium">Contract</th>
                 <th className="px-4 py-3 font-medium">Issue Date</th>
                 <th className="px-4 py-3 font-medium">Due Date</th>
                 <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">
-                  {isAccountant ? "Outstanding Balance" : "Balance"}
-                </th>
+                <th className="px-4 py-3 font-medium">Balance</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                {isCustomer || isAccountant ? (
-                  <th className="px-4 py-3 font-medium">
-                    {isAccountant ? "Journal" : "Actions"}
-                  </th>
-                ) : null}
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -247,11 +277,6 @@ export default async function InvoicesPage({
                         {invoice.invoice_number}
                       </Link>
                     </td>
-                    {!isCustomer ? (
-                      <td className="px-4 py-3">
-                        {(invoice.customers as { name: string } | null)?.name}
-                      </td>
-                    ) : null}
                     <td className="px-4 py-3">
                       {(invoice.contracts as { title: string } | null)?.title}
                     </td>
@@ -266,48 +291,33 @@ export default async function InvoicesPage({
                     </td>
                     <td className="px-4 py-3">{formatCurrency(balance)}</td>
                     <td className="px-4 py-3">
-                      {isAccountant ? (
-                        <InvoiceStatusBadge invoice={invoice} />
-                      ) : (
-                        <StatusBadge
-                          status={getDisplayInvoiceStatus(
-                            invoice.status,
-                            invoice.due_date,
-                            balance,
-                            amountPaid
-                          )}
-                        />
-                      )}
+                      <StatusBadge
+                        status={getDisplayInvoiceStatus(
+                          invoice.status,
+                          invoice.due_date,
+                          balance,
+                          amountPaid
+                        )}
+                      />
                     </td>
-                    {isAccountant ? (
-                      <td className="px-4 py-3">
-                        <PostJournalEntryButton
-                          source="invoice"
-                          sourceId={invoice.id}
-                          journalStatus={invoiceJournalStates.get(invoice.id) ?? null}
-                          disabledReason={invoiceJournalReadyReason(invoice.status) ?? undefined}
-                        />
-                      </td>
-                    ) : isCustomer ? (
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {balance > 0 ? (
-                            <CustomerPayButton
-                              invoiceId={invoice.id}
-                              invoiceNumber={invoice.invoice_number}
-                              amountDue={balance}
-                              dueDate={invoice.due_date}
-                              paymentMethods={paymentMethods}
-                              className="rounded-md bg-green-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700"
-                            />
-                          ) : null}
-                          <CustomerReceiptCell
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {balance > 0 ? (
+                          <CustomerPayButton
                             invoiceId={invoice.id}
-                            amountPaid={amountPaid}
+                            invoiceNumber={invoice.invoice_number}
+                            amountDue={balance}
+                            dueDate={invoice.due_date}
+                            paymentMethods={paymentMethods}
+                            className="rounded-md bg-green-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700"
                           />
-                        </div>
-                      </td>
-                    ) : null}
+                        ) : null}
+                        <CustomerReceiptCell
+                          invoiceId={invoice.id}
+                          amountPaid={amountPaid}
+                        />
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -315,13 +325,6 @@ export default async function InvoicesPage({
           </table>
         </div>
       )}
-
-      {isAccountant ? (
-        <AccountantPaymentsSection
-          payments={accountantPayments}
-          paymentJournalStates={paymentJournalStates}
-        />
-      ) : null}
     </AppShell>
   );
 }

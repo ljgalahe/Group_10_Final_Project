@@ -1,18 +1,13 @@
 import Link from "next/link";
 import { AccountantContractsView } from "@/components/AccountantContractsView";
 import { AppShell } from "@/components/AppShell";
-import { ContractCompletionChart } from "@/components/contracts/ContractCompletionChart";
-import { OutOfScopeWorkWatch } from "@/components/contracts/OutOfScopeWorkWatch";
-import { PromiseVsActualMap } from "@/components/contracts/PromiseVsActualMap";
+import { ManagerContractsDashboard } from "@/components/contracts/ManagerContractsDashboard";
 import { DraftContractsSection } from "@/components/DraftContractsSection";
 import { ProposedContractSection } from "@/components/ProposedContractSection";
 import { QuotesPendingApprovalSection } from "@/components/QuotesPendingApprovalSection";
-import { Card, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
-import {
-  buildContractProgress,
-  buildScopeCreepAlerts,
-} from "@/lib/contract-controls";
+import { buildContractProgress } from "@/lib/contract-controls";
 import { getContractDisplayStatus } from "@/lib/contract-status";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -122,8 +117,17 @@ export default async function ContractsPage({
     return (
       <AppShell>
         <PageHeader
+          kicker="Ledger"
           title="Contracts"
-          description="Manage Billing, Renewals, And Audit Controls."
+          description="Internal controls for approvals, renewals, and auditability."
+          action={
+            <Link
+              href="/contracts/new"
+              className="gs-text-link border border-stone-300 px-4 py-2 hover:border-[var(--champagne)]"
+            >
+              Add Contract →
+            </Link>
+          }
         />
         <AccountantContractsView
           contracts={contracts}
@@ -156,11 +160,12 @@ export default async function ContractsPage({
     return (
       <AppShell>
         <PageHeader
+          kicker={isCustomer ? "Portal" : "Field"}
           title="Contracts"
           description={
             isCustomer
-              ? "Review Proposed Contracts And Your Signed Agreements."
-              : "Structured Seasonal Agreements With Service Terms And Billing Rules."
+              ? "Review proposed contracts and your signed agreements."
+              : "Seasonal agreements with service terms, billing rules, and included services."
           }
         />
 
@@ -197,13 +202,13 @@ export default async function ContractsPage({
       <AppShell>
         <PageHeader
           title="Contracts"
-          description="Create Draft Contracts From Approved Quotes, Then Send To The Customer For Signature."
+          description="Create draft contracts from approved quotes, then send to the customer for signature."
           action={
             <Link
               href="/quotes"
               className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
             >
-              Quotes Inbox
+              Quotes inbox
             </Link>
           }
         />
@@ -232,13 +237,69 @@ export default async function ContractsPage({
   const progressList = contracts.map((contract) =>
     buildContractProgress(contract, visitsByContract.get(contract.id) ?? [])
   );
-  const outOfScopeAlerts = buildScopeCreepAlerts(contracts);
+  const extraWork = contracts.flatMap((contract) =>
+    ((contract.extra_work_orders ?? []) as {
+      id: string;
+      contract_id: string;
+      title: string;
+      status: string;
+    }[]).map((order) => ({
+      id: order.id,
+      contract_id: order.contract_id || contract.id,
+      title: order.title,
+      status: order.status,
+    }))
+  );
+
+  const { data: pendingChangeRequests } =
+    await fetchPendingContractChangeRequests();
+
+  const directoryContracts = contracts.map((contract) => ({
+    id: contract.id,
+    title: contract.title,
+    status: contract.status,
+    season_start: contract.season_start,
+    season_end: contract.season_end,
+    monthly_fee:
+      contract.monthly_fee != null ? Number(contract.monthly_fee) : null,
+    visits_per_week: contract.visits_per_week,
+    customerName:
+      (contract.customers as { name?: string } | null)?.name ?? "Customer",
+  }));
+
+  const pendingChangeApprovals = (
+    pendingChangeRequests as {
+      id: string;
+      contract_id: string;
+      customer_id: string | null;
+      summary: string | null;
+      created_at: string;
+      requested_by_role: string;
+      proposed_contract: {
+        monthly_fee?: number | null;
+        season_start?: string;
+        season_end?: string;
+        title?: string;
+      };
+      proposed_customer?: { name?: string } | null;
+    }[]
+  ).map((request) => ({
+    id: request.id,
+    contract_id: request.contract_id,
+    customer_id: request.customer_id,
+    summary: request.summary,
+    created_at: request.created_at,
+    requested_by_role: request.requested_by_role,
+    proposed_contract: request.proposed_contract ?? {},
+    proposed_customer: request.proposed_customer ?? null,
+  }));
 
   return (
     <AppShell>
       <PageHeader
+        kicker="Portfolio"
         title="Contracts"
-        description="Approve Ops Quotes, Then Track Completion And Promise Vs Actual Work."
+        description="Approve Ops quotes, then track completion and promise vs actual work."
       />
 
       <QuotesPendingApprovalSection quotes={pendingQuotes} />
@@ -246,39 +307,12 @@ export default async function ContractsPage({
       {contracts.length === 0 ? (
         <EmptyState message="No Contracts Yet." />
       ) : (
-        <div className="space-y-6">
-          <Card>
-            <h3 className="text-lg font-semibold text-green-950">
-              Contract Completion
-            </h3>
-            <p className="mt-1 text-sm text-stone-500">
-              Percent Complete, On-Track Status, And Contract Status.
-            </p>
-            <div className="mt-4">
-              <ContractCompletionChart progressList={progressList} />
-            </div>
-          </Card>
-
-          <Card>
-            <h3 className="text-lg font-semibold text-green-950">
-              Contract Promise Vs Actual
-            </h3>
-            <p className="mt-1 text-sm text-stone-500">
-              Job, Contracted Visits, Completed Visits, And Status.
-            </p>
-            <PromiseVsActualMap progressList={progressList} />
-          </Card>
-
-          <Card>
-            <h3 className="text-lg font-semibold text-green-950">
-              Out-Of-Scope Work Watch
-            </h3>
-            <p className="mt-1 text-sm text-stone-500">
-              Filter By Company Or Task.
-            </p>
-            <OutOfScopeWorkWatch alerts={outOfScopeAlerts} />
-          </Card>
-        </div>
+        <ManagerContractsDashboard
+          progressList={progressList}
+          extraWork={extraWork}
+          contracts={directoryContracts}
+          pendingApprovals={pendingChangeApprovals}
+        />
       )}
     </AppShell>
   );

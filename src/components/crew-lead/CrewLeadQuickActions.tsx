@@ -10,6 +10,7 @@ import {
   loadDailyRoster,
   loadFieldExceptions,
   loadManagementExtraRequests,
+  rosterGroupedByCrew,
   saveDailyRoster,
   type CrewMember,
   type ManagementExtraWorkRequest,
@@ -23,7 +24,21 @@ import {
   chatHrefForManager,
   messageManagerAboutEquipment,
 } from "@/lib/chat-demo";
+import {
+  CREW_LEADS,
+  type DemoCrewId,
+} from "@/lib/demo-org";
 import { assignedCrewForJob } from "@/lib/crew-member";
+
+const CREW_FILTER_OPTIONS: { value: "all" | DemoCrewId | "other"; label: string }[] =
+  [
+    { value: "all", label: "All crews" },
+    ...(Object.keys(CREW_LEADS) as DemoCrewId[]).map((crew) => ({
+      value: crew as DemoCrewId,
+      label: `Crew ${crew} — ${CREW_LEADS[crew]}`,
+    })),
+    { value: "other", label: "Other / unassigned" },
+  ];
 
 const COMMON_EQUIPMENT = [
   "Exmark Lazer Z X-Series",
@@ -79,6 +94,7 @@ export function CrewLeadQuickActions({
   const [jobLocation, setJobLocation] = useState("");
   const [description, setDescription] = useState("");
   const [estimatedHours, setEstimatedHours] = useState("");
+  const [estimatedCost, setEstimatedCost] = useState("");
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberRole, setNewMemberRole] = useState("Crew Member");
   const [submittedMessage, setSubmittedMessage] = useState("");
@@ -94,6 +110,9 @@ export function CrewLeadQuickActions({
   );
   const [equipmentMessage, setEquipmentMessage] = useState("");
   const [assignmentTick, setAssignmentTick] = useState(0);
+  const [crewFilter, setCrewFilter] = useState<"all" | DemoCrewId | "other">(
+    "all"
+  );
 
   useEffect(() => {
     setRoster(loadDailyRoster());
@@ -118,25 +137,42 @@ export function CrewLeadQuickActions({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional tick
   }, [roster, todaysJobs, assignmentTick]);
 
+  const crewGroups = useMemo(() => rosterGroupedByCrew(roster), [roster]);
+
+  const visibleCrewGroups = useMemo(() => {
+    if (crewFilter === "all") return crewGroups;
+    if (crewFilter === "other") {
+      return crewGroups.filter((group) => group.crew === null);
+    }
+    return crewGroups.filter((group) => group.crew === crewFilter);
+  }, [crewGroups, crewFilter]);
+
   function submitExtraWork(e: FormEvent) {
     e.preventDefault();
     const hours = Number(estimatedHours);
+    const cost =
+      estimatedCost.trim() === "" ? undefined : Number(estimatedCost);
     if (!customerName.trim() || !description.trim() || Number.isNaN(hours)) {
       return;
     }
+    if (cost != null && (Number.isNaN(cost) || cost < 0)) return;
     addManagementExtraRequest({
       customerName: customerName.trim(),
       jobLocation: jobLocation.trim() || "Oxford, MS",
       description: description.trim(),
       estimatedHours: hours,
+      estimatedCost: cost,
     });
     setRequests(loadManagementExtraRequests());
     setCustomerName("");
     setJobLocation("");
     setDescription("");
     setEstimatedHours("");
-    setSubmittedMessage("Extra work request submitted to management.");
-    window.setTimeout(() => setSubmittedMessage(""), 3000);
+    setEstimatedCost("");
+    setSubmittedMessage(
+      "Extra-cost request submitted — awaiting manager approval on Contracts."
+    );
+    window.setTimeout(() => setSubmittedMessage(""), 4000);
   }
 
   function submitEquipmentAlert(e: FormEvent) {
@@ -203,34 +239,14 @@ export function CrewLeadQuickActions({
 
   return (
     <div className="w-full space-y-4">
-      <div className="flex flex-wrap gap-3">
-        <a
-          href="/schedule"
-          className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-        >
-          Open Schedule
-        </a>
-        <a
-          href="/schedule#todays-route"
-          className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-        >
-          Today&apos;s Route
-        </a>
-        <a
-          href="/visits"
-          className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-        >
-          Open Visits
-        </a>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-green-800/20 bg-stone-50">
           <h3 className="text-base font-semibold text-green-950">
-            Submit Extra Work for Approval
+            Submit Extra Cost for Approval
           </h3>
           <p className="mt-1 text-sm text-stone-500">
-            Send extra work requests to management for review.
+            Requests go to Extra work approval on Contracts. Do not complete
+            extra work until management approves.
           </p>
           <form onSubmit={submitExtraWork} className="mt-3 space-y-2">
             <input
@@ -264,6 +280,15 @@ export function CrewLeadQuickActions({
               className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
               required
             />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={estimatedCost}
+              onChange={(e) => setEstimatedCost(e.target.value)}
+              placeholder="Estimated Cost ($) — optional"
+              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+            />
             <button
               type="submit"
               className="rounded-md bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
@@ -295,7 +320,14 @@ export function CrewLeadQuickActions({
                           {request.description}
                         </p>
                         <p className="mt-1 text-xs text-stone-500">
+                          {request.estimatedCost != null &&
+                          request.estimatedCost > 0
+                            ? `$${request.estimatedCost.toFixed(2)} · `
+                            : ""}
                           {request.estimatedHours} hrs · {request.jobLocation}
+                          {request.status === "pending_approval"
+                            ? " · awaiting manager on Contracts"
+                            : ""}
                         </p>
                       </div>
                       <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900">
@@ -393,49 +425,85 @@ export function CrewLeadQuickActions({
             Today&apos;s Crew
           </h3>
           <p className="mt-1 text-sm text-stone-500">
-            Who is on your crew today and which jobs/sites they are assigned to.
+            Members grouped by crew, with today&apos;s job/site assignments.
           </p>
-          <ul className="mt-3 space-y-2">
-            {roster.map((member) => {
-              const assignments = assignmentsByMemberId.get(member.id) ?? [];
-              return (
-                <li
-                  key={member.id}
-                  className="flex items-start justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-green-950">{member.name}</p>
-                    <p className="text-xs text-stone-500">{member.role}</p>
-                    {assignments.length > 0 ? (
-                      <ul className="mt-1 space-y-0.5">
-                        {assignments.map((label) => (
-                          <li
-                            key={`${member.id}-${label}`}
-                            className="text-xs text-stone-600"
-                          >
-                            {label}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="mt-1 text-xs text-stone-400">
-                        {todaysJobs.length === 0
-                          ? "No jobs scheduled today"
-                          : "Not assigned to a visit today"}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeRosterMember(member.id)}
-                    className="shrink-0 text-xs font-medium text-red-700 hover:underline"
-                  >
-                    Remove
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <label className="mt-3 flex flex-col gap-1 text-sm text-stone-700 sm:max-w-xs">
+            <span className="text-xs font-medium uppercase tracking-wide text-stone-500">
+              Filter by crew
+            </span>
+            <select
+              value={crewFilter}
+              onChange={(e) =>
+                setCrewFilter(e.target.value as "all" | DemoCrewId | "other")
+              }
+              className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-green-950"
+            >
+              {CREW_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="mt-3 space-y-4">
+            {visibleCrewGroups.length === 0 ? (
+              <p className="text-sm text-stone-500">
+                No members for this crew filter.
+              </p>
+            ) : (
+              visibleCrewGroups.map((group) => (
+              <div key={group.label}>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-green-900">
+                  {group.label}
+                </p>
+                <ul className="space-y-2">
+                  {group.members.map((member) => {
+                    const assignments =
+                      assignmentsByMemberId.get(member.id) ?? [];
+                    return (
+                      <li
+                        key={member.id}
+                        className="flex items-start justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-green-950">
+                            {member.name}
+                          </p>
+                          <p className="text-xs text-stone-500">{member.role}</p>
+                          {assignments.length > 0 ? (
+                            <ul className="mt-1 space-y-0.5">
+                              {assignments.map((label) => (
+                                <li
+                                  key={`${member.id}-${label}`}
+                                  className="text-xs text-stone-600"
+                                >
+                                  {label}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="mt-1 text-xs text-stone-400">
+                              {todaysJobs.length === 0
+                                ? "No jobs scheduled today"
+                                : "Not assigned to a visit today"}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeRosterMember(member.id)}
+                          className="shrink-0 text-xs font-medium text-red-700 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              ))
+            )}
+          </div>
           <form
             onSubmit={addRosterMember}
             className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]"

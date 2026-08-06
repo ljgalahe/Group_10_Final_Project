@@ -18,15 +18,16 @@ function CondensedJobBox({
   onToggle: () => void;
   organizeBy: "company" | "jobs" | "date";
 }) {
+  const isCompleted = job.status === "completed";
   return (
     <div className="space-y-2">
       <button
         type="button"
         onClick={onToggle}
-        className={`w-full rounded-lg border p-3 text-left transition ${
+        className={`gs-list-row w-full border p-3 text-left transition ${
           expanded
-            ? "border-green-800 bg-green-50"
-            : "border-stone-200 bg-white hover:border-green-700 hover:bg-stone-50"
+            ? "border-[var(--champagne)] bg-[var(--cream)]"
+            : "border-stone-200 bg-transparent hover:border-stone-400"
         }`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -46,6 +47,15 @@ function CondensedJobBox({
                 <p className="mt-1 text-sm text-stone-500">{job.jobLabel}</p>
               </>
             )}
+            <p
+              className={`mt-1 inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${
+                isCompleted
+                  ? "gs-complete-badge border"
+                  : "border border-amber-200 bg-amber-50 text-amber-800"
+              }`}
+            >
+              {isCompleted ? "Completed" : "Pending"}
+            </p>
           </div>
           <span className="text-xs font-medium text-green-800">
             {expanded ? "Hide" : "Details"}
@@ -295,6 +305,9 @@ export function OrganizedJobList({
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [openJobId, setOpenJobId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "completed" | "pending"
+  >("all");
 
   const allJobs = useMemo(() => groups.flatMap(([, jobs]) => jobs), [groups]);
 
@@ -309,20 +322,30 @@ export function OrganizedJobList({
           : job.date;
     setOpenGroup(groupKey);
     setOpenJobId(visitId);
+    setStatusFilter("all");
   }
 
   const filteredGroups = useMemo(() => {
-    if (!query.trim()) return groups;
     return groups
       .map(([title, jobs]) => {
-        const titleMatch = title.toLowerCase().includes(query.trim().toLowerCase());
-        const matchedJobs = titleMatch
-          ? jobs
-          : jobs.filter((j) => matchesJobSearch(j, query));
-        return [title, matchedJobs] as [string, JobRow[]];
+        let list = jobs;
+        if (statusFilter === "completed") {
+          list = list.filter((j) => j.status === "completed");
+        } else if (statusFilter === "pending") {
+          list = list.filter((j) => j.status !== "completed");
+        }
+        if (query.trim()) {
+          const titleMatch = title
+            .toLowerCase()
+            .includes(query.trim().toLowerCase());
+          list = titleMatch
+            ? list
+            : list.filter((j) => matchesJobSearch(j, query));
+        }
+        return [title, list] as [string, JobRow[]];
       })
       .filter(([, jobs]) => jobs.length > 0);
-  }, [groups, query]);
+  }, [groups, query, statusFilter]);
 
   if (groups.length === 0) {
     return (
@@ -346,21 +369,44 @@ export function OrganizedJobList({
         onFollowVisit={followVisit}
       />
 
-      <SectionSearch
-        value={query}
-        onChange={(value) => {
-          setQuery(value);
-          setOpenGroup(null);
-          setOpenJobId(null);
-        }}
-        placeholder={searchPlaceholder}
-        label="Search job list"
-      />
+      <div className="gs-index-bar">
+        <div className="min-w-0 flex-1">
+          <SectionSearch
+            value={query}
+            onChange={(value) => {
+              setQuery(value);
+              setOpenGroup(null);
+              setOpenJobId(null);
+            }}
+            placeholder={searchPlaceholder}
+            label="Search job list"
+          />
+        </div>
+        <label className="gs-index-field sm:w-44">
+          <span>Status</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(
+                e.target.value as "all" | "completed" | "pending"
+              );
+              setOpenGroup(null);
+              setOpenJobId(null);
+            }}
+          >
+            <option value="all">All Visits</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+          </select>
+        </label>
+      </div>
 
-      <div className="max-h-[36rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
+      <div className="max-h-[36rem] space-y-0 overflow-y-auto overscroll-contain border-t border-stone-200 pr-1">
         {filteredGroups.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-stone-300 bg-white p-6 text-center text-sm text-stone-500">
-            No results match this search.
+          <p className="border border-dashed border-stone-300 px-6 py-8 text-center">
+            <span className="gs-italic-line">
+              No results match this search or status filter.
+            </span>
           </p>
         ) : null}
 
@@ -380,10 +426,8 @@ export function OrganizedJobList({
           return (
             <div
               key={title}
-              className={`rounded-xl border shadow-sm transition ${
-                isOpen
-                  ? "border-green-800 bg-white"
-                  : "border-stone-200 bg-white hover:border-green-700"
+              className={`gs-list-row border-b border-stone-200 transition ${
+                isOpen ? "bg-[var(--cream)]" : "bg-transparent hover:bg-white/40"
               }`}
             >
               <button
@@ -392,10 +436,12 @@ export function OrganizedJobList({
                   setOpenGroup((current) => (current === title ? null : title));
                   setOpenJobId(null);
                 }}
-                className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+                className="flex w-full items-center justify-between gap-3 px-1 py-4 text-left sm:px-2"
               >
                 <div>
-                  <p className="text-lg font-semibold text-green-950">{heading}</p>
+                  <p className="font-display text-xl font-semibold text-green-950">
+                    {heading}
+                  </p>
                   <p className="mt-0.5 text-sm text-stone-500">
                     {organizeBy === "company" && jobTypeCount != null
                       ? `${jobTypeCount} ${jobTypeCount === 1 ? "job" : "jobs"} · ${jobs.length} ${jobs.length === 1 ? "visit" : "visits"}`
@@ -405,13 +451,14 @@ export function OrganizedJobList({
                     {proofCount > 0 ? ` · ${proofCount} with photos` : ""}
                   </p>
                 </div>
-                <span className="text-sm font-medium text-green-800">
+                <span className="gs-text-link">
                   {isOpen ? "Hide" : "View"}
+                  <span aria-hidden>{isOpen ? " ↑" : " →"}</span>
                 </span>
               </button>
 
               {isOpen ? (
-                <div className="border-t border-stone-100 bg-stone-50 px-4 py-4">
+                <div className="border-t border-stone-200 px-1 py-4 sm:px-2">
                   {organizeBy === "company" ? (
                     <CompanyJobGroups jobs={jobs} focusVisitId={openJobId} />
                   ) : organizeBy === "jobs" ? (

@@ -11,12 +11,15 @@ export type DisplayInvoiceStatus =
   | "disputed";
 
 /** Computes live accounting status (Past Due updates automatically by date). */
-export function getDisplayInvoiceStatus(invoice: {
-  status: string;
-  total: number;
-  amount_paid: number;
-  due_date: string;
-}): DisplayInvoiceStatus {
+export function getDisplayInvoiceStatus(
+  invoice: {
+    status: string;
+    total: number;
+    amount_paid: number;
+    due_date: string;
+  },
+  asOf: Date = new Date()
+): DisplayInvoiceStatus {
   const stored = invoice.status;
   if (stored === "voided" || stored === "draft" || stored === "approved") {
     return stored as DisplayInvoiceStatus;
@@ -27,7 +30,7 @@ export function getDisplayInvoiceStatus(invoice: {
 
   if (stored === "disputed") return "disputed";
 
-  const daysPastDue = daysBetween(invoice.due_date);
+  const daysPastDue = daysBetween(invoice.due_date, asOf);
   if (daysPastDue > 0) return "past_due";
 
   if (Number(invoice.amount_paid) > 0) return "partially_paid";

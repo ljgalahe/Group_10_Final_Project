@@ -2,7 +2,6 @@ export type UserRole =
   | "manager"
   | "accountant"
   | "operations"
-  | "inquiries"
   | "crew_lead"
   | "crew_member"
   | "customer";
@@ -347,11 +346,6 @@ export const DEMO_ROLES: { role: UserRole; label: string; description: string }[
     role: "operations",
     label: "Operations",
     description: "Site surveys, quotes, inquiries, and scheduling",
-  },
-  {
-    role: "inquiries",
-    label: "Inquiries",
-    description: "New commercial prospect start page and service request",
   },
   { role: "crew_lead", label: "Crew Lead", description: "Execute assigned visits" },
   {

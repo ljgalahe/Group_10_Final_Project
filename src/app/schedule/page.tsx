@@ -24,7 +24,7 @@ import {
   roleCanAccessSchedule,
   roleCanManageCompanySchedule,
 } from "@/lib/demo-role";
-import { fetchAllVisitCosts, fetchVisits } from "@/lib/queries";
+import { fetchVisitCostsByVisitIds } from "@/lib/queries";
 import {
   applyServiceHoldToScheduleJobs,
   buildCustomerServiceHolds,
@@ -57,17 +57,24 @@ export default async function SchedulePage({
   const supabase = await createDataClient();
 
   if (roleCanManageCompanySchedule(role)) {
-    const [
-      { data: visitRows },
-      { data: contractRows },
-      { data: enrichedVisits },
-      { data: allCosts },
-    ] = await Promise.all([
+    const windowStart = (() => {
+      const d = new Date(`${todayDateOnly()}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() - 14);
+      return d.toISOString().slice(0, 10);
+    })();
+    const windowEnd = (() => {
+      const d = new Date(`${todayDateOnly()}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + 90);
+      return d.toISOString().slice(0, 10);
+    })();
+    const [{ data: visitRows }, { data: contractRows }] = await Promise.all([
       supabase
         .from("service_visits")
         .select(
-          "id, scheduled_date, status, visit_kind, crew_lead_name, contract_id, contracts(id, title, customers(name, address))"
+          "id, scheduled_date, status, visit_kind, crew_lead_name, crew_notes, contract_id, contracts(id, title, customer_id, customers(name, address, property_type))"
         )
+        .gte("scheduled_date", windowStart)
+        .lte("scheduled_date", windowEnd)
         .order("scheduled_date", { ascending: true }),
       supabase
         .from("contracts")
@@ -76,9 +83,35 @@ export default async function SchedulePage({
         )
         .in("status", ["active", "draft"])
         .order("title"),
-      fetchVisits(),
-      fetchAllVisitCosts(),
     ]);
+    const enrichedVisits = (visitRows ?? []).map((v) => {
+      const contract = Array.isArray(v.contracts) ? v.contracts[0] : v.contracts;
+      const customers = contract?.customers;
+      const customer = Array.isArray(customers) ? customers[0] : customers;
+      return {
+        id: v.id,
+        scheduled_date: v.scheduled_date,
+        status: v.status,
+        contract_id: v.contract_id,
+        crew_notes: v.crew_notes ?? null,
+        contracts: contract
+          ? {
+              title: contract.title,
+              customer_id: contract.customer_id,
+              customers: customer
+                ? {
+                    name: customer.name,
+                    address: customer.address,
+                    property_type: customer.property_type,
+                  }
+                : null,
+            }
+          : null,
+      };
+    });
+    const { data: allCosts } = await fetchVisitCostsByVisitIds(
+      enrichedVisits.map((v) => v.id)
+    );
 
     const visits: OpsVisitRow[] = (visitRows ?? []).map((v) => {
       const contract = Array.isArray(v.contracts) ? v.contracts[0] : v.contracts;
@@ -114,11 +147,11 @@ export default async function SchedulePage({
     const costsByVisit = new Map<string, VisitCost[]>();
     for (const cost of allCosts) {
       const list = costsByVisit.get(cost.visit_id) ?? [];
-      list.push(cost);
+      list.push(cost as VisitCost);
       costsByVisit.set(cost.visit_id, list);
     }
     const calendarJobs = buildJobRows(
-      enrichedVisits,
+      enrichedVisits as Parameters<typeof buildJobRows>[0],
       costsByVisit,
       defaultVisitPeriod()
     );
@@ -191,6 +224,22 @@ export default async function SchedulePage({
       .select(
         "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
       )
+      .gte(
+        "scheduled_date",
+        (() => {
+          const d = new Date(`${todayDateOnly()}T00:00:00.000Z`);
+          d.setUTCDate(d.getUTCDate() - 14);
+          return d.toISOString().slice(0, 10);
+        })()
+      )
+      .lte(
+        "scheduled_date",
+        (() => {
+          const d = new Date(`${todayDateOnly()}T00:00:00.000Z`);
+          d.setUTCDate(d.getUTCDate() + 90);
+          return d.toISOString().slice(0, 10);
+        })()
+      )
       .order("scheduled_date", { ascending: true }),
     supabase
       .from("extra_work_orders")
@@ -262,7 +311,7 @@ export default async function SchedulePage({
         description={
           role === "crew_member"
             ? "Monthly schedule calendar with company, employee, job, and status filters - visits assigned to you (read-only)."
-            : "Your assigned visits for execution - Operations owns company-wide scheduling and Crew Lead assignment."
+            : undefined
         }
       />
       <ServiceHoldAuditSync holds={holds} />
