@@ -90,8 +90,8 @@ export function AccountantJournalEntriesView({
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Journal Entries" value={filtered.length} />
-        <StatCard label="Total Debits" value={formatCurrency(totals.debits)} />
-        <StatCard label="Total Credits" value={formatCurrency(totals.credits)} />
+        <StatCard label="Total Debits" value={formatCurrency(totals.debits)} hint="Gross journal activity" />
+        <StatCard label="Total Credits" value={formatCurrency(totals.credits)} hint="Gross journal activity" />
         <StatCard
           label="Books Status"
           value={balanced ? "Balanced" : "Out of balance"}

@@ -878,16 +878,67 @@ export type JournalEntry = {
 
 export async function fetchJournalEntries(): Promise<JournalEntry[]> {
   const supabase = await createDataClient();
-  const { data: entries } = await supabase
-    .from("journal_entries")
-    .select(
-      "id, entry_number, entry_date, source, source_id, status, memo, reference, customer_name, contract_title, journal_entry_lines(line_no, account_code, account_name, debit, credit)"
-    )
-    .order("entry_date", { ascending: true })
-    .order("entry_number", { ascending: true });
+  const { data: pagedEntries, error } = await fetchAllPaged<{
+    id: string;
+    entry_number: string;
+    entry_date: string;
+    source: string;
+    source_id: string | null;
+    status: string | null;
+    memo: string;
+    reference: string;
+    customer_name: string;
+    contract_title: string | null;
+  }>((from, to) =>
+    supabase
+      .from("journal_entries")
+      .select(
+        "id, entry_number, entry_date, source, source_id, status, memo, reference, customer_name, contract_title"
+      )
+      .order("entry_date", { ascending: true })
+      .order("entry_number", { ascending: true })
+      .range(from, to)
+  );
 
-  return (entries ?? []).map((entry) => {
-    const lines = [...(entry.journal_entry_lines ?? [])]
+  if (error || pagedEntries.length === 0) return [];
+
+  const linesByEntry = new Map<
+    string,
+    Array<{
+      line_no: number;
+      account_code: string;
+      account_name: string;
+      debit: number | string;
+      credit: number | string;
+    }>
+  >();
+
+  for (let i = 0; i < pagedEntries.length; i += SUPABASE_IN_CHUNK) {
+    const chunkIds = pagedEntries.slice(i, i + SUPABASE_IN_CHUNK).map((e) => e.id);
+    let from = 0;
+    for (;;) {
+      const { data: lineRows, error: lineError } = await supabase
+        .from("journal_entry_lines")
+        .select(
+          "journal_entry_id, line_no, account_code, account_name, debit, credit"
+        )
+        .in("journal_entry_id", chunkIds)
+        .order("line_no", { ascending: true })
+        .range(from, from + SUPABASE_PAGE_SIZE - 1);
+      if (lineError) break;
+      const rows = lineRows ?? [];
+      for (const row of rows) {
+        const list = linesByEntry.get(row.journal_entry_id) ?? [];
+        list.push(row);
+        linesByEntry.set(row.journal_entry_id, list);
+      }
+      if (rows.length < SUPABASE_PAGE_SIZE) break;
+      from += SUPABASE_PAGE_SIZE;
+    }
+  }
+
+  return pagedEntries.map((entry) => {
+    const lines = [...(linesByEntry.get(entry.id) ?? [])]
       .sort((a, b) => a.line_no - b.line_no)
       .map((line) => ({
         accountCode: line.account_code,
@@ -940,10 +991,18 @@ export async function fetchChartOfAccounts(): Promise<ChartOfAccount[]> {
 
 export async function fetchJournalSourceStates() {
   const supabase = await createDataClient();
-  const { data } = await supabase
-    .from("journal_entries")
-    .select("source, source_id, status")
-    .not("source_id", "is", null);
+  const { data } = await fetchAllPaged<{
+    source: string;
+    source_id: string | null;
+    status: string | null;
+  }>((from, to) =>
+    supabase
+      .from("journal_entries")
+      .select("source, source_id, status")
+      .not("source_id", "is", null)
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
 
   const states = {
     invoice: new Map<string, JournalStatus>(),

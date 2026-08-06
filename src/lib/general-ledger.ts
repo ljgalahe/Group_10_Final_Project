@@ -122,6 +122,12 @@ export function buildAccountRegister(
 
 export function summarizeGeneralLedger(accounts: GeneralLedgerAccount[]) {
   const active = accounts.filter((account) => account.lineCount > 0);
+  const totalActivityDebit = roundMoney(
+    active.reduce((sum, account) => sum + account.totalDebits, 0)
+  );
+  const totalActivityCredit = roundMoney(
+    active.reduce((sum, account) => sum + account.totalCredits, 0)
+  );
   const totalTrialDebit = roundMoney(
     active.reduce((sum, account) => sum + account.trialDebit, 0)
   );
@@ -130,8 +136,12 @@ export function summarizeGeneralLedger(accounts: GeneralLedgerAccount[]) {
   );
   return {
     activeAccountCount: active.length,
+    totalActivityDebit,
+    totalActivityCredit,
     totalTrialDebit,
     totalTrialCredit,
-    balanced: Math.abs(totalTrialDebit - totalTrialCredit) < 0.005,
+    balanced:
+      Math.abs(totalActivityDebit - totalActivityCredit) < 0.005 &&
+      Math.abs(totalTrialDebit - totalTrialCredit) < 0.005,
   };
 }
