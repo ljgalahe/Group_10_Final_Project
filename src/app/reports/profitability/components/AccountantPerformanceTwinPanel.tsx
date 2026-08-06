@@ -110,11 +110,11 @@ export function AccountantPerformanceTwinPanel({
 
   return (
     <section className="mb-10 overflow-hidden rounded-xl border border-green-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-green-100 bg-green-50/90 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-3 border-b border-green-100 bg-green-50/90 px-4 py-3">
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
-          className="flex min-w-0 flex-1 items-start gap-3 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30"
+          className="flex w-full min-w-0 items-start gap-3 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30"
           aria-expanded={open}
           aria-controls="performance-twin-panel"
         >
@@ -149,7 +149,7 @@ export function AccountantPerformanceTwinPanel({
           </span>
         </button>
 
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-sm text-green-950">
             <span className="whitespace-nowrap text-xs font-medium text-green-800">
               Customer

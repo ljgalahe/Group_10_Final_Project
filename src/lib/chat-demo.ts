@@ -679,3 +679,85 @@ export function messageManagerAboutEquipment(opts: {
     seedMessage: body,
   });
 }
+
+/** Accountant → manager: vendor payments due within one week. */
+export function messageManagerAboutApDuePayments(opts: {
+  payments: {
+    vendorName: string;
+    category: string;
+    dueDate: string;
+    amount: number;
+  }[];
+  totalAmount: number;
+  formatCurrency: (n: number) => string;
+  formatDate: (iso: string) => string;
+  fromPersonId?: string;
+}): ChatThread {
+  const fromId = opts.fromPersonId ?? "accountant";
+  const count = opts.payments.length;
+  const lines = opts.payments.map(
+    (p) =>
+      `• ${p.vendorName} — ${p.category} — due ${opts.formatDate(p.dueDate)} — ${opts.formatCurrency(p.amount)}`
+  );
+  const body = [
+    `AP payment reminder — ${count} vendor payment${count === 1 ? "" : "s"} due within 1 week (total ${opts.formatCurrency(opts.totalAmount)}).`,
+    "",
+    ...lines,
+    "",
+    "Please arrange payment before the due dates.",
+  ].join("\n");
+
+  return upsertDirectThread({
+    withPersonId: "manager",
+    fromPersonId: fromId,
+    companyName: "Accounts Payable",
+    jobLabel: "payments due ≤1 week",
+    concernLabel: body,
+    seedMessage: body,
+  });
+}
+
+/** Deep-link for accountant opening the manager DM after an AP reminder. */
+export function chatHrefForApManagerReminder(): string {
+  const params = new URLSearchParams({
+    with: "manager",
+    from: "accountant",
+  });
+  return `/chat?${params.toString()}`;
+}
+
+/** Accountant → manager: request approval to pay a single vendor invoice. */
+export function messageManagerAboutApPaymentApproval(opts: {
+  invoiceId: string;
+  vendorName: string;
+  category: string;
+  dueDate: string;
+  amount: number;
+  formatCurrency: (n: number) => string;
+  formatDate: (iso: string) => string;
+  approvalMarker: string;
+  fromPersonId?: string;
+}): ChatThread {
+  const fromId = opts.fromPersonId ?? "accountant";
+  const body = [
+    "AP payment approval needed",
+    "",
+    `Vendor: ${opts.vendorName}`,
+    `Category: ${opts.category}`,
+    `Due: ${opts.formatDate(opts.dueDate)}`,
+    `Amount: ${opts.formatCurrency(opts.amount)}`,
+    `Invoice ID: ${opts.invoiceId}`,
+    "",
+    "Please approve this vendor payment so accounting can pay the invoice.",
+    opts.approvalMarker,
+  ].join("\n");
+
+  return upsertDirectThread({
+    withPersonId: "manager",
+    fromPersonId: fromId,
+    companyName: opts.vendorName,
+    jobLabel: "AP payment approval",
+    concernLabel: body,
+    seedMessage: body,
+  });
+}

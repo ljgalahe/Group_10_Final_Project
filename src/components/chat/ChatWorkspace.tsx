@@ -17,6 +17,12 @@ import {
   type ChatCategory,
   type ChatThread,
 } from "@/lib/chat-demo";
+import {
+  AP_PAYMENTS_UPDATED_EVENT,
+  approveApPayment,
+  getApPaymentGateStatus,
+  parseApApprovalMarker,
+} from "@/app/reports/ap-aging/ap-payments-store";
 
 type TabFilter =
   | "all"
@@ -757,6 +763,18 @@ export function ChatWorkspace({
                 {selected.messages.map((msg) => {
                   const author = personById(msg.authorId);
                   const mine = msg.authorId === selfId;
+                  const approvalInvoiceId = parseApApprovalMarker(msg.body);
+                  const approvalStatus = approvalInvoiceId
+                    ? getApPaymentGateStatus(approvalInvoiceId)
+                    : null;
+                  const canApprove =
+                    selfId === "manager" &&
+                    approvalInvoiceId != null &&
+                    approvalStatus === "awaiting_approval";
+                  const displayBody = approvalInvoiceId
+                    ? msg.body.replace(/\n?\[AP-APPROVE:[^\]]+\]\s*$/, "").trimEnd()
+                    : msg.body;
+
                   return (
                     <div
                       key={msg.id}
@@ -785,7 +803,49 @@ export function ChatWorkspace({
                             minute: "2-digit",
                           })}
                         </p>
-                        <p className="mt-1 whitespace-pre-wrap">{msg.body}</p>
+                        <p className="mt-1 whitespace-pre-wrap">{displayBody}</p>
+                        {canApprove && approvalInvoiceId ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              approveApPayment(approvalInvoiceId);
+                              postChatMessage(
+                                selected.id,
+                                selfId,
+                                `Approved AP payment for invoice ${approvalInvoiceId}. Accounting can pay this invoice.`
+                              );
+                              window.dispatchEvent(
+                                new Event(AP_PAYMENTS_UPDATED_EVENT)
+                              );
+                              refresh();
+                            }}
+                            className="mt-2 rounded-md bg-green-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                          >
+                            Approve payment
+                          </button>
+                        ) : null}
+                        {selfId === "manager" &&
+                        approvalInvoiceId &&
+                        approvalStatus === "approved" ? (
+                          <p
+                            className={`mt-2 text-xs font-medium ${
+                              mine ? "text-green-100" : "text-green-800"
+                            }`}
+                          >
+                            Payment approved
+                          </p>
+                        ) : null}
+                        {selfId === "manager" &&
+                        approvalInvoiceId &&
+                        approvalStatus === "paid" ? (
+                          <p
+                            className={`mt-2 text-xs font-medium ${
+                              mine ? "text-green-100" : "text-stone-600"
+                            }`}
+                          >
+                            Invoice already paid
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   );

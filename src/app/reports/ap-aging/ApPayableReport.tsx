@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Card } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
+import {
+  chatHrefForApManagerReminder,
+  messageManagerAboutApDuePayments,
+  messageManagerAboutApPaymentApproval,
+} from "@/lib/chat-demo";
 import {
   bucketOpenApInvoices,
   bucketTotal,
@@ -11,12 +17,21 @@ import {
   discountsAvailableThisMonth,
   filterByCategory,
   openApByCategory,
-  openApByVendor,
   openApInvoices,
   openDiscountWindow,
   upcomingPayments,
 } from "./ap-aging";
 import { computeCashConversionCycle, computeDpo } from "./ap-kpis";
+import {
+  AP_PAYMENTS_UPDATED_EVENT,
+  apApprovalMarker,
+  applyPaidApOverrides,
+  getApPaymentGateStatus,
+  markApInvoicePaid,
+  payApInvoiceIfApproved,
+  requestApPaymentApproval,
+  type ApPaymentGateStatus,
+} from "./ap-payments-store";
 import {
   AP_CATEGORIES,
   type ApAgingBucketKey,
@@ -70,6 +85,30 @@ const CATEGORY_COLORS: Record<ApCategory, string> = {
   Subscriptions: "#57534e",
 };
 
+const ALL = "__all__";
+
+function PaymentGateBadge({ status }: { status: ApPaymentGateStatus }) {
+  if (status === "awaiting_approval") {
+    return (
+      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900">
+        Awaiting approval
+      </span>
+    );
+  }
+  if (status === "approved") {
+    return (
+      <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
+        Approved
+      </span>
+    );
+  }
+  return (
+    <span className="rounded bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">
+      Open
+    </span>
+  );
+}
+
 function SummaryKpi({
   title,
   value,
@@ -121,7 +160,7 @@ function SummaryKpi({
 }
 
 export function ApPayableReport({
-  invoices,
+  invoices: seedInvoices,
   asOf,
   dso,
 }: {
@@ -132,7 +171,77 @@ export function ApPayableReport({
   const [category, setCategory] = useState<ApCategory | "All">("All");
   const [openBucket, setOpenBucket] = useState<ApAgingBucketKey | null>(null);
   const [categoryDetail, setCategoryDetail] = useState<ApCategory | null>(null);
-  const [vendorDetailOpen, setVendorDetailOpen] = useState(false);
+  const [invoiceDetailOpen, setInvoiceDetailOpen] = useState(false);
+  const [invoices, setInvoices] = useState(seedInvoices);
+  const [notifyStatus, setNotifyStatus] = useState<string | null>(null);
+  const [notifyChatHref, setNotifyChatHref] = useState<string | null>(null);
+  const [invoiceActionStatus, setInvoiceActionStatus] = useState<string | null>(
+    null
+  );
+  const [gateTick, setGateTick] = useState(0);
+  const [upcomingOpen, setUpcomingOpen] = useState(false);
+  const [discountsOpen, setDiscountsOpen] = useState(false);
+  const [upcomingCompany, setUpcomingCompany] = useState(ALL);
+  const [discountVendor, setDiscountVendor] = useState(ALL);
+
+  useEffect(() => {
+    function syncPaid() {
+      setInvoices(applyPaidApOverrides(seedInvoices));
+      setGateTick((n) => n + 1);
+    }
+    syncPaid();
+    window.addEventListener(AP_PAYMENTS_UPDATED_EVENT, syncPaid);
+    window.addEventListener("storage", syncPaid);
+    return () => {
+      window.removeEventListener(AP_PAYMENTS_UPDATED_EVENT, syncPaid);
+      window.removeEventListener("storage", syncPaid);
+    };
+  }, [seedInvoices]);
+
+  function handleMarkPaid(invoiceId: string) {
+    markApInvoicePaid(invoiceId);
+    setInvoices(applyPaidApOverrides(seedInvoices));
+  }
+
+  function handleRequestInvoiceApproval(inv: ApInvoice) {
+    requestApPaymentApproval(inv.id);
+    messageManagerAboutApPaymentApproval({
+      invoiceId: inv.id,
+      vendorName: inv.vendorName,
+      category: inv.category,
+      dueDate: inv.dueDate,
+      amount: inv.amount,
+      formatCurrency,
+      formatDate,
+      approvalMarker: apApprovalMarker(inv.id),
+    });
+    setNotifyChatHref(chatHrefForApManagerReminder());
+    setInvoiceActionStatus(
+      `Approval requested for ${inv.vendorName} (${formatCurrency(inv.amount)}). Waiting on the manager.`
+    );
+    setGateTick((n) => n + 1);
+    window.setTimeout(() => setInvoiceActionStatus(null), 8000);
+  }
+
+  function handlePayInvoice(inv: ApInvoice) {
+    const status = getApPaymentGateStatus(inv.id);
+    if (status !== "approved") {
+      setInvoiceActionStatus(
+        status === "awaiting_approval"
+          ? `Still waiting on manager approval for ${inv.vendorName}.`
+          : `Request manager approval before paying ${inv.vendorName}.`
+      );
+      window.setTimeout(() => setInvoiceActionStatus(null), 6000);
+      return;
+    }
+    payApInvoiceIfApproved(inv.id);
+    setInvoices(applyPaidApOverrides(seedInvoices));
+    setInvoiceActionStatus(
+      `Paid ${inv.vendorName} — ${formatCurrency(inv.amount)}. Open AP updated.`
+    );
+    setGateTick((n) => n + 1);
+    window.setTimeout(() => setInvoiceActionStatus(null), 6000);
+  }
 
   const dpoResult = useMemo(() => computeDpo(invoices, asOf), [invoices, asOf]);
   const ccc = useMemo(
@@ -163,14 +272,29 @@ export function ApPayableReport({
     [categoryTotals]
   );
 
-  const discounts = useMemo(
+  const discountsAll = useMemo(
     () => openDiscountWindow(invoices, asOf),
     [invoices, asOf]
   );
-  const monthDiscountTotal = useMemo(
-    () => discountsAvailableThisMonth(invoices, asOf),
-    [invoices, asOf]
-  );
+
+  const discountVendors = useMemo(() => {
+    return Array.from(
+      new Set(discountsAll.map((inv) => inv.vendorName).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+  }, [discountsAll]);
+
+  const discounts = useMemo(() => {
+    if (discountVendor === ALL) return discountsAll;
+    return discountsAll.filter((inv) => inv.vendorName === discountVendor);
+  }, [discountsAll, discountVendor]);
+
+  const monthDiscountTotal = useMemo(() => {
+    const filtered =
+      discountVendor === ALL
+        ? invoices
+        : invoices.filter((inv) => inv.vendorName === discountVendor);
+    return discountsAvailableThisMonth(filtered, asOf);
+  }, [invoices, asOf, discountVendor]);
 
   const discountAlerts = useMemo(() => {
     const withinOneWeek: ApInvoice[] = [];
@@ -194,13 +318,25 @@ export function ApPayableReport({
         (s, inv) => s + discountSavings(inv),
         0
       ),
+      totalSavings: discounts.reduce((s, inv) => s + discountSavings(inv), 0),
     };
   }, [discounts, asOf]);
 
-  const upcoming = useMemo(
+  const upcomingAll = useMemo(
     () => upcomingPayments(invoices, asOf, 14),
     [invoices, asOf]
   );
+
+  const upcomingCompanies = useMemo(() => {
+    return Array.from(
+      new Set(upcomingAll.map((inv) => inv.vendorName).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+  }, [upcomingAll]);
+
+  const upcoming = useMemo(() => {
+    if (upcomingCompany === ALL) return upcomingAll;
+    return upcomingAll.filter((inv) => inv.vendorName === upcomingCompany);
+  }, [upcomingAll, upcomingCompany]);
 
   const upcomingAlerts = useMemo(() => {
     const withinOneWeek: ApInvoice[] = [];
@@ -217,8 +353,35 @@ export function ApPayableReport({
       withinTwoWeeks,
       oneWeekTotal: withinOneWeek.reduce((s, inv) => s + inv.amount, 0),
       twoWeekTotal: withinTwoWeeks.reduce((s, inv) => s + inv.amount, 0),
+      totalAmount: upcoming.reduce((s, inv) => s + inv.amount, 0),
     };
   }, [upcoming, asOf]);
+
+  function handleNotifyManager() {
+    const dueSoon = upcomingAlerts.withinOneWeek;
+    if (dueSoon.length === 0) {
+      setNotifyStatus("No payments are due within one week.");
+      setNotifyChatHref(null);
+      return;
+    }
+    messageManagerAboutApDuePayments({
+      payments: dueSoon.map((inv) => ({
+        vendorName: inv.vendorName,
+        category: inv.category,
+        dueDate: inv.dueDate,
+        amount: inv.amount,
+      })),
+      totalAmount: upcomingAlerts.oneWeekTotal,
+      formatCurrency,
+      formatDate,
+    });
+    const href = chatHrefForApManagerReminder();
+    setNotifyChatHref(href);
+    setNotifyStatus(
+      `Message sent to the manager — ${dueSoon.length} payment${dueSoon.length === 1 ? "" : "s"} due within 1 week.`
+    );
+    window.setTimeout(() => setNotifyStatus(null), 8000);
+  }
 
   const openMeta = AGING_BUCKETS.find((b) => b.key === openBucket);
   const detailInvoices = openBucket ? buckets[openBucket] : [];
@@ -230,7 +393,12 @@ export function ApPayableReport({
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [invoices, categoryDetail]);
 
-  const vendorTotals = useMemo(() => openApByVendor(invoices), [invoices]);
+  const openInvoiceList = useMemo(() => {
+    void gateTick;
+    return openApInvoices(invoices).sort((a, b) =>
+      a.dueDate.localeCompare(b.dueDate)
+    );
+  }, [invoices, gateTick]);
 
   return (
     <div className="space-y-8">
@@ -239,9 +407,9 @@ export function ApPayableReport({
         <SummaryKpi
           title="Total Open AP"
           value={formatCurrency(dpoResult.openAp)}
-          hint="Sum of unpaid vendor invoices — click for vendor breakdown"
-          selected={vendorDetailOpen}
-          onSelect={() => setVendorDetailOpen((open) => !open)}
+          hint="Sum of unpaid vendor invoices — click for invoice list"
+          selected={invoiceDetailOpen}
+          onSelect={() => setInvoiceDetailOpen((open) => !open)}
         />
         <SummaryKpi
           title="DPO"
@@ -255,48 +423,95 @@ export function ApPayableReport({
         />
       </div>
 
-      {vendorDetailOpen ? (
+      {invoiceDetailOpen ? (
         <Card>
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="font-semibold text-green-950">
-                Open AP by Vendor
+                Open AP by Invoice
               </h3>
               <p className="mt-0.5 text-sm text-stone-600">
-                How much is owed to each vendor
+                Request manager approval, then pay each open vendor invoice
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setVendorDetailOpen(false)}
+              onClick={() => setInvoiceDetailOpen(false)}
               className="text-sm text-stone-600 hover:text-green-900"
             >
               Close
             </button>
           </div>
-          {vendorTotals.length === 0 ? (
-            <p className="mt-3 text-sm text-stone-600">No open vendor balances.</p>
+
+          {invoiceActionStatus ? (
+            <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
+              {invoiceActionStatus}
+              {notifyChatHref &&
+              invoiceActionStatus.toLowerCase().includes("approval") ? (
+                <>
+                  {" "}
+                  <Link
+                    href={notifyChatHref}
+                    className="font-medium underline hover:text-green-950"
+                  >
+                    Open Chat
+                  </Link>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {openInvoiceList.length === 0 ? (
+            <p className="mt-3 text-sm text-stone-600">No open invoices.</p>
           ) : (
             <ul className="mt-3 divide-y divide-stone-100">
-              {vendorTotals.map((row) => (
-                <li
-                  key={row.vendorName}
-                  className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-sm"
-                >
-                  <div>
-                    <span className="font-medium text-stone-900">
-                      {row.vendorName}
-                    </span>
-                    <p className="text-stone-500">
-                      {row.invoices} open invoice
-                      {row.invoices === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  <span className="font-semibold tabular-nums text-green-950">
-                    {formatCurrency(row.amount)}
-                  </span>
-                </li>
-              ))}
+              {openInvoiceList.map((inv) => {
+                const gate = getApPaymentGateStatus(inv.id);
+                return (
+                  <li
+                    key={inv.id}
+                    className="flex items-center gap-4 py-3 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-stone-900">
+                          {inv.vendorName}
+                        </span>
+                        <span className="text-stone-500">{inv.category}</span>
+                        <PaymentGateBadge status={gate} />
+                      </div>
+                      <p className="text-stone-500">
+                        Due {formatDate(inv.dueDate)} · Invoice {inv.id}
+                      </p>
+                      <p className="mt-1 font-semibold tabular-nums text-green-950">
+                        {formatCurrency(inv.amount)}
+                      </p>
+                    </div>
+                    <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRequestInvoiceApproval(inv)}
+                        disabled={gate === "approved" || gate === "paid"}
+                        className="rounded-md border border-amber-700 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {gate === "awaiting_approval"
+                          ? "Resend approval request"
+                          : gate === "approved"
+                            ? "Approved"
+                            : "Request approval"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handlePayInvoice(inv)}
+                        disabled={gate !== "approved"}
+                        className="rounded-md bg-green-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Pay invoice
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
@@ -396,7 +611,7 @@ export function ApPayableReport({
                 {detailInvoices.map((inv) => (
                   <li
                     key={inv.id}
-                    className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-sm"
+                    className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm"
                   >
                     <div>
                       <span className="font-medium text-stone-900">
@@ -407,9 +622,18 @@ export function ApPayableReport({
                         Due {formatDate(inv.dueDate)}
                       </p>
                     </div>
-                    <span className="font-semibold text-green-950">
-                      {formatCurrency(inv.amount)}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="font-semibold text-green-950">
+                        {formatCurrency(inv.amount)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleMarkPaid(inv.id)}
+                        className="rounded-md border border-green-700 px-2.5 py-1 text-xs font-medium text-green-800 hover:bg-green-50"
+                      >
+                        Mark paid
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -495,219 +719,384 @@ export function ApPayableReport({
           invoices={categoryDetailInvoices}
           total={categoryTotals[categoryDetail]}
           asOf={asOf}
+          onMarkPaid={handleMarkPaid}
           onClose={() => setCategoryDetail(null)}
         />
       ) : null}
 
       {/* 4–5. Upcoming 14 days | Early payment discounts */}
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-        <Card className="min-w-0">
-          <h2 className="text-lg font-semibold text-green-950">
-            Upcoming 14 Days
-          </h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Open invoices due within the next two weeks
-          </p>
-
-          {upcoming.length === 0 ? (
-            <p className="mt-4 text-sm text-stone-600">
-              No payments due in the next 14 days.
-            </p>
-          ) : (
-            <>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <div
-                  className="rounded-lg border border-orange-200 bg-orange-50/70 px-3 py-2.5"
-                  role="status"
+        <section className="min-w-0 overflow-hidden rounded-xl border border-green-200 bg-white shadow-sm">
+          <div className="space-y-3 border-b border-green-100 bg-green-50/90 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setUpcomingOpen((value) => !value)}
+                className="flex min-w-0 flex-1 items-start gap-3 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30"
+                aria-expanded={upcomingOpen}
+                aria-controls="upcoming-14-days-panel"
+              >
+                <span
+                  className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-green-200 bg-white text-green-800 transition-transform ${
+                    upcomingOpen ? "rotate-90" : ""
+                  }`}
+                  aria-hidden="true"
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-900">
-                    Due within 1 week
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-orange-950">
-                    {upcomingAlerts.withinOneWeek.length} payment
-                    {upcomingAlerts.withinOneWeek.length === 1 ? "" : "s"}
-                    <span className="ml-1.5 font-bold">
-                      {formatCurrency(upcomingAlerts.oneWeekTotal)}
-                    </span>
-                  </p>
-                </div>
-                <div
-                  className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5"
-                  role="status"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
-                    Due in 1–2 weeks
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-amber-950">
-                    {upcomingAlerts.withinTwoWeeks.length} payment
-                    {upcomingAlerts.withinTwoWeeks.length === 1 ? "" : "s"}
-                    <span className="ml-1.5 font-bold">
-                      {formatCurrency(upcomingAlerts.twoWeekTotal)}
-                    </span>
-                  </p>
-                </div>
-              </div>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="h-4 w-4"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-green-950">
+                    Upcoming 14 Days
+                  </span>
+                  <span className="mt-0.5 block text-xs text-green-800/80">
+                    {upcoming.length} payment
+                    {upcoming.length === 1 ? "" : "s"} ·{" "}
+                    {formatCurrency(upcomingAlerts.totalAmount)} total ·{" "}
+                    {upcomingAlerts.withinOneWeek.length} due ≤1 week (
+                    {formatCurrency(upcomingAlerts.oneWeekTotal)})
+                    {upcomingCompany !== ALL
+                      ? ` · ${upcomingCompany}`
+                      : ""}
+                    {!upcomingOpen ? ". Expand to review." : ""}
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleNotifyManager}
+                disabled={upcomingAlerts.withinOneWeek.length === 0}
+                className="ml-auto shrink-0 rounded-lg bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Notify manager
+              </button>
+            </div>
 
-              <ul className="mt-4 divide-y divide-stone-100">
-                {upcoming.map((inv) => {
-                  const daysUntilDue = daysBetween(asOf, inv.dueDate);
-                  const dueThisWeek = daysUntilDue <= 7;
-                  return (
-                    <li
-                      key={inv.id}
-                      className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-sm"
+            <label className="flex items-center gap-2 text-sm text-green-950">
+              <span className="whitespace-nowrap text-xs font-medium text-green-800">
+                Company
+              </span>
+              <select
+                value={upcomingCompany}
+                onChange={(e) => {
+                  setUpcomingCompany(e.target.value);
+                  setUpcomingOpen(true);
+                }}
+                className="max-w-[14rem] rounded-md border border-green-200 bg-white px-2 py-1.5 text-sm text-stone-800 shadow-sm outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/15"
+              >
+                <option value={ALL}>All companies</option>
+                {upcomingCompanies.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {notifyStatus ? (
+            <div className="border-b border-green-100 bg-green-50 px-4 py-2 text-sm text-green-900">
+              {notifyStatus}
+              {notifyChatHref ? (
+                <>
+                  {" "}
+                  <Link
+                    href={notifyChatHref}
+                    className="font-medium underline hover:text-green-950"
+                  >
+                    Open Chat
+                  </Link>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {upcomingOpen ? (
+            <div id="upcoming-14-days-panel" className="bg-green-50/30 p-4">
+              {upcoming.length === 0 ? (
+                <p className="text-sm text-stone-600">
+                  No payments due in the next 14 days
+                  {upcomingCompany !== ALL ? " for this company" : ""}.
+                </p>
+              ) : (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div
+                      className="rounded-lg border border-orange-200 bg-orange-50/70 px-3 py-2.5"
+                      role="status"
                     >
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium text-stone-900">
-                            {inv.vendorName}
-                          </span>
-                          <span className="text-stone-500">{inv.category}</span>
-                          <span
-                            className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                              dueThisWeek
-                                ? "bg-orange-100 text-orange-900"
-                                : "bg-amber-100 text-amber-900"
-                            }`}
-                          >
-                            {dueThisWeek ? "Due ≤1 week" : "Due ≤2 weeks"}
-                          </span>
-                        </div>
-                        <p className="text-stone-500">
-                          Due {formatDate(inv.dueDate)}
-                          {daysUntilDue === 0
-                            ? " · today"
-                            : daysUntilDue === 1
-                              ? " · tomorrow"
-                              : ` · in ${daysUntilDue} days`}
-                        </p>
-                      </div>
-                      <span className="font-semibold text-green-950">
-                        {formatCurrency(inv.amount)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-        </Card>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-orange-900">
+                        Due within 1 week
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-orange-950">
+                        {upcomingAlerts.withinOneWeek.length} payment
+                        {upcomingAlerts.withinOneWeek.length === 1 ? "" : "s"}
+                        <span className="ml-1.5 font-bold">
+                          {formatCurrency(upcomingAlerts.oneWeekTotal)}
+                        </span>
+                      </p>
+                    </div>
+                    <div
+                      className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5"
+                      role="status"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                        Due in 1–2 weeks
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-amber-950">
+                        {upcomingAlerts.withinTwoWeeks.length} payment
+                        {upcomingAlerts.withinTwoWeeks.length === 1 ? "" : "s"}
+                        <span className="ml-1.5 font-bold">
+                          {formatCurrency(upcomingAlerts.twoWeekTotal)}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
 
-        <Card className="min-w-0">
-          <h2 className="text-lg font-semibold text-green-950">
-            Early Payment Discounts
-          </h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Open invoices still inside an early-pay window
-          </p>
-
-          {discounts.length === 0 ? (
-            <p className="mt-4 text-sm text-stone-600">
-              No active early-pay discounts.
-            </p>
-          ) : (
-            <>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <div
-                  className="rounded-lg border border-orange-200 bg-orange-50/70 px-3 py-2.5"
-                  role="status"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-900">
-                    Deadline within 1 week
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-orange-950">
-                    {discountAlerts.withinOneWeek.length} discount
-                    {discountAlerts.withinOneWeek.length === 1 ? "" : "s"}
-                    <span className="ml-1.5 font-bold">
-                      {formatCurrency(discountAlerts.oneWeekSavings)}
-                    </span>
-                  </p>
-                </div>
-                <div
-                  className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5"
-                  role="status"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
-                    Deadline in 1–2 weeks
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-amber-950">
-                    {discountAlerts.withinTwoWeeks.length} discount
-                    {discountAlerts.withinTwoWeeks.length === 1 ? "" : "s"}
-                    <span className="ml-1.5 font-bold">
-                      {formatCurrency(discountAlerts.twoWeekSavings)}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-stone-200 text-stone-500">
-                      <th className="pb-2 pr-2 font-medium">Vendor</th>
-                      <th className="pb-2 pr-2 font-medium">Deadline</th>
-                      <th className="pb-2 pr-2 font-medium">%</th>
-                      <th className="pb-2 text-right font-medium">$ Saved</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100">
-                    {discounts.map((inv) => {
-                      const daysUntil = daysBetween(
-                        asOf,
-                        inv.discountDeadline!
-                      );
-                      const dueThisWeek = daysUntil <= 7;
-                      const dueTwoWeeks = daysUntil <= 14;
+                  <ul className="mt-4 divide-y divide-stone-100 rounded-xl border border-green-100 bg-white px-3">
+                    {upcoming.map((inv) => {
+                      const daysUntilDue = daysBetween(asOf, inv.dueDate);
+                      const dueThisWeek = daysUntilDue <= 7;
                       return (
-                        <tr key={inv.id} className="text-stone-800">
-                          <td className="py-2.5 pr-2 font-medium">
-                            {inv.vendorName}
-                          </td>
-                          <td className="py-2.5 pr-2">
-                            <div className="flex flex-wrap items-center gap-1.5 whitespace-nowrap">
-                              <span>{formatDate(inv.discountDeadline!)}</span>
-                              {dueTwoWeeks ? (
-                                <span
-                                  className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                                    dueThisWeek
-                                      ? "bg-orange-100 text-orange-900"
-                                      : "bg-amber-100 text-amber-900"
-                                  }`}
-                                >
-                                  {dueThisWeek
-                                    ? "Due ≤1 week"
-                                    : "Due ≤2 weeks"}
-                                </span>
-                              ) : null}
+                        <li
+                          key={inv.id}
+                          className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-stone-900">
+                                {inv.vendorName}
+                              </span>
+                              <span className="text-stone-500">
+                                {inv.category}
+                              </span>
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                                  dueThisWeek
+                                    ? "bg-orange-100 text-orange-900"
+                                    : "bg-amber-100 text-amber-900"
+                                }`}
+                              >
+                                {dueThisWeek ? "Due ≤1 week" : "Due ≤2 weeks"}
+                              </span>
                             </div>
-                            <p className="text-xs text-stone-500">
-                              {daysUntil === 0
-                                ? "today"
-                                : daysUntil === 1
-                                  ? "tomorrow"
-                                  : `in ${daysUntil} days`}
+                            <p className="text-stone-500">
+                              Due {formatDate(inv.dueDate)}
+                              {daysUntilDue === 0
+                                ? " · today"
+                                : daysUntilDue === 1
+                                  ? " · tomorrow"
+                                  : ` · in ${daysUntilDue} days`}
                             </p>
-                          </td>
-                          <td className="py-2.5 pr-2">{inv.discountPercent}%</td>
-                          <td className="py-2.5 text-right font-semibold text-green-900 whitespace-nowrap">
-                            {formatCurrency(discountSavings(inv))}
-                          </td>
-                        </tr>
+                          </div>
+                          <span className="font-semibold text-green-950">
+                            {formatCurrency(inv.amount)}
+                          </span>
+                        </li>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+                  </ul>
+                </>
+              )}
+            </div>
+          ) : null}
+        </section>
 
-          <p className="mt-4 border-t border-stone-100 pt-3 text-sm text-stone-700">
-            Discounts available this month:{" "}
-            <span className="font-semibold text-green-950">
-              {formatCurrency(monthDiscountTotal)}
-            </span>
-          </p>
-        </Card>
+        <section className="min-w-0 overflow-hidden rounded-xl border border-green-200 bg-white shadow-sm">
+          <div className="space-y-3 border-b border-green-100 bg-green-50/90 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setDiscountsOpen((value) => !value)}
+              className="flex w-full min-w-0 items-start gap-3 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30"
+              aria-expanded={discountsOpen}
+              aria-controls="early-discounts-panel"
+            >
+              <span
+                className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-green-200 bg-white text-green-800 transition-transform ${
+                  discountsOpen ? "rotate-90" : ""
+                }`}
+                aria-hidden="true"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-4 w-4"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-green-950">
+                  Early Payment Discounts
+                </span>
+                <span className="mt-0.5 block text-xs text-green-800/80">
+                  {discounts.length} discount
+                  {discounts.length === 1 ? "" : "s"} ·{" "}
+                  {formatCurrency(discountAlerts.totalSavings)} available ·
+                  month {formatCurrency(monthDiscountTotal)}
+                  {discountVendor !== ALL ? ` · ${discountVendor}` : ""}
+                  {!discountsOpen ? ". Expand to review." : ""}
+                </span>
+              </span>
+            </button>
+
+            <label className="flex items-center gap-2 text-sm text-green-950">
+              <span className="whitespace-nowrap text-xs font-medium text-green-800">
+                Vendor
+              </span>
+              <select
+                value={discountVendor}
+                onChange={(e) => {
+                  setDiscountVendor(e.target.value);
+                  setDiscountsOpen(true);
+                }}
+                className="max-w-[14rem] rounded-md border border-green-200 bg-white px-2 py-1.5 text-sm text-stone-800 shadow-sm outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/15"
+              >
+                <option value={ALL}>All vendors</option>
+                {discountVendors.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {discountsOpen ? (
+            <div id="early-discounts-panel" className="bg-green-50/30 p-4">
+              {discounts.length === 0 ? (
+                <p className="text-sm text-stone-600">
+                  No active early-pay discounts
+                  {discountVendor !== ALL ? " for this vendor" : ""}.
+                </p>
+              ) : (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div
+                      className="rounded-lg border border-orange-200 bg-orange-50/70 px-3 py-2.5"
+                      role="status"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide text-orange-900">
+                        Deadline within 1 week
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-orange-950">
+                        {discountAlerts.withinOneWeek.length} discount
+                        {discountAlerts.withinOneWeek.length === 1 ? "" : "s"}
+                        <span className="ml-1.5 font-bold">
+                          {formatCurrency(discountAlerts.oneWeekSavings)}
+                        </span>
+                      </p>
+                    </div>
+                    <div
+                      className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5"
+                      role="status"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                        Deadline in 1–2 weeks
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-amber-950">
+                        {discountAlerts.withinTwoWeeks.length} discount
+                        {discountAlerts.withinTwoWeeks.length === 1 ? "" : "s"}
+                        <span className="ml-1.5 font-bold">
+                          {formatCurrency(discountAlerts.twoWeekSavings)}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-green-100 bg-white px-3">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-stone-200 text-stone-500">
+                          <th className="pb-2 pr-2 pt-3 font-medium">Vendor</th>
+                          <th className="pb-2 pr-2 pt-3 font-medium">
+                            Deadline
+                          </th>
+                          <th className="pb-2 pr-2 pt-3 font-medium">%</th>
+                          <th className="pb-2 pt-3 text-right font-medium">
+                            $ Saved
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100">
+                        {discounts.map((inv) => {
+                          const daysUntil = daysBetween(
+                            asOf,
+                            inv.discountDeadline!
+                          );
+                          const dueThisWeek = daysUntil <= 7;
+                          const dueTwoWeeks = daysUntil <= 14;
+                          return (
+                            <tr key={inv.id} className="text-stone-800">
+                              <td className="py-2.5 pr-2 font-medium">
+                                {inv.vendorName}
+                              </td>
+                              <td className="py-2.5 pr-2">
+                                <div className="flex flex-wrap items-center gap-1.5 whitespace-nowrap">
+                                  <span>
+                                    {formatDate(inv.discountDeadline!)}
+                                  </span>
+                                  {dueTwoWeeks ? (
+                                    <span
+                                      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                                        dueThisWeek
+                                          ? "bg-orange-100 text-orange-900"
+                                          : "bg-amber-100 text-amber-900"
+                                      }`}
+                                    >
+                                      {dueThisWeek
+                                        ? "Due ≤1 week"
+                                        : "Due ≤2 weeks"}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="text-xs text-stone-500">
+                                  {daysUntil === 0
+                                    ? "today"
+                                    : daysUntil === 1
+                                      ? "tomorrow"
+                                      : `in ${daysUntil} days`}
+                                </p>
+                              </td>
+                              <td className="py-2.5 pr-2">
+                                {inv.discountPercent}%
+                              </td>
+                              <td className="py-2.5 text-right font-semibold text-green-900 whitespace-nowrap">
+                                {formatCurrency(discountSavings(inv))}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              <p className="mt-4 border-t border-stone-200 pt-3 text-sm text-stone-700">
+                Discounts available this month:{" "}
+                <span className="font-semibold text-green-950">
+                  {formatCurrency(monthDiscountTotal)}
+                </span>
+              </p>
+            </div>
+          ) : null}
+        </section>
       </div>
     </div>
   );
@@ -727,12 +1116,14 @@ function CategoryPayablesModal({
   invoices,
   total,
   asOf,
+  onMarkPaid,
   onClose,
 }: {
   category: ApCategory;
   invoices: ApInvoice[];
   total: number;
   asOf: string;
+  onMarkPaid: (invoiceId: string) => void;
   onClose: () => void;
 }) {
   return (
@@ -785,7 +1176,7 @@ function CategoryPayablesModal({
             </p>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-stone-200">
-              <table className="w-full min-w-[40rem] text-left text-sm">
+              <table className="w-full min-w-[44rem] text-left text-sm">
                 <thead className="bg-stone-50 text-stone-500">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Vendor</th>
@@ -794,6 +1185,9 @@ function CategoryPayablesModal({
                     <th className="px-4 py-2.5 font-medium">Aging</th>
                     <th className="px-4 py-2.5 font-medium">Discount</th>
                     <th className="px-4 py-2.5 text-right font-medium">Amount</th>
+                    <th className="px-4 py-2.5 text-right font-medium">
+                      Payment
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -832,6 +1226,15 @@ function CategoryPayablesModal({
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-green-950 whitespace-nowrap">
                           {formatCurrency(inv.amount)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => onMarkPaid(inv.id)}
+                            className="rounded-md border border-green-700 px-2.5 py-1 text-xs font-medium text-green-800 hover:bg-green-50"
+                          >
+                            Mark paid
+                          </button>
                         </td>
                       </tr>
                     );
