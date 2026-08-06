@@ -1,4 +1,9 @@
 import { redirect } from "next/navigation";
+import {
+  backfillDepreciationJournals,
+  ensureReadyVisitJournalsPosted,
+  postAllReadyJournalEntries,
+} from "@/app/actions/journal";
 import { AccountantJournalEntriesView } from "@/components/AccountantJournalEntriesView";
 import { AppShell } from "@/components/AppShell";
 import { PageHeader } from "@/components/ui";
@@ -12,6 +17,9 @@ export default async function JournalEntriesPage() {
   const role = await getViewRole();
   if (!roleCanEditContractDetails(role)) redirect("/dashboard");
 
+  await backfillDepreciationJournals();
+  await postAllReadyJournalEntries();
+  await ensureReadyVisitJournalsPosted();
   const { entries, chartAccounts } = await loadAccountingReportData();
 
   return (

@@ -1,10 +1,10 @@
 import { completeVisit } from "@/app/actions/business";
-import { ensureCompletedVisitLaborSynced } from "@/app/actions/labor";
 import { AccountantVisitsView } from "@/components/AccountantVisitsView";
+import { fetchEquipment } from "@/app/equipment/queries";
 import {
-  fetchEquipment,
-  fetchEquipmentUsage,
-} from "@/app/equipment/queries";
+  ensureAccountantCompletedVisitEquipmentUsage,
+  fetchAccountantVisitEquipmentUsage,
+} from "@/app/visits/accountant-equipment";
 import { AppShell } from "@/components/AppShell";
 import {
   VisitStatusFilter,
@@ -96,15 +96,14 @@ export default async function VisitsPage({
   const isAccountant = roleCanEditContractDetails(role);
 
   if (isAccountant) {
-    const { data: initialVisits } = await fetchAccountantVisits();
-    await ensureCompletedVisitLaborSynced(initialVisits.map((visit) => visit.id));
+    await ensureAccountantCompletedVisitEquipmentUsage();
     const { data: visits } = await fetchAccountantVisits();
     const visitJournalStates = Object.fromEntries(
       (await fetchJournalSourceStates()).visit
     );
     const [equipmentRows, usageRows] = await Promise.all([
       fetchEquipment(),
-      fetchEquipmentUsage(),
+      fetchAccountantVisitEquipmentUsage(),
     ]);
 
     return (
@@ -128,12 +127,10 @@ export default async function VisitsPage({
             }))}
             equipmentUsage={usageRows.map((row) => ({
               id: row.id,
-              visitId: row.visit_id,
-              equipmentId: row.equipment_id,
-              equipmentName: row.equipment_name,
-              category:
-                equipmentRows.find((item) => item.id === row.equipment_id)
-                  ?.category ?? "Other",
+              visitId: row.visitId,
+              equipmentId: row.equipmentId,
+              equipmentName: row.equipmentName,
+              category: row.category,
               hours: row.hours,
               notes: row.notes,
             }))}
