@@ -1,0 +1,12 @@
+---
+description: Prefer accountant-only UI changes unless the user says otherwise
+alwaysApply: true
+---
+
+# Role-scoped UI changes
+
+Manager and Accountant share some routes but render different views.
+
+- **Default:** only change the **Accountant** view (e.g. `ProfitabilityReport`, `ArAgingReport`, accountant branches in report `page.tsx`).
+- **Do not** change Manager layouts (`ManagerProfitabilityView`, `ManagerArAgingView`, or manager branches) unless the user explicitly asks.
+- When adding report features, gate them with `role === "accountant"` (or put them only in accountant components).
