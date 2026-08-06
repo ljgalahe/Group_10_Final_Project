@@ -9,7 +9,13 @@ export type AppNavItem = {
   label: string;
 };
 
-export function AppNavLinks({ items }: { items: AppNavItem[] }) {
+export function AppNavLinks({
+  items,
+  collapsed = false,
+}: {
+  items: AppNavItem[];
+  collapsed?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
@@ -27,7 +33,11 @@ export function AppNavLinks({ items }: { items: AppNavItem[] }) {
 
   return (
     <nav
-      className="flex flex-1 flex-row gap-1 md:flex-col md:gap-0.5"
+      className={`flex flex-row gap-1 overflow-x-auto md:overflow-visible ${
+        collapsed
+          ? "md:flex-col md:items-center md:gap-1"
+          : "md:flex-col md:gap-1"
+      }`}
       aria-label="Main"
     >
       {items.map((item) => {
@@ -35,12 +45,20 @@ export function AppNavLinks({ items }: { items: AppNavItem[] }) {
           pathname === item.href ||
           (item.href !== "/dashboard" && pathname.startsWith(item.href));
         const pending = isPending && pendingHref === item.href;
+        const short =
+          item.label
+            .split(/\s+/)
+            .map((part) => part[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase() || item.label.slice(0, 1);
 
         return (
           <Link
             key={item.href}
             href={item.href}
             prefetch
+            title={item.label}
             onClick={(event) => {
               if (
                 event.metaKey ||
@@ -59,23 +77,30 @@ export function AppNavLinks({ items }: { items: AppNavItem[] }) {
             }}
             aria-current={active ? "page" : undefined}
             aria-busy={pending || undefined}
-            className={`group relative whitespace-nowrap px-3 py-2.5 text-[13px] tracking-[0.05em] transition duration-200 md:whitespace-normal ${
+            aria-label={item.label}
+            className={`group relative transition duration-200 ${
+              collapsed
+                ? "flex h-10 w-10 shrink-0 items-center justify-center text-[11px] font-medium tracking-wide md:mx-auto"
+                : "shrink-0 whitespace-nowrap px-3 py-2 text-[13px] leading-snug tracking-[0.05em] md:shrink md:whitespace-normal"
+            } ${
               active || pending
                 ? "bg-white/[0.07] text-[#faf8f4]"
                 : "text-[#c9c4b8] hover:bg-white/[0.04] hover:text-[#f3f0ea]"
             } ${pending ? "opacity-80" : ""}`}
           >
-            <span
-              className={`absolute inset-y-2 left-0 hidden w-px origin-center transition duration-300 md:block ${
-                active || pending
-                  ? "scale-y-100 bg-[var(--champagne-bright)]"
-                  : "scale-y-50 bg-transparent group-hover:scale-y-100 group-hover:bg-white/25"
-              }`}
-              aria-hidden
-            />
+            {!collapsed ? (
+              <span
+                className={`absolute inset-y-2 left-0 hidden w-px origin-center transition duration-300 md:block ${
+                  active || pending
+                    ? "scale-y-100 bg-[var(--champagne-bright)]"
+                    : "scale-y-50 bg-transparent group-hover:scale-y-100 group-hover:bg-white/25"
+                }`}
+                aria-hidden
+              />
+            ) : null}
             <span className="inline-flex items-center gap-2">
-              {item.label}
-              {pending ? (
+              {collapsed ? short : item.label}
+              {pending && !collapsed ? (
                 <span
                   className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--champagne-bright)]"
                   aria-hidden

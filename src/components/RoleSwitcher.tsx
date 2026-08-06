@@ -1,51 +1,56 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { switchDemoRole } from "@/app/actions/auth";
+import { ViewRoleSelect } from "@/components/ViewRoleSelect";
 import { DEMO_ROLES, type UserRole } from "@/lib/types";
-
-const selectClassName =
-  "w-full border border-white/15 bg-[#1f241c] px-3 py-2 text-[12px] tracking-wide text-[#f3f0ea] outline-none transition focus:border-[#c4b7a0]/60";
 
 export function RoleSwitcher({ currentRole }: { currentRole: UserRole }) {
   const [mounted, setMounted] = useState(false);
+  const [role, setRole] = useState<UserRole>(currentRole);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setRole(currentRole);
+  }, [currentRole]);
 
   const currentLabel =
     DEMO_ROLES.find((item) => item.role === currentRole)?.label ?? "Manager";
 
   if (!mounted) {
     return (
-      <div className={selectClassName} aria-hidden>
-        View as: {currentLabel}
+      <div>
+        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.2em] text-[#8a9080]">
+          View as
+        </p>
+        <p className="border-b border-white/20 py-2.5 font-display text-[0.95rem] tracking-[0.02em] text-[#f3f0ea]">
+          {currentLabel}
+        </p>
       </div>
     );
   }
 
   return (
-    <form action={switchDemoRole}>
-      <label
-        htmlFor="role"
-        className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.2em] text-[#8a9080]"
-      >
+    <form ref={formRef} action={switchDemoRole}>
+      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.2em] text-[#8a9080]">
         View as
-      </label>
-      <select
+      </p>
+      <ViewRoleSelect
         id="role"
         name="role"
-        defaultValue={currentRole}
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className={selectClassName}
-      >
-        {DEMO_ROLES.map((item) => (
-          <option key={item.role} value={item.role}>
-            {item.label}
-          </option>
-        ))}
-      </select>
+        value={role}
+        options={DEMO_ROLES}
+        variant="sidebar"
+        onChange={(next) => {
+          setRole(next);
+          // Let the hidden input update, then submit for redirect.
+          queueMicrotask(() => formRef.current?.requestSubmit());
+        }}
+      />
     </form>
   );
 }

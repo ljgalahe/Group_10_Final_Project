@@ -26,7 +26,7 @@ export function ManagerProfitabilityView({
 
   return (
     <>
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 gs-kpi-grid">
         <StatCard label="Total Revenue" value={formatCurrency(totalRevenue)} />
         <StatCard label="Total Direct Costs" value={formatCurrency(totalCosts)} />
         <StatCard label="Total Margin" value={formatCurrency(totalMargin)} />

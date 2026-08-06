@@ -1,12 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { enterDemoWithRole } from "@/app/actions/auth";
+import { ViewRoleSelect } from "@/components/ViewRoleSelect";
 import { COMMERCIAL_SERVICES } from "@/lib/commercial-services";
 import { DEMO_ROLES, type UserRole } from "@/lib/types";
 
-const SERVICES = COMMERCIAL_SERVICES;
+const SERVICES = COMMERCIAL_SERVICES.filter((s) => s.value !== "other");
 
 const SLIDES = [
   {
@@ -67,13 +69,17 @@ export function WelcomeLanding() {
 
   useEffect(() => {
     for (const item of SLIDES) {
-      const img = new Image();
+      const img = new window.Image();
       img.src = item.src;
     }
   }, []);
 
   return (
-    <div className="welcome-root relative min-h-screen overflow-hidden text-[#faf6f2]">
+    <div
+      className="welcome-root relative h-dvh overflow-hidden text-[#faf8f4]"
+      suppressHydrationWarning
+    >
+      {/* Full-screen photo — edge to edge */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
         {SLIDES.map((item, index) => (
           <div
@@ -84,137 +90,147 @@ export function WelcomeLanding() {
             style={{ backgroundImage: `url(${item.src})` }}
           />
         ))}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#4a2c2a]/35 via-[#2a1f1c]/45 to-[#1a1412]/85" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(26,20,18,0.35)_70%,rgba(26,20,18,0.75)_100%)]" />
-        <div className="welcome-grain absolute inset-0 opacity-[0.22] mix-blend-soft-light" />
-        <div className="welcome-breeze absolute inset-0 opacity-30" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/20 to-black/70" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_10%,rgba(20,16,14,0.45)_100%)]" />
+        <div className="welcome-grain absolute inset-0 opacity-[0.18] mix-blend-soft-light" />
+        <div className="welcome-breeze absolute inset-0 opacity-25" />
       </div>
 
-      <div className="relative z-10 flex min-h-screen flex-col">
-        <main className="flex flex-1 flex-col items-center justify-center px-5 pb-6 pt-4 text-center">
-          <h1 className="font-display text-5xl font-semibold tracking-tight text-[#fff8f4] sm:text-6xl md:text-7xl">
+      <div className="relative z-10 flex h-full flex-col">
+        <main
+          className={`flex flex-col items-center justify-center px-6 text-center transition-[flex] duration-300 ${
+            servicesOpen ? "flex-none pt-10 pb-4 sm:pt-12" : "flex-1"
+          }`}
+        >
+          <h1
+            className={`font-display font-semibold tracking-tight text-[#fff8f4] drop-shadow-sm transition-all duration-300 ${
+              servicesOpen
+                ? "text-3xl sm:text-4xl"
+                : "text-5xl sm:text-6xl md:text-7xl"
+            }`}
+          >
             GreenScape
           </h1>
-          <p className="mt-4 max-w-md font-display text-lg italic leading-relaxed text-[#f3ddd6] sm:text-xl">
-            Commercial grounds, elevated.
-          </p>
-          <p
-            key={SLIDES[slide].label}
-            className="mt-5 text-[11px] font-medium uppercase tracking-[0.28em] text-[#e8dfd0]/90"
-          >
-            {SLIDES[slide].label}
-          </p>
-          <div className="mt-4 flex items-center justify-center gap-2">
-            {SLIDES.map((item, index) => (
-              <button
-                key={item.src}
-                type="button"
-                aria-label={`Show ${item.label}`}
-                aria-current={index === slide}
-                onClick={() => setSlide(index)}
-                className={`h-1.5 rounded-full transition-all ${
-                  index === slide
-                    ? "w-6 bg-[#fff8f4]"
-                    : "w-1.5 bg-white/35 hover:bg-white/55"
-                }`}
-              />
-            ))}
-          </div>
+          {!servicesOpen ? (
+            <>
+              <p className="mt-4 max-w-md font-display text-lg italic leading-relaxed text-[#f0e4dc]/95 sm:text-xl">
+                Commercial grounds, elevated.
+              </p>
+              <p
+                key={SLIDES[slide].label}
+                className="mt-5 text-[11px] font-medium uppercase tracking-[0.28em] text-[#e8dfd0]/80"
+              >
+                {SLIDES[slide].label}
+              </p>
+
+              <div className="mt-8 flex items-center justify-center gap-2.5">
+                {SLIDES.map((item, index) => (
+                  <button
+                    key={item.src}
+                    type="button"
+                    aria-label={`Show ${item.label}`}
+                    aria-current={index === slide ? "true" : undefined}
+                    onClick={() => setSlide(index)}
+                    className={`rounded-full transition-all duration-300 ${
+                      index === slide
+                        ? "h-1.5 w-7 bg-[#f5ebe3]/90 shadow-[0_0_12px_rgba(245,235,227,0.35)]"
+                        : "h-1.5 w-1.5 bg-[#f5ebe3]/35 hover:bg-[#f5ebe3]/55"
+                    }`}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
         </main>
 
-        <footer className="border-t border-[#e8dfd0]/70 bg-[#faf6f1]/92 px-5 py-6 backdrop-blur-md sm:px-8">
-          <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-left">
-                <p className="font-display text-lg text-[#3a4a3c]">
-                  Let&apos;s get started!
-                </p>
-                <p className="mt-1 text-sm text-[#5f6f62]">
-                  Review services or request a commercial quote.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setServicesOpen((open) => !open)}
-                  className="inline-flex h-11 min-w-[10.5rem] items-center justify-center rounded-full border border-[#c9d2c6] bg-white/80 px-5 font-sans text-sm font-medium text-[#3a4a3c] shadow-sm transition hover:border-[#9aab98] hover:bg-white"
-                  aria-expanded={servicesOpen}
-                >
-                  {servicesOpen ? "Hide services" : "Services offered"}
-                </button>
-                <Link
-                  href="/quote"
-                  className="inline-flex h-11 min-w-[10.5rem] items-center justify-center rounded-full border border-[#2f4a38]/20 bg-[#2f4a38] px-5 font-sans text-sm font-medium text-[#faf8f4] shadow-sm transition hover:bg-[#3d5c47]"
-                >
-                  Request a quote
-                </Link>
-              </div>
-            </div>
+        <div className="relative z-20 flex flex-col items-center gap-4 px-5 pb-8 pt-2 sm:pb-10">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setServicesOpen((open) => !open)}
+              aria-expanded={servicesOpen}
+              className="welcome-cta inline-flex h-12 items-center justify-center rounded-full border border-white/30 bg-white/10 px-8 text-[#faf8f4] shadow-[0_8px_28px_rgba(0,0,0,0.18)] backdrop-blur-md transition hover:border-white/50 hover:bg-white/16"
+            >
+              {servicesOpen ? "Hide services" : "Services offered"}
+            </button>
+            <Link
+              href="/quote"
+              className="welcome-cta inline-flex h-12 items-center justify-center rounded-full border border-white/30 bg-white/10 px-8 text-[#faf8f4] shadow-[0_8px_28px_rgba(0,0,0,0.18)] backdrop-blur-md transition hover:border-white/50 hover:bg-white/16"
+            >
+              Request a quote
+            </Link>
+          </div>
 
-            {servicesOpen ? (
-              <section
-                className="rounded-2xl border border-[#e0e6de] bg-white/85 px-5 py-5 text-left shadow-sm sm:px-6"
-                aria-label="Services offered"
-              >
-                <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#6d7f70]">
-                  Featured commercial services
+          {servicesOpen ? (
+            <section
+              className="welcome-sidebar-scroll w-full max-w-xl max-h-[min(52vh,28rem)] overflow-y-auto border border-[#c5d0c6]/80 bg-white/95 shadow-xl"
+              aria-label="Services offered"
+            >
+              <div className="sticky top-0 z-10 border-b border-[#d5ddd6] bg-[#f6f8f6]/95 px-5 py-3 backdrop-blur-sm">
+                <p className="font-display text-xl font-semibold text-[#1c2a22]">
+                  Services offered
                 </p>
-                <ul className="mt-4 grid gap-4 sm:grid-cols-2">
-                  {SERVICES.map((service) => (
-                    <li key={service.title}>
-                      <p className="font-display text-lg text-[#2f3f32]">
+                <p className="mt-0.5 text-sm text-[#3d5346]">
+                  Commercial grounds care, from lawn to winter.
+                </p>
+              </div>
+              <ul className="divide-y divide-[#e2e8e2]">
+                {SERVICES.map((service) => (
+                  <li
+                    key={service.value}
+                    className="flex items-center gap-4 px-4 py-3 sm:gap-5 sm:px-5"
+                  >
+                    {service.image ? (
+                      <div className="relative h-16 w-16 shrink-0 overflow-hidden sm:h-[4.5rem] sm:w-[4.5rem]">
+                        <Image
+                          src={service.image}
+                          alt=""
+                          fill
+                          sizes="72px"
+                          className="object-cover"
+                        />
+                      </div>
+                    ) : null}
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="font-display text-lg leading-snug text-[#1c2a22] sm:text-xl">
                         {service.title}
                       </p>
-                      <p className="mt-1 text-sm leading-relaxed text-[#5f6f62]">
+                      <p className="mt-0.5 text-sm leading-relaxed text-[#3d5346]">
                         {service.blurb}
                       </p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
-            <div className="flex flex-col gap-3 border-t border-[#e0e6de] pt-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="text-left">
-                <p className="font-display text-lg text-[#3a4a3c]">
-                  Choose your view
-                </p>
-                <p className="mt-1 text-sm text-[#5f6f62]">
-                  Step in as {roleLabel.toLowerCase()}.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="sr-only" htmlFor="welcome-role">
-                  Demo role
-                </label>
-                <form
-                  action={enterDemoWithRole}
-                  className="flex flex-wrap items-center gap-2"
-                >
-                  <select
-                    id="welcome-role"
-                    name="role"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as UserRole)}
-                    className="inline-flex h-11 min-w-[10.5rem] items-center justify-center rounded-full border border-[#c9d2c6] bg-white px-5 font-sans text-sm font-medium text-[#3a4a3c] outline-none focus:border-[#2f4a38]"
-                  >
-                    {VIEW_ROLES.map((item) => (
-                      <option key={item.role} value={item.role}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    className="inline-flex h-11 min-w-[10.5rem] items-center justify-center rounded-full border border-[#2f4a38]/15 bg-[#e8efe6] px-5 font-sans text-sm font-medium text-[#2f4a38] transition hover:bg-[#dce6d9]"
-                  >
-                    Enter
-                  </button>
-                </form>
-              </div>
-            </div>
-          </div>
-        </footer>
+          <form
+            action={enterDemoWithRole}
+            className="relative flex flex-wrap items-center justify-center gap-x-5 gap-y-3 border-t border-white/15 pt-5"
+          >
+            <label
+              htmlFor="welcome-role"
+              className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#e8dfd0]/70"
+            >
+              View as
+            </label>
+            <ViewRoleSelect
+              id="welcome-role"
+              value={role}
+              options={VIEW_ROLES}
+              onChange={setRole}
+              variant="welcome"
+            />
+            <button
+              type="submit"
+              className="font-display text-base italic tracking-[0.03em] text-[#faf8f4] underline decoration-[#c4b7a0]/55 underline-offset-4 transition hover:decoration-[#c4b7a0]"
+              suppressHydrationWarning
+            >
+              Enter as {roleLabel}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

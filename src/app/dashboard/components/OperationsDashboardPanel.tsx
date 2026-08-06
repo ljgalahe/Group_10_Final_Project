@@ -10,7 +10,7 @@ export function OperationsDashboardPanel({
 }) {
   return (
     <div className="mt-8 space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="gs-kpi-grid">
         <StatCard
           label="Open Quotes"
           value={data.openQuotesCount}

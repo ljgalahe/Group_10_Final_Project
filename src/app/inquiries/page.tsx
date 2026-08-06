@@ -34,7 +34,7 @@ export default async function InquiriesStartPage() {
       <AppNav />
 
       {/* Homepage-style hero: photo fills viewport; story + form sit on top */}
-      <div className="relative flex min-h-[calc(100vh-4.5rem)] flex-col">
+      <div className="relative flex min-h-[calc(100vh-4.5rem)] flex-col md:pl-60">
         <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center gap-8 px-4 py-8 lg:flex-row lg:items-center lg:justify-between lg:gap-12 lg:py-10">
           {/* Who we are / story (left) */}
           <div className="order-2 max-w-xl lg:order-1 lg:max-w-md xl:max-w-lg">

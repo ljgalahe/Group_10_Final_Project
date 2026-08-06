@@ -5,52 +5,61 @@ export const COMMERCIAL_SERVICES = [
     title: "Lawn mowing & edging",
     blurb:
       "Regular lawn cutting, trimming, and tidy edges around buildings and drives.",
+    image: "/welcome/service-lawn.png",
   },
   {
     value: "flower_beds_seasonal",
     title: "Flower beds & seasonal plants",
     blurb:
       "Planting and swapping seasonal flowers so entrances stay colorful.",
+    image: "/welcome/service-flowers.png",
   },
   {
     value: "sprinkler_watering",
     title: "Sprinkler & watering systems",
     blurb:
       "Install, adjust, and maintain irrigation so plants stay watered correctly.",
+    image: "/welcome/service-irrigation.png",
   },
   {
     value: "tree_bush_trimming",
     title: "Tree & bush trimming",
     blurb:
       "Prune trees and shrubs to keep sight lines, signs, and walkways clear.",
+    image: "/welcome/service-trimming.png",
   },
   {
     value: "mulch_landscape_beds",
     title: "Mulch & landscape beds",
     blurb: "Refresh mulch, pull weeds, and keep planting beds neat.",
+    image: "/welcome/service-mulch.png",
   },
   {
     value: "sidewalk_parking_cleanup",
     title: "Sidewalk & parking lot cleanup",
     blurb:
       "Blow off walkways, plazas, and lot edges so customers can move freely.",
+    image: "/welcome/service-cleanup.png",
   },
   {
     value: "leaf_debris_removal",
     title: "Leaf & debris removal",
     blurb:
       "Clear leaves, sticks, and litter from lawns and outdoor gathering areas.",
+    image: "/welcome/service-leaves.png",
   },
   {
     value: "snow_ice_clearing",
     title: "Snow & ice clearing",
     blurb:
       "Plow and treat entrances, sidewalks, and priority routes after storms.",
+    image: "/welcome/service-snow.png",
   },
   {
     value: "other",
     title: "Other",
     blurb: "Tell us about another commercial grounds service you need.",
+    image: null,
   },
 ] as const;
 

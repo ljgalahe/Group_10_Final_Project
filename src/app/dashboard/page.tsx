@@ -605,7 +605,7 @@ export default async function DashboardPage({
   const nextVisit = upcomingVisits[0] ?? null;
 
   const staffStatsRow = (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="gs-kpi-grid">
       <StatCard label="Active Contracts" value={stats.activeContracts} />
       <StatCard label="Scheduled Visits" value={stats.scheduledVisits} />
       <StatCard

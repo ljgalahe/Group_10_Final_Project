@@ -18,7 +18,7 @@ export function AccountantDashboardPanel({
 }) {
   return (
     <div className="mt-8 space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="gs-kpi-grid">
         <StatCard
           label="Past Due AR"
           value={formatCurrency(data.pastDueTotal)}
@@ -49,51 +49,55 @@ export function AccountantDashboardPanel({
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Card>
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <h2 className="text-lg font-semibold text-green-950">
-                AR Aging Snapshot
-              </h2>
-              <p className="mt-1 text-sm text-stone-500">
-                Open receivables by bucket — as of {formatDate(data.asOf)}.
+      <Card>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-green-950">
+              AR Aging Snapshot
+            </h2>
+            <p className="mt-1 text-sm text-stone-500">
+              Open receivables by bucket — as of {formatDate(data.asOf)}.
+            </p>
+          </div>
+          <Link
+            href="/reports/ar-aging"
+            className="shrink-0 text-sm font-medium text-green-800 hover:underline"
+          >
+            Full report →
+          </Link>
+        </div>
+        <div className="mt-4 gs-kpi-grid !gap-3 [grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr))]">
+          {AGING_TILES.map((tile) => (
+            <div
+              key={tile.key}
+              className={`min-w-0 overflow-hidden rounded-xl border p-3 ${tile.accent}`}
+            >
+              <p className="truncate text-xs font-medium text-stone-600">
+                {tile.label}
+              </p>
+              <p
+                className={`gs-metric-value gs-kpi-value mt-1 font-semibold ${tile.amountClass}`}
+                title={formatCurrency(data.agingBuckets[tile.key])}
+              >
+                {formatCurrency(data.agingBuckets[tile.key])}
               </p>
             </div>
-            <Link
-              href="/reports/ar-aging"
-              className="text-sm font-medium text-green-800 hover:underline"
-            >
-              Full report →
-            </Link>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {AGING_TILES.map((tile) => (
-              <div
-                key={tile.key}
-                className={`rounded-xl border p-3 ${tile.accent}`}
-              >
-                <p className="text-xs font-medium text-stone-600">{tile.label}</p>
-                <p className={`mt-1 text-lg font-semibold ${tile.amountClass}`}>
-                  {formatCurrency(data.agingBuckets[tile.key])}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Card>
+          ))}
+        </div>
+      </Card>
 
-        <Card>
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold text-green-950">
-              Invoices Needing Attention
-            </h2>
-            <Link
-              href="/invoices"
-              className="text-sm font-medium text-green-800 hover:underline"
-            >
-              All Invoices →
-            </Link>
-          </div>
+      <Card>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold text-green-950">
+            Invoices Needing Attention
+          </h2>
+          <Link
+            href="/invoices"
+            className="shrink-0 text-sm font-medium text-green-800 hover:underline"
+          >
+            All Invoices →
+          </Link>
+        </div>
           {data.invoiceQueue.length === 0 ? (
             <p className="mt-4 text-sm text-stone-500">
               No invoices need attention right now.
@@ -136,7 +140,6 @@ export function AccountantDashboardPanel({
             </ul>
           )}
         </Card>
-      </div>
 
       <div className="border-y border-green-800/10 bg-white py-3">
         <div className="mx-auto flex max-w-4xl flex-col items-center gap-2 px-4">

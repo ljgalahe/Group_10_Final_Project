@@ -29,13 +29,16 @@ export function AccountantTotalRevenueButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-xl border border-stone-200 bg-stone-50 p-5 text-left shadow-sm transition hover:border-green-700 hover:ring-2 hover:ring-green-700/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30"
+        className="gs-kpi-tile gs-kpi-tile--interactive"
       >
-        <p className="text-sm font-medium text-stone-500">Total Revenue</p>
-        <p className="mt-2 gs-metric-value text-3xl text-green-900">
+        <p className="gs-kpi-label">Total Revenue</p>
+        <p
+          className="gs-metric-value gs-kpi-value text-green-900"
+          title={formatCurrency(amount)}
+        >
           {formatCurrency(amount)}
         </p>
-        <p className="mt-1 text-xs text-green-800">
+        <p className="gs-kpi-hint gs-kpi-hint--action">
           Click for service-line mix and seasonality
         </p>
       </button>

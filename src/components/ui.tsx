@@ -53,22 +53,17 @@ export function StatCard({
   valueClassName?: string;
 }) {
   return (
-    <div
-      className={`border border-stone-200 bg-white ${
-        compact ? "p-3.5" : "px-4 py-4"
-      }`}
-    >
-      <p className="gs-mark">{label}</p>
+    <div className={`gs-kpi-tile min-w-0 ${compact ? "!p-3.5" : ""}`}>
+      <p className="gs-kpi-label">{label}</p>
       <p
-        className={`gs-metric-value mt-1.5 text-green-950 ${
-          compact ? "text-xl leading-snug" : "text-[1.65rem] leading-none"
+        className={`gs-metric-value gs-kpi-value text-green-950 ${
+          compact ? "!text-lg" : ""
         } ${valueClassName ?? ""}`}
+        title={String(value)}
       >
         {value}
       </p>
-      {hint ? (
-        <p className="mt-1.5 text-xs leading-relaxed text-stone-600">{hint}</p>
-      ) : null}
+      {hint ? <p className="gs-kpi-hint">{hint}</p> : null}
     </div>
   );
 }

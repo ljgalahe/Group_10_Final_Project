@@ -11,21 +11,20 @@ export type ManagerKpi = {
 export function ManagerKpiStrip({ kpis }: { kpis: ManagerKpi[] }) {
   return (
     <section aria-label="Manager key metrics">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="gs-kpi-grid">
         {kpis.map((kpi) => {
           const className =
-            "flex h-full flex-col rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition hover:border-green-300 hover:bg-green-50/40";
+            "gs-kpi-tile flex h-full min-w-0 flex-col transition hover:border-green-700 hover:bg-green-50/50";
           const body = (
             <>
-              <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
-                {kpi.label}
-              </p>
-              <p className="gs-metric-value mt-2 text-2xl leading-none text-green-900">
+              <p className="gs-kpi-label">{kpi.label}</p>
+              <p
+                className="gs-metric-value gs-kpi-value text-green-900"
+                title={kpi.value}
+              >
                 {kpi.value}
               </p>
-              <p className="mt-2 text-xs leading-snug text-stone-500">
-                {kpi.hint}
-              </p>
+              <p className="gs-kpi-hint">{kpi.hint}</p>
             </>
           );
 
