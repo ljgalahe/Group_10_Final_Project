@@ -18,6 +18,7 @@ import {
 import {
   normalizeServiceName,
   oxfordAddressForCustomer,
+  todayDateOnly,
 } from "@/components/crew-lead/buildCrewSchedule";
 import type {
   ExtraWorkItem,
@@ -32,13 +33,14 @@ import { VisitsSummaryBlocks } from "@/components/visits/VisitsSummaryBlocks";
 import { Card, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
 import { jobIncludesCrewMember } from "@/lib/crew-member";
+import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
 import {
   getViewRole,
   roleCanEditContractDetails,
   roleCanManageVisits,
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
+import { formatVisitCostDescription } from "@/lib/crew-hours";
 import {
   fetchAccountantVisits,
   fetchAllVisitCosts,
@@ -47,6 +49,12 @@ import {
   fetchVisitCosts,
   fetchVisits,
 } from "@/lib/queries";
+import {
+  applyServiceHoldToScheduleJobs,
+  buildCustomerServiceHolds,
+  effectiveVisitDisplayStatus,
+  heldCustomerIdSet,
+} from "@/lib/service-hold";
 import type { VisitCost } from "@/lib/types";
 import {
   buildJobRows,
@@ -70,6 +78,10 @@ function formatVisitDescription(notes: string | null) {
   const trimmed = notes.trim();
   const withPeriod = /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
   return withPeriod.charAt(0).toUpperCase() + withPeriod.slice(1);
+}
+
+function formatExtraWorkStatus(status: string) {
+  return status.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function parseStatusFilter(raw?: string): VisitStatusFilterValue {
@@ -151,7 +163,7 @@ export default async function VisitsPage({
 
   if (role === "crew_lead" || role === "crew_member") {
     const supabase = await createDataClient();
-    const [{ data: enrichedVisits }, { data: extraWorkRows }] =
+    const [{ data: enrichedVisits }, { data: extraWorkRows }, { data: invoices }] =
       await Promise.all([
         supabase
           .from("service_visits")
@@ -162,7 +174,55 @@ export default async function VisitsPage({
         supabase
           .from("extra_work_orders")
           .select("id, contract_id, title, description, quoted_amount, status"),
+        supabase
+          .from("invoices")
+          .select(
+            "id, invoice_number, customer_id, total, amount_paid, status, due_date, customers(name)"
+          ),
       ]);
+    const today = todayDateOnly();
+    const holds = buildCustomerServiceHolds(
+      (invoices ?? []).map((invoice) => ({
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        customer_id: String(invoice.customer_id),
+        total: Number(invoice.total),
+        amount_paid: Number(invoice.amount_paid),
+        status: invoice.status,
+        due_date: invoice.due_date,
+        customers: Array.isArray(invoice.customers)
+          ? invoice.customers[0]
+            ? { name: invoice.customers[0].name }
+            : null
+          : invoice.customers
+            ? { name: (invoice.customers as { name: string }).name }
+            : null,
+      })),
+      (enrichedVisits ?? []).map((visit) => ({
+        id: visit.id,
+        contract_id: visit.contract_id,
+        status: visit.status,
+        scheduled_date: visit.scheduled_date,
+      })),
+      {
+        today,
+        contractCustomerById: new Map(
+          (enrichedVisits ?? []).flatMap((visit) => {
+            const contractRaw = visit.contracts as
+              | { id: string; customer_id: string }
+              | { id: string; customer_id: string }[]
+              | null;
+            const contract = Array.isArray(contractRaw)
+              ? contractRaw[0]
+              : contractRaw;
+            return contract
+              ? [[contract.id, String(contract.customer_id)] as const]
+              : [];
+          })
+        ),
+      }
+    );
+    const heldIds = heldCustomerIdSet(holds);
 
     extraWork = (extraWorkRows ?? []).map((row) => ({
       id: row.id,
@@ -240,11 +300,18 @@ export default async function VisitsPage({
         ).values()
       );
 
+      const scheduledDate = visit.scheduled_date.slice(0, 10);
+      const onHold = heldIds.has(customer.id);
       crewJobsByVisitId.set(visit.id, {
         id: visit.id,
         contractId: contract.id,
-        scheduledDate: visit.scheduled_date.slice(0, 10),
-        status: visit.status,
+        scheduledDate,
+        status: effectiveVisitDisplayStatus(
+          visit.status,
+          scheduledDate,
+          onHold,
+          today
+        ),
         customerId: customer.id,
         customerName: customer.name,
         customerIdShort: customer.id.slice(-4),
@@ -255,7 +322,17 @@ export default async function VisitsPage({
         lat: 34.3665,
         lng: -89.5192,
         source: "visit",
+        serviceHold: onHold,
       });
+    }
+
+    const heldJobs = applyServiceHoldToScheduleJobs(
+      Array.from(crewJobsByVisitId.values()),
+      heldIds,
+      today
+    );
+    for (const job of heldJobs) {
+      crewJobsByVisitId.set(job.id, job);
     }
 
     const scopedVisits =
@@ -267,6 +344,7 @@ export default async function VisitsPage({
       scopedVisits.map(async (visit) => {
         const contract = visit.contracts as {
           title: string;
+          customer_id?: string;
           customers: { name: string } | null;
         } | null;
         const { data: costs } = await fetchVisitCosts(visit.id);
@@ -276,10 +354,20 @@ export default async function VisitsPage({
           0
         );
         const crewJob = crewJobsByVisitId.get(visit.id) ?? null;
+        const customerId =
+          crewJob?.customerId ??
+          contract?.customer_id ??
+          (contract?.customers as { id?: string } | null)?.id;
+        const displayStatus = effectiveVisitDisplayStatus(
+          visit.status,
+          visit.scheduled_date.slice(0, 10),
+          Boolean(customerId && heldIds.has(customerId)),
+          today
+        );
 
         return {
           id: visit.id,
-          status: visit.status,
+          status: displayStatus,
           customerName: contract?.customers?.name ?? "Unknown Customer",
           contractTitle: contract?.title ?? "Contract",
           scheduledDate: visit.scheduled_date,
@@ -303,7 +391,7 @@ export default async function VisitsPage({
           description={
             role === "crew_member"
               ? "Upcoming and completed visits assigned to you (read-only)."
-              : "Scheduled and completed crew visits with Labor, Materials, and Equipment costs."
+              : "Scheduled and completed crew visits with hours, materials, and equipment."
           }
         />
         {cardData.length === 0 ? (
@@ -522,34 +610,28 @@ export default async function VisitsPage({
                             </div>
                           ) : null}
                           {contractExtra.length > 0 ? (
-                            <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
+                            <div className="mt-4">
                               <p className="text-sm font-medium text-stone-800">
-                                Extra work
+                                Extra work for this agreement
                               </p>
-                              <p className="mt-0.5 text-xs text-stone-500">
-                                Add-on work for this agreement (outside routine
-                                visits).
-                              </p>
-                              <ul className="mt-3 space-y-2">
+                              <ul className="mt-1.5 space-y-2">
                                 {contractExtra.map((work) => (
                                   <li
                                     key={work.id}
-                                    className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2.5 shadow-sm"
+                                    className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm"
                                   >
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <p className="font-medium text-green-950">
-                                          {work.title}
-                                        </p>
-                                        <StatusBadge status={work.status} />
-                                      </div>
-                                      {work.description ? (
-                                        <p className="mt-1 text-sm text-stone-600">
-                                          {work.description}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                    <p className="shrink-0 text-sm font-semibold tabular-nums text-green-900">
+                                    <p className="font-medium text-green-950">
+                                      {work.title}
+                                      <span className="ml-2 text-xs font-normal text-stone-500">
+                                        {formatExtraWorkStatus(work.status)}
+                                      </span>
+                                    </p>
+                                    {work.description ? (
+                                      <p className="mt-0.5 text-stone-600">
+                                        {work.description}
+                                      </p>
+                                    ) : null}
+                                    <p className="mt-1 text-xs text-stone-500">
                                       {formatCurrency(
                                         Number(work.quoted_amount)
                                       )}
@@ -608,11 +690,22 @@ export default async function VisitsPage({
                           <ul className="mt-2 space-y-1 text-sm text-stone-600">
                             {costs.map((cost) => (
                               <li key={cost.id}>
-                                <span className="capitalize">
-                                  {cost.cost_type}
+                                <span className="font-medium text-stone-800">
+                                  {cost.cost_type === "labor"
+                                    ? "Labor"
+                                    : cost.cost_type === "materials"
+                                      ? "Materials"
+                                      : cost.cost_type === "equipment"
+                                        ? "Equipment"
+                                        : cost.cost_type}
                                 </span>
-                                : {cost.description ?? "—"} —{" "}
-                                {formatCurrency(Number(cost.amount))}
+                                :{" "}
+                                {formatVisitCostDescription(
+                                  visit.id,
+                                  cost.cost_type,
+                                  cost.description
+                                )}{" "}
+                                — {formatCurrency(Number(cost.amount))}
                               </li>
                             ))}
                           </ul>

@@ -32,7 +32,7 @@ function modeNameLabel(mode: FilterMode) {
 }
 
 function isPending(status: string) {
-  return status === "scheduled";
+  return status === "scheduled" || status === "on_hold";
 }
 
 function isCompleted(status: string) {
@@ -52,10 +52,13 @@ export function ScheduleCalendar({
   jobs,
   onDateChange,
   onFilteredJobsChange,
+  hidePay = false,
 }: {
   jobs: JobRow[];
   onDateChange?: (date: string | null) => void;
   onFilteredJobsChange?: (jobs: JobRow[]) => void;
+  /** When true, show hours only (no $/hr or pay totals). Used for crew lead/member. */
+  hidePay?: boolean;
 }) {
   const companies = useMemo(() => {
     const names = [...new Set(jobs.map((j) => j.companyName))];
@@ -426,8 +429,9 @@ export function ScheduleCalendar({
                         : ` @ ${row.companyName}`}
                     </p>
                     <p className="mt-1 text-xs text-stone-500">
-                      {row.hours}h × {formatCurrency(row.payRate)} ={" "}
-                      {formatCurrency(row.pay)}
+                      {hidePay
+                        ? `${row.hours}h`
+                        : `${row.hours}h × ${formatCurrency(row.payRate)} = ${formatCurrency(row.pay)}`}
                     </p>
                   </li>
                 );

@@ -9,10 +9,13 @@ import { createDataClient } from "@/lib/auth-access";
 import {
   buildLaborEntriesFromState,
   encodeLaborDescription,
+  hourlyRateForRole,
   laborTotals,
+  parseLaborDescription,
   type VisitLaborEntry,
 } from "@/lib/crew-hours";
 import { getViewRole, roleIsReadOnlyCrew } from "@/lib/demo-role";
+import { DEMO_CREW_MEMBER } from "@/lib/types";
 
 export type SyncVisitLaborInput = {
   visitId: string;
@@ -118,7 +121,7 @@ async function upsertLaborEntries(entries: VisitLaborEntry[], visitId: string) {
 /**
  * Sync crew-lead logged hours into visit_labor_entries (when available)
  * and visit_costs labor quantity/amount for accountant billing.
- * Crew members cannot write.
+ * Crew members cannot write via this path (use syncMemberSelfClockLabor).
  */
 export async function syncVisitLabor(
   input: SyncVisitLaborInput
@@ -145,6 +148,122 @@ export async function syncVisitLabor(
 
   await upsertLaborEntries(entries, input.visitId);
   await upsertVisitCostLabor(input.visitId, entries);
+
+  revalidatePath("/visits");
+  revalidatePath("/dashboard");
+  revalidatePath("/schedule");
+  revalidatePath("/contracts");
+  revalidatePath("/reports/profitability");
+
+  return { ok: true };
+}
+
+export type SyncMemberSelfClockInput = {
+  visitId: string;
+  memberId: string;
+  memberName: string;
+  memberRole: string;
+  hours: number;
+  startedAt?: string | null;
+  endedAt?: string | null;
+};
+
+async function loadExistingLaborEntries(
+  visitId: string
+): Promise<VisitLaborEntry[]> {
+  const supabase = await createDataClient();
+
+  const { data, error } = await supabase
+    .from("visit_labor_entries")
+    .select(
+      "visit_id, member_demo_id, member_name, member_role, hours, hourly_rate, started_at, ended_at"
+    )
+    .eq("visit_id", visitId);
+
+  if (!error && data) {
+    return data.map((row) => ({
+      visit_id: row.visit_id,
+      member_demo_id: row.member_demo_id,
+      member_name: row.member_name,
+      member_role: row.member_role,
+      hours: Number(row.hours) || 0,
+      hourly_rate: Number(row.hourly_rate) || hourlyRateForRole(row.member_role),
+      started_at: row.started_at ?? null,
+      ended_at: row.ended_at ?? null,
+    }));
+  }
+
+  if (error && !isMissingLaborTable(error)) {
+    return [];
+  }
+
+  const { data: cost } = await supabase
+    .from("visit_costs")
+    .select("description")
+    .eq("visit_id", visitId)
+    .eq("cost_type", "labor")
+    .maybeSingle();
+
+  return parseLaborDescription(visitId, cost?.description) ?? [];
+}
+
+/**
+ * Crew-member write exception (like time-off): sync only the logged-in
+ * demo member's own clocked hours into labor / billing. Other members'
+ * existing rows are preserved.
+ */
+export async function syncMemberSelfClockLabor(
+  input: SyncMemberSelfClockInput
+): Promise<{ ok: boolean; error?: string }> {
+  const role = await getViewRole();
+  if (role === "customer") {
+    return { ok: false, error: "read_only" };
+  }
+
+  if (role === "crew_member") {
+    if (input.memberId !== DEMO_CREW_MEMBER.id) {
+      return { ok: false, error: "self_only" };
+    }
+  } else if (roleIsReadOnlyCrew(role)) {
+    return { ok: false, error: "read_only" };
+  }
+
+  if (!input.visitId) {
+    return { ok: false, error: "missing_visit" };
+  }
+
+  const hours = Number(input.hours);
+  if (Number.isNaN(hours) || hours < 0) {
+    return { ok: false, error: "invalid_hours" };
+  }
+
+  const existing = await loadExistingLaborEntries(input.visitId);
+  const others = existing.filter(
+    (entry) => entry.member_demo_id !== input.memberId
+  );
+
+  const selfEntry: VisitLaborEntry = {
+    visit_id: input.visitId,
+    member_demo_id: input.memberId,
+    member_name: input.memberName,
+    member_role: input.memberRole || "Crew Member",
+    hours: Number(hours.toFixed(2)),
+    hourly_rate: hourlyRateForRole(input.memberRole || "Crew Member"),
+    started_at: input.startedAt ?? null,
+    ended_at: input.endedAt ?? null,
+  };
+
+  const merged =
+    hours > 0 ? [...others, selfEntry] : others.filter((e) => e.hours > 0);
+
+  await upsertLaborEntries(
+    merged.filter((entry) => entry.hours > 0),
+    input.visitId
+  );
+  await upsertVisitCostLabor(
+    input.visitId,
+    merged.filter((entry) => entry.hours > 0)
+  );
 
   revalidatePath("/visits");
   revalidatePath("/dashboard");

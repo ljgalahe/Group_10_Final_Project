@@ -64,6 +64,8 @@ export function VisitsSummaryBlocks({
   completedHref,
   pendingHref,
   afterSummary,
+  /** Company-wide scheduling calendar lives on Operations → Scheduling. */
+  showSchedule = true,
 }: {
   scheduled: JobRow[];
   completed: JobRow[];
@@ -73,6 +75,7 @@ export function VisitsSummaryBlocks({
   completedHref: string;
   pendingHref: string;
   afterSummary?: ReactNode;
+  showSchedule?: boolean;
 }) {
   const allJobs = [...scheduled, ...completed];
   const crewPay = allJobs.reduce((s, j) => s + j.crewPay, 0);
@@ -122,20 +125,22 @@ export function VisitsSummaryBlocks({
         </div>
       </div>
 
-      <Card>
-        <h3 className="text-lg font-semibold text-green-950">Schedule</h3>
-        <p className="mt-1 text-sm text-stone-500">
-          Filter by company, employee, job, or status (green = completed, orange
-          = pending), then click a day.
-        </p>
-        {allJobs.length === 0 ? (
-          <p className="mt-4 text-sm text-stone-400">
-            No jobs in this range to show on the calendar.
+      {showSchedule ? (
+        <Card>
+          <h3 className="text-lg font-semibold text-green-950">Schedule</h3>
+          <p className="mt-1 text-sm text-stone-500">
+            Filter by company, employee, job, or status (green = completed, orange
+            = pending), then click a day.
           </p>
-        ) : (
-          <ScheduleCalendar jobs={allJobs} />
-        )}
-      </Card>
+          {allJobs.length === 0 ? (
+            <p className="mt-4 text-sm text-stone-400">
+              No jobs in this range to show on the calendar.
+            </p>
+          ) : (
+            <ScheduleCalendar jobs={allJobs} />
+          )}
+        </Card>
+      ) : null}
 
       {afterSummary}
 

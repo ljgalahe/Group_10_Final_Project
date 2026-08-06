@@ -8,11 +8,26 @@ import { fetchArAgingReport, fetchPayments } from "@/lib/queries";
 import { ArAgingReport } from "./ArAgingReport";
 import { loadAccountantArAgingData } from "./load-ar-aging";
 
-export default async function ArAgingPage() {
+export default async function ArAgingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    customer?: string;
+    hold?: string;
+    approaching?: string;
+  }>;
+}) {
   await requireAppAccess();
 
   const role = await getViewRole();
   if (!roleCanViewReports(role)) redirect("/dashboard");
+  const params = await searchParams;
+  const alertFilter =
+    params.hold === "1"
+      ? ("hold" as const)
+      : params.approaching === "1"
+        ? ("approaching" as const)
+        : undefined;
 
   if (role === "accountant") {
     const { asOf, invoices, buckets, customerNames } =
@@ -43,9 +58,14 @@ export default async function ArAgingPage() {
     <AppShell>
       <PageHeader
         title="AR Aging Report"
-        description="Outstanding receivables from Contracts, Invoices, and Payments, grouped by how long they've been past due."
+        description="Outstanding receivables from Contracts, Invoices, and Payments, grouped by how long they've been past due. Customers with invoices 30+ days overdue are on automatic Service Hold."
       />
-      <ArAgingManagerClient buckets={buckets} payments={payments} />
+      <ArAgingManagerClient
+        buckets={buckets}
+        payments={payments}
+        highlightCustomerId={params.customer}
+        alertFilter={alertFilter}
+      />
     </AppShell>
   );
 }

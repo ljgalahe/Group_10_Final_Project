@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   loadVisitWorkState,
+  loadVisitWorkStateForStatus,
   saveVisitWorkState,
 } from "@/components/crew-lead/crewLeadStorage";
 import { CREW_CUSTOMER_NOTES_HELPER } from "@/lib/customer-notes";
@@ -38,9 +39,13 @@ export function CrewSiteNotes({
       setAdditionalNotes("");
       return;
     }
-    // Crew-entered notes only — never prefilled from customer notes.
-    setAdditionalNotes(loadVisitWorkState(jobId).crewAdditionalNotes ?? "");
-  }, [jobId, showAdditionalNotes]);
+    // Completed visits may get demo additional notes via loadVisitWorkStateForStatus.
+    const state =
+      status === "completed"
+        ? loadVisitWorkStateForStatus(jobId, "completed")
+        : loadVisitWorkState(jobId);
+    setAdditionalNotes(state.crewAdditionalNotes ?? "");
+  }, [jobId, showAdditionalNotes, status]);
 
   function persistAdditionalNotes(value: string) {
     if (!jobId) return;

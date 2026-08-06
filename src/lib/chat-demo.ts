@@ -38,42 +38,17 @@ export type ChatThread = {
 const THREADS_KEY = "greenscape-chat-threads";
 
 export const CHAT_PEOPLE: ChatPerson[] = [
-  {
-    id: "manager",
-    name: "Morgan Hale",
-    role: "Manager",
-    initials: "MH",
-  },
-  {
-    id: "alex-rivera",
-    name: "Alex Rivera",
-    role: "Crew lead",
-    initials: "AR",
-  },
-  {
-    id: "taylor-brooks",
-    name: "Taylor Brooks",
-    role: "Crew lead",
-    initials: "TB",
-  },
-  {
-    id: "sam-ortiz",
-    name: "Sam Ortiz",
-    role: "Crew lead",
-    initials: "SO",
-  },
-  {
-    id: "jordan-lee",
-    name: "Jordan Lee",
-    role: "Crew member",
-    initials: "JL",
-  },
-  {
-    id: "accountant",
-    name: "Priya Shah",
-    role: "Accountant",
-    initials: "PS",
-  },
+  { id: "manager", name: "Morgan Hale", role: "Manager", initials: "MH" },
+  { id: "alex-rivera", name: "Alex Rivera", role: "Crew lead", initials: "AR" },
+  { id: "taylor-brooks", name: "Taylor Brooks", role: "Crew lead", initials: "TB" },
+  { id: "sam-ortiz", name: "Sam Ortiz", role: "Crew lead", initials: "SO" },
+  { id: "cameron-blake", name: "Cameron Blake", role: "Crew lead", initials: "CB" },
+  { id: "jordan-hale", name: "Jordan Hale", role: "Crew lead", initials: "JH" },
+  { id: "riley-vance", name: "Riley Vance", role: "Crew lead", initials: "RV" },
+  { id: "morgan-ellis", name: "Morgan Ellis", role: "Crew lead", initials: "ME" },
+  { id: "casey-boone", name: "Casey Boone", role: "Crew lead", initials: "CBo" },
+  { id: "jordan-lee", name: "Jordan Miles", role: "Crew member", initials: "JM" },
+  { id: "accountant", name: "Priya Shah", role: "Accountant", initials: "PS" },
   {
     id: "customer-riverside",
     name: "Riverside Office Park",
@@ -126,7 +101,17 @@ function seedThreads(): ChatThread[] {
       preview:
         "Prioritize Summit and Harbor sites for debris checks. Flag dry patches in photo proof.",
       authorId: "manager",
-      participantIds: ["manager", "alex-rivera", "taylor-brooks", "sam-ortiz"],
+      participantIds: [
+        "manager",
+        "alex-rivera",
+        "taylor-brooks",
+        "sam-ortiz",
+        "cameron-blake",
+        "jordan-hale",
+        "riley-vance",
+        "morgan-ellis",
+        "casey-boone",
+      ],
       createdAt: new Date(now - 1000 * 60 * 60 * 24 * 3).toISOString(),
       updatedAt: new Date(now - 1000 * 60 * 60 * 24 * 3).toISOString(),
       unread: 0,
@@ -146,7 +131,17 @@ function seedThreads(): ChatThread[] {
       preview:
         "Start outdoor routes before 10am when the heat index is above 100°F.",
       authorId: "manager",
-      participantIds: ["manager", "alex-rivera", "taylor-brooks", "sam-ortiz"],
+      participantIds: [
+        "manager",
+        "alex-rivera",
+        "taylor-brooks",
+        "sam-ortiz",
+        "cameron-blake",
+        "jordan-hale",
+        "riley-vance",
+        "morgan-ellis",
+        "casey-boone",
+      ],
       createdAt: new Date(now - 1000 * 60 * 60 * 24 * 8).toISOString(),
       updatedAt: new Date(now - 1000 * 60 * 60 * 24 * 8).toISOString(),
       messages: [
@@ -411,6 +406,43 @@ export function chatHrefForCrewLead(opts: {
     job: opts.jobLabel,
     company: opts.companyName,
     concern: opts.concernLabel,
+  });
+  return `/chat?${params.toString()}`;
+}
+
+/** Build a Chat deep-link that opens a prefilled board message about replacements. */
+export function chatHrefForEquipmentReplacement(
+  assets: Array<{
+    name: string;
+    remaining: number;
+    estimated_total_hours: number;
+  }>
+): string {
+  const lines = assets.map((a) => {
+    const pct =
+      a.estimated_total_hours > 0
+        ? ((a.remaining / a.estimated_total_hours) * 100).toFixed(0)
+        : "0";
+    return `• ${a.name} — ${a.remaining.toFixed(1)} hrs left (${pct}% of estimated life)`;
+  });
+
+  const title =
+    assets.length === 1
+      ? `Replace soon: ${assets[0].name}`
+      : `Equipment replacement needed (${assets.length})`;
+
+  const body = [
+    "The following equipment is at or near end of useful life and should be replaced soon:",
+    "",
+    ...lines,
+    "",
+    "Please confirm timing and budget so we can schedule replacements before downtime.",
+  ].join("\n");
+
+  const params = new URLSearchParams({
+    composeTitle: title,
+    composeBody: body,
+    composeCategory: "announcement",
   });
   return `/chat?${params.toString()}`;
 }

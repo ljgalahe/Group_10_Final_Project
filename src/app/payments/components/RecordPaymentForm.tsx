@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import {
   recordPaymentAction,
   type RecordPaymentResult,
@@ -25,7 +25,6 @@ function ValidationError({ message }: { message: string }) {
 
 export function RecordPaymentForm({
   invoices,
-  customers = [],
   defaultInvoiceId,
   invoiceOnly = false,
   redirectTo = "/payments",
@@ -37,25 +36,21 @@ export function RecordPaymentForm({
     amount_paid: number;
     customers: { name: string } | null;
   }[];
-  customers?: { id: string; name: string }[];
   defaultInvoiceId?: string;
   /** When true, invoice is fixed via hidden field — no selector shown (invoice detail page). */
   invoiceOnly?: boolean;
   redirectTo?: string;
 }) {
-  const [applyMode, setApplyMode] = useState<"invoice" | "unapplied">("invoice");
   const [state, formAction, pending] = useActionState<
     RecordPaymentResult | null,
     FormData
   >(recordPaymentAction, null);
 
   const today = new Date().toISOString().slice(0, 10);
-  const showUnappliedOption = !invoiceOnly && customers.length > 0;
 
   return (
     <form action={formAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <input type="hidden" name="redirect_to" value={redirectTo} />
-      <input type="hidden" name="apply_mode" value={invoiceOnly ? "invoice" : applyMode} />
       {invoiceOnly && defaultInvoiceId ? (
         <input type="hidden" name="invoice_id" value={defaultInvoiceId} />
       ) : null}
@@ -67,30 +62,7 @@ export function RecordPaymentForm({
         <ValidationError message={state.message} />
       )}
 
-      {showUnappliedOption && (
-        <div className="sm:col-span-2 lg:col-span-3 flex gap-4 text-sm">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="apply_mode_ui"
-              checked={applyMode === "invoice"}
-              onChange={() => setApplyMode("invoice")}
-            />
-            Apply to invoice
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="apply_mode_ui"
-              checked={applyMode === "unapplied"}
-              onChange={() => setApplyMode("unapplied")}
-            />
-            Unapplied cash (no invoice)
-          </label>
-        </div>
-      )}
-
-      {!invoiceOnly && applyMode === "invoice" && (
+      {!invoiceOnly && (
         <div className="sm:col-span-2 lg:col-span-3">
           <label className="block text-sm font-medium text-stone-700">Invoice</label>
           <select
@@ -109,30 +81,6 @@ export function RecordPaymentForm({
               );
             })}
           </select>
-          <p className="mt-1 text-xs text-stone-500">
-            Overpayments are automatically tracked as unapplied cash.
-          </p>
-        </div>
-      )}
-
-      {!invoiceOnly && applyMode === "unapplied" && (
-        <div className="sm:col-span-2 lg:col-span-3">
-          <label className="block text-sm font-medium text-stone-700">Customer</label>
-          <select
-            name="customer_id"
-            required
-            className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-          >
-            <option value="">Select customer…</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-stone-500">
-            Payment will be held as unapplied cash until matched to an invoice.
-          </p>
         </div>
       )}
 
@@ -168,8 +116,6 @@ export function RecordPaymentForm({
         >
           <option value="check">Check</option>
           <option value="cash">Cash</option>
-          <option value="ach">ACH</option>
-          <option value="simulated_card">Card</option>
         </select>
       </div>
 

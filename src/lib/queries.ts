@@ -5,6 +5,11 @@ import {
   type JournalSource,
   type JournalStatus,
 } from "@/lib/journal";
+import {
+  DEFAULT_CHART_OF_ACCOUNTS,
+  type AccountType,
+  type ChartOfAccount,
+} from "@/lib/chart-of-accounts";
 import { enrichPaymentRow, isMissingColumnError } from "@/lib/payment-schema";
 import { daysBetween, isOpenInvoiceStatus } from "@/lib/payment-utils";
 import type { Payment, PaymentsSummary, UserRole } from "@/lib/types";
@@ -33,7 +38,15 @@ export async function fetchContracts() {
   }
 
   const { data, error } = await query;
-  return { data: data ?? [], error };
+  let rows = data ?? [];
+  if (customerId) {
+    rows = rows.filter((c) => {
+      const state = (c as { approval_state?: string | null }).approval_state;
+      if (!state || state === "approved") return true;
+      return false;
+    });
+  }
+  return { data: rows, error };
 }
 
 export async function fetchContractsDetailed() {
@@ -374,9 +387,7 @@ export async function fetchPaymentsSummary(): Promise<PaymentsSummary> {
 
   let paymentsQuery = await supabase
     .from("payments")
-    .select(
-      "amount, payment_date, status, unapplied_amount, applied_amount, invoices(issue_date)"
-    );
+    .select("amount, payment_date, status, applied_amount, invoices(issue_date)");
 
   if (paymentsQuery.error && isMissingColumnError(paymentsQuery.error)) {
     paymentsQuery = await supabase
@@ -395,35 +406,21 @@ export async function fetchPaymentsSummary(): Promise<PaymentsSummary> {
   const today = now.toISOString().slice(0, 10);
 
   let collectedThisMonth = 0;
-  let unappliedPayments = 0;
   const daysToPay: number[] = [];
 
   for (const payment of payments) {
     const amount = Number(payment.amount);
-    const unapplied =
-      "unapplied_amount" in payment && payment.unapplied_amount != null
-        ? Number(payment.unapplied_amount)
-        : 0;
     const status =
-      "status" in payment && payment.status
-        ? String(payment.status)
-        : unapplied > 0 && unapplied >= amount
-          ? "unapplied"
-          : "applied";
+      "status" in payment && payment.status ? String(payment.status) : "applied";
 
-    unappliedPayments += unapplied;
-    if (status === "unapplied" && unapplied === 0) {
-      unappliedPayments += amount;
-    }
+    if (status === "void") continue;
 
     const payDate = new Date(payment.payment_date + "T00:00:00Z");
     if (payDate.getUTCFullYear() === year && payDate.getUTCMonth() === month) {
       const collectedPortion =
         "applied_amount" in payment && payment.applied_amount != null
           ? Number(payment.applied_amount)
-          : status === "applied"
-            ? amount
-            : 0;
+          : amount;
       collectedThisMonth += collectedPortion;
     }
 
@@ -434,7 +431,7 @@ export async function fetchPaymentsSummary(): Promise<PaymentsSummary> {
     const issueDate = Array.isArray(invoice)
       ? invoice[0]?.issue_date
       : invoice?.issue_date;
-    if (issueDate && (status === "applied" || unapplied < amount)) {
+    if (issueDate) {
       daysToPay.push(daysBetween(issueDate, payment.payment_date));
     }
   }
@@ -499,7 +496,6 @@ export async function fetchPaymentsSummary(): Promise<PaymentsSummary> {
     outstandingInvoiceIds,
     collectionRate,
     averageDaysToPay,
-    unappliedPayments,
     partialPaymentsCount,
   };
 }
@@ -617,6 +613,7 @@ export async function fetchProfitabilityReport() {
   return results;
 }
 
+export type { ChartOfAccount } from "@/lib/chart-of-accounts";
 export type { JournalSource, JournalStatus };
 
 export type JournalLine = {
@@ -685,6 +682,24 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
 
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+export async function fetchChartOfAccounts(): Promise<ChartOfAccount[]> {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("chart_of_accounts")
+    .select("code, name, account_type")
+    .order("code", { ascending: true });
+
+  if (error || !data?.length) {
+    return DEFAULT_CHART_OF_ACCOUNTS;
+  }
+
+  return data.map((row) => ({
+    code: row.code,
+    name: row.name,
+    accountType: row.account_type as AccountType,
+  }));
 }
 
 export async function fetchJournalSourceStates() {
@@ -926,6 +941,7 @@ export async function fetchAllSupportRequests(): Promise<{
   const { data, error } = await supabase
     .from("support_requests")
     .select("*, customers(name)")
+    .neq("category", "service_quote")
     .order("created_at", { ascending: false });
 
   if (error || !data) {
@@ -1439,3 +1455,33 @@ export async function fetchCustomerUpcomingVisits(
 
   return { data: visits, error };
 }
+
+export async function fetchQuoteRequests() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("quote_requests")
+    .select("*, customers(id, name, address, contact_name, contact_email)")
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+
+export async function fetchQuoteRequestById(id: string) {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("quote_requests")
+    .select("*, customers(id, name, address, contact_name, contact_email, contact_phone)")
+    .eq("id", id)
+    .maybeSingle();
+  return { data, error };
+}
+
+export async function fetchPendingContractApprovals() {
+  const supabase = await createDataClient();
+  const { data, error } = await supabase
+    .from("contracts")
+    .select("*, customers(name, address)")
+    .eq("approval_state", "pending_approvals")
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error };
+}
+

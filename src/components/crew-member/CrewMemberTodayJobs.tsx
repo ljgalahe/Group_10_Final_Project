@@ -9,6 +9,7 @@ import type {
   ExtraWorkItem,
   ScheduleJob,
 } from "@/components/crew-lead/schedule-types";
+import { CrewMemberJobClock } from "@/components/crew-member/CrewMemberJobClock";
 import {
   coworkerNamesForJob,
   crewLeadNameForJob,
@@ -147,6 +148,17 @@ export function CrewMemberTodayJobs({
                     </div>
                     <StatusBadge status={job.status} />
                   </div>
+
+                  <CrewMemberJobClock
+                    job={job}
+                    onHoursChange={(hours) =>
+                      setHoursByVisit((prev) =>
+                        prev[job.id] === hours
+                          ? prev
+                          : { ...prev, [job.id]: hours }
+                      )
+                    }
+                  />
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     <a

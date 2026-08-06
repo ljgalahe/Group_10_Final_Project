@@ -8,19 +8,26 @@ import { ProfileDocumentDownloadButton } from "@/components/customer/ProfileDocu
 import type { ProfileDocument } from "@/components/customer/ProfileDocumentDownloadButton";
 import { ProfileNotifications } from "@/components/customer/ProfileNotifications";
 import { ProfilePaymentMethods } from "@/components/customer/ProfilePaymentMethods";
+import { CustomerNotesField } from "@/components/customer/CustomerNotesField";
+import { ServiceHoldAuditPanel } from "@/components/ServiceHoldAuditPanel";
+import {
+  ServiceHoldBadge,
+  ServiceHoldBanner,
+} from "@/components/ServiceHoldBanner";
+import { ServiceHoldAuditSync } from "@/components/ServiceHoldDashboardCard";
 import { Card, PageHeader } from "@/components/ui";
-import { requireAppAccess } from "@/lib/auth-access";
+import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { mergeNotificationPrefs } from "@/lib/customer-payment-methods";
+import {
+  CUSTOMER_NOTES_HELPER,
+} from "@/lib/customer-notes";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatDate } from "@/lib/format";
 import {
   fetchCustomerPaymentMethods,
   fetchCustomerProfile,
 } from "@/lib/queries";
-import {
-  CUSTOMER_NOTES_HELPER,
-} from "@/lib/customer-notes";
-import { CustomerNotesField } from "@/components/customer/CustomerNotesField";
+import { buildCustomerServiceHolds } from "@/lib/service-hold";
 import { DEMO_CUSTOMER_ID } from "@/lib/types";
 
 const DEMO_DOCUMENTS: ProfileDocument[] = [
@@ -69,14 +76,37 @@ export default async function ProfilePage({
   }
 
   const params = await searchParams;
-  const [{ data: customer }, { data: methods }] = await Promise.all([
-    fetchCustomerProfile(customerId),
-    fetchCustomerPaymentMethods(customerId),
-  ]);
+  const supabase = await createDataClient();
+  const [{ data: customer }, { data: methods }, { data: invoices }] =
+    await Promise.all([
+      fetchCustomerProfile(customerId),
+      fetchCustomerPaymentMethods(customerId),
+      supabase
+        .from("invoices")
+        .select(
+          "id, invoice_number, customer_id, total, amount_paid, status, due_date"
+        )
+        .eq("customer_id", customerId),
+    ]);
 
   if (!customer) {
     redirect("/dashboard");
   }
+
+  const holds = buildCustomerServiceHolds(
+    (invoices ?? []).map((invoice) => ({
+      id: invoice.id,
+      invoice_number: invoice.invoice_number,
+      customer_id: String(invoice.customer_id),
+      total: Number(invoice.total),
+      amount_paid: Number(invoice.amount_paid),
+      status: invoice.status,
+      due_date: invoice.due_date,
+      customers: { name: customer.name },
+    }))
+  );
+  const customerHold = holds.find((hold) => hold.customerId === customerId);
+  const onServiceHold = Boolean(customerHold);
 
   const email = customer.contact_email ?? "";
   const phone = customer.contact_phone ?? "";
@@ -94,7 +124,20 @@ export default async function ProfilePage({
       <PageHeader
         title="Profile"
         description="Manage contact details, payment methods, notifications, and vendor documents for your property."
+        action={<ServiceHoldBadge onHold={onServiceHold} />}
       />
+      <ServiceHoldAuditSync holds={holds} />
+
+      {onServiceHold && customerHold ? (
+        <div className="mb-6">
+          <ServiceHoldBanner
+            customerName={customer.name}
+            reason={customerHold.reason}
+            daysOverdue={customerHold.daysOverdue}
+            oldestInvoiceNumber={customerHold.oldestInvoiceNumber}
+          />
+        </div>
+      ) : null}
 
       {params.saved === "contact" ? (
         <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
@@ -125,8 +168,17 @@ export default async function ProfilePage({
 
       <div className="space-y-8">
         <Card>
-          <h2 className="text-lg font-semibold text-green-950">Property</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-green-950">Property</h2>
+            <ServiceHoldBadge onHold={onServiceHold} />
+          </div>
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-stone-500">Account status</dt>
+              <dd className="mt-0.5 font-medium text-green-950">
+                {onServiceHold ? "Service Hold" : "Active"}
+              </dd>
+            </div>
             <div>
               <dt className="text-stone-500">Property name</dt>
               <dd className="mt-0.5 font-medium text-green-950">
@@ -182,6 +234,19 @@ export default async function ProfilePage({
               </button>
             </div>
           </form>
+        </Card>
+
+        <Card>
+          <h2 className="text-lg font-semibold text-green-950">
+            Credit hold history
+          </h2>
+          <p className="mt-1 text-sm text-stone-500">
+            Automatic Service Hold events when invoices become 30+ days overdue
+            or the account is released after payment.
+          </p>
+          <div className="mt-4">
+            <ServiceHoldAuditPanel customerId={customerId} holds={holds} />
+          </div>
         </Card>
 
         <Card>

@@ -18,6 +18,7 @@ import {
   fetchContractProfitabilityMap,
   fetchContracts,
   fetchContractsDetailed,
+  fetchPendingContractApprovals,
   fetchPendingContractChangeRequests,
   fetchVisits,
 } from "@/lib/queries";
@@ -96,12 +97,14 @@ export default async function ContractsPage() {
       { data: pendingRequests },
       { data: auditLogs },
       billing,
+      { data: pendingApprovals },
     ] = await Promise.all([
       fetchContractsDetailed(),
       fetchContractProfitabilityMap(),
       fetchPendingContractChangeRequests(),
       fetchContractAuditLogs(),
       fetchAccountantContractBilling(),
+      fetchPendingContractApprovals(),
     ]);
     const unprofitableIds = [...profitMap.entries()]
       .filter(([, info]) => info.unprofitable)
@@ -121,6 +124,26 @@ export default async function ContractsPage() {
             </Link>
           }
         />
+        {pendingApprovals.length > 0 ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="font-semibold">
+              {pendingApprovals.length} Operations draft
+              {pendingApprovals.length === 1 ? "" : "s"} need your approval
+            </p>
+            <ul className="mt-2 list-disc pl-5">
+              {pendingApprovals.map((c) => (
+                <li key={c.id}>
+                  <Link
+                    href={`/contracts/${c.id}`}
+                    className="font-medium text-green-900 hover:underline"
+                  >
+                    {c.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <AccountantContractsView
           contracts={contracts}
           unprofitableIds={unprofitableIds}
@@ -134,6 +157,10 @@ export default async function ContractsPage() {
   }
 
   const { data: contracts } = await fetchContracts();
+  const pendingApprovals =
+    role === "manager" || role === "operations"
+      ? (await fetchPendingContractApprovals()).data
+      : [];
 
   // Customer (and crew) see the simple agreement list — not manager ops dashboards.
   if (role === "customer" || role === "crew_lead" || role === "crew_member") {
@@ -167,6 +194,51 @@ export default async function ContractsPage() {
     );
   }
 
+  // Operations: simple drafts list + pending dual-approval (no manager analytics charts).
+  if (role === "operations") {
+    return (
+      <AppShell>
+        <PageHeader
+          title="Contracts"
+          description="Draft contracts from quotes. Manager and Accountant must both approve before customers see them."
+          action={
+            <Link
+              href="/quotes"
+              className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Quotes inbox
+            </Link>
+          }
+        />
+        {pendingApprovals.length > 0 ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="font-semibold">
+              {pendingApprovals.length} contract
+              {pendingApprovals.length === 1 ? "" : "s"} awaiting dual approval
+            </p>
+            <ul className="mt-2 list-disc pl-5">
+              {pendingApprovals.map((c) => (
+                <li key={c.id}>
+                  <Link
+                    href={`/contracts/${c.id}`}
+                    className="font-medium text-green-900 hover:underline"
+                  >
+                    {c.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {contracts.length === 0 ? (
+          <EmptyState message="No contracts yet. Draft one from a quote in the Quotes inbox." />
+        ) : (
+          <SimpleContractsTable contracts={contracts} showCustomerColumn />
+        )}
+      </AppShell>
+    );
+  }
+
   const { data: visits } = await fetchVisits();
 
   const visitsByContract = new Map<string, ServiceVisit[]>();
@@ -187,6 +259,27 @@ export default async function ContractsPage() {
         title="Contracts"
         description="Contract completion, promise vs actual work, and out-of-scope tracking."
       />
+
+      {pendingApprovals.length > 0 ? (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">
+            {pendingApprovals.length} contract
+            {pendingApprovals.length === 1 ? "" : "s"} awaiting dual approval
+          </p>
+          <ul className="mt-2 list-disc pl-5">
+            {pendingApprovals.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/contracts/${c.id}`}
+                  className="font-medium text-green-900 hover:underline"
+                >
+                  {c.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {contracts.length === 0 ? (
         <EmptyState message="No contracts yet. Run the seed script in Supabase to load demo data." />

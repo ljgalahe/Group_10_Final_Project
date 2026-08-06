@@ -66,6 +66,9 @@ export function ChatWorkspace({
   initialJob,
   initialCompany,
   initialConcern,
+  initialComposeTitle,
+  initialComposeBody,
+  initialComposeCategory,
 }: {
   initialWith?: string;
   initialFrom?: string;
@@ -73,6 +76,9 @@ export function ChatWorkspace({
   initialJob?: string;
   initialCompany?: string;
   initialConcern?: string;
+  initialComposeTitle?: string;
+  initialComposeBody?: string;
+  initialComposeCategory?: string;
 }) {
   const router = useRouter();
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -140,6 +146,33 @@ export function ChatWorkspace({
     initialJob,
     initialCompany,
     initialConcern,
+    router,
+  ]);
+
+  // Deep-link from Equipment replacement alert → open prefilled board compose
+  useEffect(() => {
+    if (!initialComposeBody) return;
+    const allowed: Array<Exclude<ChatCategory, "direct">> = [
+      "announcement",
+      "fyi",
+      "question",
+    ];
+    const category =
+      initialComposeCategory &&
+      allowed.includes(
+        initialComposeCategory as Exclude<ChatCategory, "direct">
+      )
+        ? (initialComposeCategory as Exclude<ChatCategory, "direct">)
+        : "announcement";
+    setComposeCategory(category);
+    setComposeTitle(initialComposeTitle ?? "");
+    setComposeBody(initialComposeBody);
+    setComposeOpen(true);
+    router.replace("/chat");
+  }, [
+    initialComposeBody,
+    initialComposeTitle,
+    initialComposeCategory,
     router,
   ]);
 

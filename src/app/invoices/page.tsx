@@ -22,7 +22,9 @@ import {
 import { getOutstandingBalance } from "@/app/invoices/lib/accounting";
 import { InvoiceStatusBadge } from "@/app/invoices/components/InvoiceStatusBadge";
 import { AddInvoiceButton } from "@/app/invoices/components/AddInvoiceButton";
+import { AccountantPaymentsSection } from "@/app/invoices/components/AccountantPaymentsSection";
 import { fetchContractsForInvoice } from "@/app/invoices/queries";
+import { fetchPaymentsForAccountant } from "@/app/payments/queries";
 
 async function CustomerReceiptCell({
   invoiceId,
@@ -88,7 +90,7 @@ function parseStatusFilter(raw?: string): InvoiceStatusFilterValue {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; due?: string }>;
 }) {
   await requireAppAccess();
 
@@ -97,11 +99,15 @@ export default async function InvoicesPage({
   const isCustomer = role === "customer";
   const isAccountant = role === "accountant";
   const params = await searchParams;
-  const statusFilter = parseStatusFilter(params.status);
+  const dueSoonOnly = params.due === "soon";
+  const statusFilter = dueSoonOnly ? "due" : parseStatusFilter(params.status);
   const { data: invoices } = await fetchInvoices();
-  const invoiceJournalStates = isAccountant
-    ? (await fetchJournalSourceStates()).invoice
-    : new Map();
+  const journalStates = isAccountant ? await fetchJournalSourceStates() : null;
+  const invoiceJournalStates = journalStates?.invoice ?? new Map();
+  const paymentJournalStates = journalStates?.payment ?? new Map();
+  const accountantPayments = isAccountant
+    ? (await fetchPaymentsForAccountant()).data
+    : [];
   const contracts = isAccountant ? await fetchContractsForInvoice() : [];
   const customerId = isCustomer ? await getViewCustomerId() : null;
   const paymentMethods =
@@ -117,11 +123,25 @@ export default async function InvoicesPage({
     return new Date(dueDate + "T00:00:00") < today;
   }
 
+  function daysUntilDue(dueDate: string) {
+    const due = new Date(dueDate + "T00:00:00");
+    return Math.floor(
+      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+  }
+
   const filteredInvoices = invoices
     .filter((invoice) => {
       const balance = Number(invoice.total) - Number(invoice.amount_paid);
-      if (statusFilter === "due") return balance > 0.001;
-      if (statusFilter === "paid") return balance <= 0.001;
+      if (statusFilter === "due") {
+        if (balance <= 0.001) return false;
+      } else if (statusFilter === "paid") {
+        if (balance > 0.001) return false;
+      }
+      if (dueSoonOnly) {
+        const until = daysUntilDue(invoice.due_date);
+        return until >= 0 && until <= 7;
+      }
       return true;
     })
     .sort((a, b) => {
@@ -136,8 +156,9 @@ export default async function InvoicesPage({
       return b.issue_date.localeCompare(a.issue_date);
     });
 
-  const emptyMessage =
-    statusFilter === "due"
+  const emptyMessage = dueSoonOnly
+    ? "No open invoices are due within the next 7 days."
+    : statusFilter === "due"
       ? isCustomer
         ? "No open invoices right now. Switch to Paid to see settled bills."
         : "No open invoices. Switch to Paid or All invoices to see the rest."
@@ -166,6 +187,22 @@ export default async function InvoicesPage({
           )
         }
       />
+
+      {dueSoonOnly ? (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Showing{" "}
+          {filteredInvoices.length === 1
+            ? "1 open invoice"
+            : `${filteredInvoices.length} open invoices`}{" "}
+          due within 7 days.{" "}
+          <a
+            href="/invoices"
+            className="font-medium text-green-800 underline hover:text-green-950"
+          >
+            Clear filter
+          </a>
+        </div>
+      ) : null}
 
       {filteredInvoices.length === 0 ? (
         <EmptyState message={emptyMessage} />
@@ -278,6 +315,13 @@ export default async function InvoicesPage({
           </table>
         </div>
       )}
+
+      {isAccountant ? (
+        <AccountantPaymentsSection
+          payments={accountantPayments}
+          paymentJournalStates={paymentJournalStates}
+        />
+      ) : null}
     </AppShell>
   );
 }

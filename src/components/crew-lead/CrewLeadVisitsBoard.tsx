@@ -15,6 +15,7 @@ import type {
 } from "@/components/crew-lead/schedule-types";
 import { formatStatusLabel } from "@/components/crew-lead/visitWorkDefaults";
 import { Card, EmptyState } from "@/components/ui";
+import { formatVisitCostDescription } from "@/lib/crew-hours";
 import { formatCurrency, formatDate } from "@/lib/format";
 
 export type CrewLeadVisitCardData = {
@@ -73,11 +74,18 @@ export function CrewLeadVisitsBoard({
     "all" | "completed" | "incomplete"
   >("all");
   const [customerName, setCustomerName] = useState("");
+  const [jobName, setJobName] = useState("");
   const [employeeName, setEmployeeName] = useState("");
 
   const customerOptions = useMemo(() => {
     return Array.from(
       new Set(visits.map((visit) => visit.customerName).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+  }, [visits]);
+
+  const jobNameOptions = useMemo(() => {
+    return Array.from(
+      new Set(visits.map((visit) => visit.contractTitle).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b));
   }, [visits]);
 
@@ -91,6 +99,7 @@ export function CrewLeadVisitsBoard({
 
   const filtered = useMemo(() => {
     const customerQuery = customerName.trim().toLowerCase();
+    const jobQuery = jobName.trim().toLowerCase();
     const employeeQuery = employeeName.trim().toLowerCase();
 
     return visits.filter((visit) => {
@@ -108,6 +117,10 @@ export function CrewLeadVisitsBoard({
         return false;
       }
 
+      if (jobQuery && !visit.contractTitle.toLowerCase().includes(jobQuery)) {
+        return false;
+      }
+
       if (employeeQuery) {
         const names = employeeNamesForVisit(visit).map((name) =>
           name.toLowerCase()
@@ -119,7 +132,7 @@ export function CrewLeadVisitsBoard({
 
       return true;
     });
-  }, [visits, statusFilter, customerName, employeeName]);
+  }, [visits, statusFilter, customerName, jobName, employeeName]);
 
   return (
     <div className="space-y-4">
@@ -127,10 +140,10 @@ export function CrewLeadVisitsBoard({
         <h2 className="text-lg font-semibold text-green-950">Filters</h2>
         <p className="mt-1 text-sm text-stone-500">
           {readOnly
-            ? "Filter by completion status or customer name."
-            : "Filter by completion status, customer name, or employee name."}
+            ? "Filter by completion status, customer name, or job name."
+            : "Filter by completion status, customer name, job name, or employee name."}
         </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-stone-700">
               Status
@@ -163,6 +176,24 @@ export function CrewLeadVisitsBoard({
             />
             <datalist id="crew-visit-customers">
               {customerOptions.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-stone-700">
+              Job Name
+            </span>
+            <input
+              list="crew-visit-jobs"
+              value={jobName}
+              onChange={(e) => setJobName(e.target.value)}
+              placeholder="Search job name..."
+              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
+            />
+            <datalist id="crew-visit-jobs">
+              {jobNameOptions.map((name) => (
                 <option key={name} value={name} />
               ))}
             </datalist>
@@ -252,19 +283,31 @@ export function CrewLeadVisitsBoard({
 
                 <div className="mt-4">
                   <p className="text-sm font-medium text-stone-700">
-                    Visit Costs: {formatCurrency(visit.totalCosts)}
+                    Visit costs
                   </p>
                   {visit.costs.length > 0 ? (
                     <ul className="mt-2 space-y-1 text-sm text-stone-600">
-                      {visit.costs.map((cost) => (
-                        <li key={cost.id}>
-                          <span className="font-medium text-stone-800">
-                            {titleCaseCostType(cost.cost_type)}
-                          </span>
-                          : {cost.description ?? "—"} —{" "}
-                          {formatCurrency(Number(cost.amount))}
-                        </li>
-                      ))}
+                      {visit.costs.map((cost) => {
+                        const isLabor =
+                          cost.cost_type.trim().toLowerCase() === "labor";
+                        return (
+                          <li key={cost.id}>
+                            <span className="font-medium text-stone-800">
+                              {titleCaseCostType(cost.cost_type)}
+                            </span>
+                            :{" "}
+                            {formatVisitCostDescription(
+                              visit.id,
+                              cost.cost_type,
+                              cost.description,
+                              { hidePay: true }
+                            )}
+                            {!isLabor
+                              ? ` — ${formatCurrency(Number(cost.amount))}`
+                              : null}
+                          </li>
+                        );
+                      })}
                     </ul>
                   ) : (
                     <p className="mt-1 text-sm text-stone-400">

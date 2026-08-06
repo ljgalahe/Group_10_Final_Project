@@ -1,89 +1,27 @@
 # Demo Seed Data Guide
 
-This file explains the fake data loaded by [`scripts/seed.sql`](seed.sql) so your team knows what to click during the pitch.
+Large commercial landscaping demo for GreenScape.
 
-## How to load (or reload) seed data
-
-**Option A — Supabase SQL Editor (recommended):**
-1. Open [Supabase SQL Editor](https://supabase.com/dashboard/project/ashhludptczpogtwmzvd/sql/new)
-2. Paste the entire contents of `scripts/seed.sql`
-3. Click **Run**
-
-The script is **safe to re-run** — it clears old demo data first.
-
-**Option B — Verify from terminal:**
 ```bash
-npm run seed
+npm run seed:generate   # rebuild scripts/seed.sql
+# Then paste seed.sql into Supabase SQL Editor (or use apply-seed if configured)
+npm run seed            # verify row counts
 ```
 
----
+Clear browser `localStorage` keys starting with `greenscape-` after reseeding.
 
-## Customers (4)
+## Company scale
 
-| Customer | Property Type | Demo Purpose |
-|----------|---------------|--------------|
-| **Riverside Office Park** | Office Park | Customer portal view; open invoice with extra work |
-| **Summit Retail Center** | Retail Center | Profitable contract (costs < revenue) |
-| **Harbor View HOA** | HOA | Partial payment; pending extra work quote |
-| **Metro Industrial Complex** | Industrial | 90+ days overdue — AR aging headline |
+| Fact | Detail |
+|------|--------|
+| Founded | Spring 2024 |
+| Crews | **8** — A–E = **10** people each; F–H = **5** each (**65** field staff) |
+| Season | Mar–Nov full crews; winter = leads + year-round techs (leaf blow / shop / irrigation winterize) |
+| Hours | ~**40 h/week**; busy season alternate weeks ~**50 h** OT |
+| Sites | **~28** commercial accounts (Oxford / North MS) |
+| Equipment | **42** assets with realistic unit-of-production lives & salvage |
+| Margins | Visit costs sized so contribution margins land ~**10–35%** (thin industrials lower; strong retail/office higher) — not ~90% |
 
----
+## Portal note
 
-## Contracts (4 active seasonal agreements)
-
-| Contract | Monthly Fee | Visits/Week | Key Story |
-|----------|-------------|-------------|-----------|
-| Riverside Grounds Maintenance | $2,400 | 2 | Approved mulch extra work ($1,850) |
-| Summit Retail Landscape Care | $3,200 | 3 | Strong profitability |
-| Harbor View HOA Common Areas | $1,800 | 1 | Storm cleanup quote pending approval |
-| Metro Industrial Grounds | $4,500 | 2 | High crew costs → low margin |
-
----
-
-## Service Visits (7)
-
-- **3 completed** visits with labor/materials/equipment costs logged
-- **3 scheduled** visits (tomorrow and this week) — use Crew Lead view to mark complete
-- Metro visit has **$815 in costs** — drives low profitability on that contract
-
----
-
-## Invoices (6)
-
-| Invoice | Customer | Amount | Status | Demo Purpose |
-|---------|----------|--------|--------|--------------|
-| INV-0001 | Riverside | $2,400 | Paid | Fully paid via ACH |
-| INV-0002 | Riverside | $4,250 | Sent | Recurring + extra work; customer can Pay Now |
-| INV-0003 | Summit | $3,200 | Paid | Fully paid via check |
-| INV-0004 | Metro | $4,500 | Overdue | **90+ day AR aging bucket** |
-| INV-0005 | Harbor View | $1,800 | Partially Paid ($900) | Two payments (check + card); $900 remaining |
-| INV-0006 | Harbor View | $500 | Canceled | Cannot receive payments |
-
-## Payments (4)
-
-| Invoice | Amount | Method | Demo Purpose |
-|---------|--------|--------|--------------|
-| INV-0001 | $2,400 | ACH | Full payment |
-| INV-0003 | $3,200 | Check | Full payment with check # |
-| INV-0005 | $600 | Check | First of multiple partials |
-| INV-0005 | $300 | Card | Second partial (August collection) |
-
----
-
-## Where to click in the app
-
-| Page | What you'll see |
-|------|-----------------|
-| **Dashboard** | 4 active contracts, outstanding balance ~$10,450 |
-| **Contracts → Riverside** | Structured terms, included services, approved mulch extra work |
-| **Visits** | Completed visits with costs; scheduled visits to mark complete |
-| **Invoices → INV-0002** | $2,400 recurring + $1,850 extra work = $4,250 |
-| **AR Aging** | Metro in 90+ bucket; Riverside in 31–60 bucket |
-| **Profitability** | Summit strong margin; Metro weak/negative margin |
-| **Customer view** | Switch role → Riverside's open invoice → Pay Now |
-
----
-
-## Customer portal note
-
-When you switch to **View as: Customer**, you see **Riverside Office Park** only (customer ID `11111111-1111-1111-1111-111111111101`).
+**View as: Customer** still uses Riverside (`11111111-1111-1111-1111-111111111101`).

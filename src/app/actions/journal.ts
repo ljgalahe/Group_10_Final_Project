@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createDataClient } from "@/lib/auth-access";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 import {
+  ACCOUNT_TYPE_LABELS,
+  inferAccountType,
+  type AccountType,
+} from "@/lib/chart-of-accounts";
+import {
   accountNameForCode,
   depreciationAmountForHours,
   depreciationJournalDraft,
@@ -32,6 +37,7 @@ async function requireAccountant() {
 
 function revalidateJournalPaths() {
   revalidatePath("/reports/journal-entries");
+  revalidatePath("/reports/general-ledger");
   revalidatePath("/invoices", "layout");
   revalidatePath("/payments", "layout");
   revalidatePath("/visits");
@@ -394,8 +400,8 @@ export async function backfillDepreciationJournals() {
     (existing ?? []).map((row) => row.source_id).filter(Boolean) as string[]
   );
 
-  for (const row of usageRows ?? []) {
-    if (posted.has(row.id)) continue;
+  const unposted = (usageRows ?? []).filter((row) => !posted.has(row.id));
+  for (const row of unposted) {
     await postDepreciationJournalForUsage(row.id, { revalidate: false });
   }
 
@@ -471,4 +477,53 @@ export async function deleteJournalEntry(formData: FormData) {
 
   revalidateJournalPaths();
   return { ok: true as const };
+}
+
+const VALID_ACCOUNT_TYPES = new Set(Object.keys(ACCOUNT_TYPE_LABELS));
+
+export async function addChartOfAccountAction(
+  _prev: { ok: boolean; error?: string } | null,
+  formData: FormData
+): Promise<{ ok: boolean; error?: string }> {
+  const auth = await requireAccountant();
+  if (!auth.ok) return auth;
+
+  const code = String(formData.get("account_code") || "").trim();
+  const name = String(formData.get("account_name") || "").trim();
+  const accountTypeRaw = String(formData.get("account_type") || "").trim();
+  const accountType = (
+    VALID_ACCOUNT_TYPES.has(accountTypeRaw)
+      ? accountTypeRaw
+      : inferAccountType(code)
+  ) as AccountType;
+
+  if (!/^\d{4}$/.test(code)) {
+    return { ok: false, error: "Account code must be exactly 4 digits." };
+  }
+  if (!name) {
+    return { ok: false, error: "Account name is required." };
+  }
+
+  const supabase = await createDataClient();
+  const { error } = await supabase.from("chart_of_accounts").insert({
+    code,
+    name,
+    account_type: accountType,
+  });
+
+  if (error) {
+    if (error.code === "23505") {
+      return { ok: false, error: "That account code is already in use." };
+    }
+    if (/chart_of_accounts/i.test(error.message)) {
+      return {
+        ok: false,
+        error: "Chart of accounts is not set up yet. Run the latest database migration.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidateJournalPaths();
+  return { ok: true };
 }

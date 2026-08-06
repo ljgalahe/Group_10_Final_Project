@@ -44,16 +44,6 @@ export async function fetchPaymentsForAccountant() {
   return { data: data ?? [], error };
 }
 
-export async function fetchUnappliedCashPayments() {
-  const supabase = await createDataClient();
-  const { data } = await supabase
-    .from("payments")
-    .select("*, customers(name), invoices(invoice_number)")
-    .or("unapplied_amount.gt.0,invoice_id.is.null")
-    .order("payment_date", { ascending: false });
-  return data ?? [];
-}
-
 export async function fetchCustomersForPayment() {
   const supabase = await createDataClient();
   const { data } = await supabase.from("customers").select("id, name").order("name");

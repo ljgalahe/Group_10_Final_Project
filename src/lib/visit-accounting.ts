@@ -1,5 +1,10 @@
 import type { CostType } from "@/lib/types";
 import {
+  CREW_LEADS,
+  DEMO_EMPLOYEES,
+  type DemoCrewId,
+} from "@/lib/demo-org";
+import {
   entriesToAccountantEmployees,
   laborTotals,
   parseLaborDescription,
@@ -8,12 +13,13 @@ import {
 
 export type VisitPriority = "Routine" | "High" | "Emergency" | "Seasonal";
 
-const CREW_ROSTERS = [
-  { leader: "John Smith", employees: ["John Smith", "Mike Jones"] },
-  { leader: "Alex Rivera", employees: ["Alex Rivera", "Dana Brooks", "Pat Simmons"] },
-  { leader: "Jordan Lee", employees: ["Jordan Lee", "Sam Patel"] },
-  { leader: "Maria Chen", employees: ["Maria Chen", "James Ortiz"] },
-];
+const CREW_ROSTERS = (Object.keys(CREW_LEADS) as DemoCrewId[]).map((crew) => {
+  const members = DEMO_EMPLOYEES.filter((e) => e.crew === crew);
+  return {
+    leader: CREW_LEADS[crew],
+    employees: members.map((m) => m.name),
+  };
+});
 
 function hashString(value: string) {
   return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0);
