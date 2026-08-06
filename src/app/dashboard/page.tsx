@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
@@ -40,6 +41,8 @@ import {
   buildManagerAlerts,
   type ManagerAlert,
 } from "@/lib/manager-alerts";
+import { buildCompanyCapacity } from "@/lib/company-capacity";
+import { DEMO_TODAY } from "@/lib/demo-org";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type {
@@ -53,7 +56,6 @@ import {
   fetchCustomerAccountHealth,
   fetchCustomerNeedsAttention,
   fetchCustomerUpcomingVisits,
-  fetchDashboardStats,
   fetchInvoices,
   fetchPayments,
   fetchPendingContractChangeRequests,
@@ -213,23 +215,13 @@ export default async function DashboardPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  // Managers load invoices/visits below for KPIs — skip the duplicate
-  // fetchDashboardStats() pass (full invoices + scheduled visits again).
-  const [stats, accountantDashboard] = await Promise.all([
-    role === "manager"
-      ? Promise.resolve({
-          activeContracts: 0,
-          scheduledVisits: 0,
-          totalBilled: 0,
-          totalCollected: 0,
-          outstanding: 0,
-          overdueCount: 0,
-        })
-      : fetchDashboardStats(),
-    role === "accountant"
-      ? fetchAccountantDashboardData()
-      : Promise.resolve(null),
-  ]);
+  // Inquiries is a prospect start page only — never the internal KPI dashboard.
+  if (role === "inquiries") {
+    redirect("/inquiries");
+  }
+  // Managers load invoices/visits below for KPIs — no shared staff stats strip.
+  const accountantDashboard =
+    role === "accountant" ? await fetchAccountantDashboardData() : null;
   const params = await searchParams;
   const initialPerfCategory = parsePerfCategory(params.perf);
 
@@ -473,6 +465,14 @@ export default async function DashboardPage({
         contract_id: row.contract_id,
         status: row.status,
       })),
+      capacity: buildCompanyCapacity({
+        today: DEMO_TODAY,
+        contracts: contracts.map((contract) => ({
+          customerId: String(contract.customer_id),
+          visits_per_week: contract.visits_per_week ?? null,
+          status: contract.status,
+        })),
+      }),
     });
 
     // Approvals panel labels — reuse visits already loaded above instead of
@@ -697,23 +697,6 @@ export default async function DashboardPage({
 
   const nextVisit = upcomingVisits[0] ?? null;
 
-  const staffStatsRow = (
-    <div className="gs-kpi-grid">
-      <StatCard label="Active Contracts" value={stats.activeContracts} />
-      <StatCard label="Scheduled Visits" value={stats.scheduledVisits} />
-      <StatCard
-        label="Outstanding Balance"
-        value={formatCurrency(stats.outstanding)}
-        hint={`${stats.overdueCount} invoice(s) need attention`}
-      />
-      <StatCard
-        label="Collected YTD"
-        value={formatCurrency(stats.totalCollected)}
-        hint={`Billed ${formatCurrency(stats.totalBilled)} total`}
-      />
-    </div>
-  );
-
   const customerStatsColumn =
     accountHealth != null ? (
       <div className="flex flex-col gap-3">
@@ -890,15 +873,6 @@ export default async function DashboardPage({
           </div>
         </>
       ) : null}
-
-      {role !== "customer" &&
-      role !== "crew_member" &&
-      role !== "crew_lead" &&
-      role !== "manager" &&
-      role !== "accountant" &&
-      role !== "operations"
-        ? staffStatsRow
-        : null}
 
       {role === "operations" && operationsDashboard ? (
         <OperationsDashboardPanel data={operationsDashboard} />

@@ -2,6 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  REFERRAL_PARTNERS,
+  type ReferralPartner,
+} from "@/lib/company-capacity";
 import type { AlertPriority, ManagerAlert } from "@/lib/manager-alerts";
 
 const PRIORITY_STYLES: Record<
@@ -99,6 +103,16 @@ function AlertIcon({ icon }: { icon: ManagerAlert["icon"] }) {
           />
         </svg>
       );
+    case "capacity":
+      return (
+        <svg className={common} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+          <path
+            fillRule="evenodd"
+            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V6z"
+            clipRule="evenodd"
+          />
+        </svg>
+      );
     case "inventory":
       return (
         <svg className={common} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -121,14 +135,76 @@ function AlertIcon({ icon }: { icon: ManagerAlert["icon"] }) {
   }
 }
 
+function PartnerListPanel({
+  partners,
+  onClose,
+}: {
+  partners: ReferralPartner[];
+  onClose: () => void;
+}) {
+  const [sentId, setSentId] = useState<string | null>(null);
+
+  return (
+    <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold text-green-950">
+            Referral partners
+          </p>
+          <p className="mt-0.5 text-[11px] text-stone-500">
+            Send overflow or new-customer inquiries to a trusted local partner.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[11px] font-medium text-stone-500 hover:text-stone-800"
+        >
+          Close
+        </button>
+      </div>
+      <ul className="mt-2 divide-y divide-stone-200 border-t border-stone-200">
+        {partners.map((partner) => (
+          <li
+            key={partner.id}
+            className="flex flex-wrap items-start justify-between gap-3 py-2.5"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-green-950">{partner.name}</p>
+              <p className="text-[11px] text-stone-600">{partner.focus}</p>
+              <p className="mt-0.5 text-[11px] text-stone-500">
+                {partner.area} · {partner.contact} · {partner.phone}
+              </p>
+              {sentId === partner.id ? (
+                <p className="mt-1 text-[11px] font-medium text-green-800">
+                  Referral noted — partner can be contacted with this info.
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSentId(partner.id)}
+              className="shrink-0 rounded-md border border-green-800 px-2.5 py-1 text-[11px] font-medium text-green-900 hover:bg-white"
+            >
+              {sentId === partner.id ? "Sent" : "Send referral"}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function AlertRow({ alert }: { alert: ManagerAlert }) {
   const styles = PRIORITY_STYLES[alert.priority];
+  const hasActions = Boolean(alert.actions && alert.actions.length > 0);
+  const [showPartners, setShowPartners] = useState(false);
+
   return (
-    <li>
-      <Link
-        href={alert.href}
-        className={`flex items-center gap-3 rounded-lg border bg-white px-3 py-2.5 transition hover:bg-green-50/40 ${styles.border}`}
-      >
+    <li
+      className={`rounded-lg border bg-white px-3 py-2.5 transition hover:bg-green-50/40 ${styles.border}`}
+    >
+      <div className="flex items-center gap-3">
         <span
           className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${styles.iconBg}`}
           aria-hidden
@@ -149,14 +225,47 @@ function AlertRow({ alert }: { alert: ManagerAlert }) {
               {alert.count === 1 ? "1 item" : `${alert.count} items`}
             </span>
           </div>
-          <p className="mt-0.5 truncate text-xs text-stone-600">
-            {alert.explanation}
-          </p>
+          <p className="mt-0.5 text-xs text-stone-600">{alert.explanation}</p>
+          {hasActions ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {alert.actions!.map((action) =>
+                action.action === "open-partners" ? (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => setShowPartners((open) => !open)}
+                    className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-[11px] font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
+                  >
+                    {showPartners ? "Hide partner list" : action.label}
+                  </button>
+                ) : action.href ? (
+                  <Link
+                    key={action.id}
+                    href={action.href}
+                    className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-[11px] font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
+                  >
+                    {action.label}
+                  </Link>
+                ) : null
+              )}
+            </div>
+          ) : null}
+          {showPartners ? (
+            <PartnerListPanel
+              partners={REFERRAL_PARTNERS}
+              onClose={() => setShowPartners(false)}
+            />
+          ) : null}
         </div>
-        <span className="hidden shrink-0 text-xs font-medium text-green-800 sm:inline">
-          Open →
-        </span>
-      </Link>
+        {!hasActions ? (
+          <Link
+            href={alert.href}
+            className="hidden shrink-0 text-xs font-medium text-green-800 hover:underline sm:inline"
+          >
+            Open →
+          </Link>
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -165,6 +274,9 @@ export function ManagerAlertsCenter({ alerts }: { alerts: ManagerAlert[] }) {
   const sorted = useMemo(
     () =>
       [...alerts].sort((a, b) => {
+        // Capacity always stays at the top of the list when present.
+        if (a.id === "company-capacity") return -1;
+        if (b.id === "company-capacity") return 1;
         const rank = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
         if (rank !== 0) return rank;
         return b.count - a.count;
@@ -179,7 +291,10 @@ export function ManagerAlertsCenter({ alerts }: { alerts: ManagerAlert[] }) {
   const hiddenCount = Math.max(0, sorted.length - 3);
 
   return (
-    <section className="rounded-xl border border-stone-200 bg-white shadow-sm">
+    <section
+      id="manager-alerts"
+      className="scroll-mt-24 rounded-xl border border-stone-200 bg-white shadow-sm"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
         <button
           type="button"
