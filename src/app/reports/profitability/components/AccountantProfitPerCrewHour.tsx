@@ -62,6 +62,7 @@ export function AccountantProfitPerCrewHour({
 }: {
   report: ProfitPerCrewHourReport;
 }) {
+  const [open, setOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<string | null>(null);
 
   const maxAbs = useMemo(() => {
@@ -74,7 +75,7 @@ export function AccountantProfitPerCrewHour({
   const selectedRow =
     report.serviceLines.find((r) => r.serviceName === selectedService) ?? null;
 
-  const filteredJobs = useMemo(() => {
+  const detailJobs = useMemo(() => {
     if (!selectedService) return [];
     return report.jobs
       .filter((job) =>
@@ -105,12 +106,12 @@ export function AccountantProfitPerCrewHour({
 
   if (report.jobs.length === 0) {
     return (
-      <section className="mb-10 space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold text-green-950">
+      <section className="mb-10 overflow-hidden rounded-xl border border-green-200 bg-white shadow-sm">
+        <div className="border-b border-green-100 bg-green-50/90 px-4 py-3">
+          <h2 className="text-sm font-semibold text-green-950">
             Profit per Crew-Hour
           </h2>
-          <p className="text-sm text-stone-500">
+          <p className="mt-0.5 text-xs text-green-800/80">
             No jobs with billed labor hours yet — this view appears once crew
             hours are logged on visits.
           </p>
@@ -120,93 +121,120 @@ export function AccountantProfitPerCrewHour({
   }
 
   return (
-    <section className="mb-10 space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-green-950">
-            Profit per Crew-Hour
-          </h2>
-          <p className="text-sm text-stone-500">
-            (Revenue − labor − materials − equipment) ÷ labor hours, averaged by
-            service line. Click a bar to open job details for that line.
-          </p>
-        </div>
-        <p className="text-sm text-stone-600">
-          Overall avg{" "}
-          <span className="font-semibold text-green-950">
-            {formatPerHour(report.overallAvg)}
+    <section className="mb-10 overflow-hidden rounded-xl border border-green-200 bg-white shadow-sm">
+      <div className="border-b border-green-100 bg-green-50/90 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="flex w-full min-w-0 items-start gap-3 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30"
+          aria-expanded={open}
+          aria-controls="profit-per-crew-hour-panel"
+        >
+          <span
+            className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-green-200 bg-white text-green-800 transition-transform ${
+              open ? "rotate-90" : ""
+            }`}
+            aria-hidden="true"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4"
+            >
+              <path
+                fillRule="evenodd"
+                d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z"
+                clipRule="evenodd"
+              />
+            </svg>
           </span>
-          <span className="text-stone-400"> · </span>
-          {report.jobs.length} jobs
-        </p>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-green-950">
+              Profit per Crew-Hour
+            </span>
+            <span className="mt-0.5 block text-xs text-green-800/80">
+              {open
+                ? "Profit per crew-hour by service line. Click a bar for job details."
+                : `${report.serviceLines.length} service line${report.serviceLines.length === 1 ? "" : "s"} · ${report.jobs.length} job${report.jobs.length === 1 ? "" : "s"} · avg ${formatPerHour(report.overallAvg)}. Expand to compare.`}
+            </span>
+          </span>
+        </button>
       </div>
 
-      <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-6">
-        <ul className="space-y-3" role="list">
-          {report.serviceLines.map((row) => {
-            const isSelected = row.serviceName === selectedService;
-            const widthPct = Math.min(
-              100,
-              (Math.abs(row.avgProfitPerCrewHour) / maxAbs) * 100
-            );
-            const positive = row.avgProfitPerCrewHour >= 0;
+      {open ? (
+        <div
+          id="profit-per-crew-hour-panel"
+          className="bg-green-50/30 p-4 sm:p-5"
+        >
+          <div className="min-w-0 rounded-xl border border-green-100 bg-white p-3 sm:p-4">
+            <ul className="space-y-3" role="list">
+              {report.serviceLines.map((row) => {
+                const isSelected = row.serviceName === selectedService;
+                const widthPct = Math.min(
+                  100,
+                  (Math.abs(row.avgProfitPerCrewHour) / maxAbs) * 100
+                );
+                const positive = row.avgProfitPerCrewHour >= 0;
 
-            return (
-              <li key={row.serviceName}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedService(row.serviceName)}
-                  aria-haspopup="dialog"
-                  className={`group w-full rounded-lg border px-3 py-2.5 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 ${
-                    isSelected
-                      ? "border-green-700 bg-green-50 shadow-sm ring-2 ring-green-700/20"
-                      : "border-transparent hover:border-stone-200 hover:bg-stone-50"
-                  }`}
-                >
-                  <div className="mb-1.5 flex items-baseline justify-between gap-3">
-                    <span className="font-medium text-green-950">
-                      {row.serviceName}
-                    </span>
-                    <span
-                      className={`shrink-0 text-sm font-semibold tabular-nums ${
-                        positive ? "text-green-800" : "text-red-700"
+                return (
+                  <li key={row.serviceName}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedService(row.serviceName)}
+                      aria-haspopup="dialog"
+                      className={`group w-full rounded-lg border px-3 py-2.5 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 ${
+                        isSelected
+                          ? "border-green-700 bg-green-50 shadow-sm ring-2 ring-green-700/20"
+                          : "border-transparent hover:border-stone-200 hover:bg-stone-50"
                       }`}
                     >
-                      {formatPerHour(row.avgProfitPerCrewHour)}
-                    </span>
-                  </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-stone-100">
-                    <div
-                      className={`h-full rounded-full transition-[width] duration-300 ${
-                        isSelected
-                          ? positive
-                            ? "bg-green-800"
-                            : "bg-red-600"
-                          : positive
-                            ? "bg-green-600 group-hover:bg-green-700"
-                            : "bg-red-500 group-hover:bg-red-600"
-                      }`}
-                      style={{ width: `${Math.max(widthPct, 4)}%` }}
-                    />
-                  </div>
-                  <p className="mt-1.5 text-xs text-stone-500">
-                    {row.jobCount} job{row.jobCount === 1 ? "" : "s"}
-                    <span className="text-stone-300"> · </span>
-                    {row.totalHours.toFixed(1)} hrs
-                    <span className="text-stone-300"> · </span>
-                    {formatCurrency(row.totalProfit)} profit
-                  </p>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+                      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                        <span className="font-medium text-green-950">
+                          {row.serviceName}
+                        </span>
+                        <span
+                          className={`shrink-0 text-sm font-semibold tabular-nums ${
+                            positive ? "text-green-800" : "text-red-700"
+                          }`}
+                        >
+                          {formatPerHour(row.avgProfitPerCrewHour)}
+                        </span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-stone-100">
+                        <div
+                          className={`h-full rounded-full transition-[width] duration-300 ${
+                            isSelected
+                              ? positive
+                                ? "bg-green-800"
+                                : "bg-red-600"
+                              : positive
+                                ? "bg-green-600 group-hover:bg-green-700"
+                                : "bg-red-500 group-hover:bg-red-600"
+                          }`}
+                          style={{ width: `${Math.max(widthPct, 4)}%` }}
+                        />
+                      </div>
+                      <p className="mt-1.5 text-xs text-stone-500">
+                        {row.jobCount} job{row.jobCount === 1 ? "" : "s"}
+                        <span className="text-stone-300"> · </span>
+                        {row.totalHours.toFixed(1)} hrs
+                        <span className="text-stone-300"> · </span>
+                        {formatCurrency(row.totalProfit)} profit
+                      </p>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      ) : null}
 
       {selectedRow ? (
         <ServiceLineDetailModal
           row={selectedRow}
-          jobs={filteredJobs}
+          jobs={detailJobs}
           onClose={() => setSelectedService(null)}
         />
       ) : null}
@@ -228,7 +256,7 @@ function ServiceLineDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900/40 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="ppc-detail-title"
@@ -311,7 +339,7 @@ function ServiceLineDetailModal({
               </h4>
               <p className="text-xs text-stone-500">
                 Sorted by profit per crew-hour, highest to lowest — best and
-                worst jobs are easy to spot.
+                weakest jobs are easy to spot.
               </p>
             </div>
             {jobs.length === 0 ? (
