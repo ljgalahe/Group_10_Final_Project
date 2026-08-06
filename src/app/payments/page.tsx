@@ -59,7 +59,10 @@ export default async function PaymentsPage({
 
   return (
     <AppShell>
-      <PageHeader title="Payments" />
+      <PageHeader
+        title="Payments"
+        description="Record full and partial invoice payments, track collections, and review payment history. Paying past-due balances automatically releases Service Hold when no invoices remain 30+ days overdue."
+      />
       <PaymentsManagerClient
         payments={payments}
         customers={customers}

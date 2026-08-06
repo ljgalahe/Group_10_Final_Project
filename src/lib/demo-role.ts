@@ -79,6 +79,10 @@ export function roleCanViewEquipment(role: UserRole) {
   return role === "accountant";
 }
 
+export function roleCanViewInventory(role: UserRole) {
+  return role === "accountant";
+}
+
 /** Crew Lead or Crew Member field portals (schedule / assigned visits). */
 export function roleCanAccessCrewSchedule(role: UserRole) {
   return role === "crew_lead" || role === "crew_member";

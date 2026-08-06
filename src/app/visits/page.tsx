@@ -1,6 +1,6 @@
 import { completeVisit } from "@/app/actions/business";
 import { ensureCompletedVisitLaborSynced } from "@/app/actions/labor";
-import { AccountantVisitsView } from "@/components/AccountantVisitsView";
+import { AccountantVisitsView, type AccountantVisit } from "@/components/AccountantVisitsView";
 import {
   fetchEquipment,
   fetchEquipmentUsage,
@@ -127,7 +127,7 @@ export default async function VisitsPage({
           <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />
         ) : (
           <AccountantVisitsView
-            visits={visits}
+            visits={visits as AccountantVisit[]}
             todayIso={new Date().toISOString().slice(0, 10)}
             visitJournalStates={visitJournalStates}
             equipment={equipmentRows.map((item) => ({

@@ -20,7 +20,7 @@ import {
   visitPriority,
 } from "@/lib/visit-accounting";
 
-type AccountantVisit = {
+export type AccountantVisit = {
   id: string;
   contract_id: string;
   scheduled_date: string;

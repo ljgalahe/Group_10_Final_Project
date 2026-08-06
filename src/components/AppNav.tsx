@@ -41,7 +41,7 @@ const navItems = [
   {
     href: "/contracts",
     label: "Contracts",
-    roles: ["manager", "accountant", "operations", "crew_lead", "customer"],
+    roles: ["manager", "operations", "crew_lead", "customer"],
   },
   {
     href: "/schedule",
@@ -70,6 +70,7 @@ const navItems = [
   { href: "/support", label: "Customer Support", roles: ["operations"] },
   { href: "/payments", label: "Payments", roles: ["manager"] },
   { href: "/equipment", label: "Equipment", roles: ["accountant"] },
+  { href: "/inventory", label: "Inventory", roles: ["accountant"] },
   {
     href: "/reports/ar-aging",
     label: "AR Aging",

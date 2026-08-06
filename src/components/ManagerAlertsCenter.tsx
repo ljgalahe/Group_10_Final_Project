@@ -99,6 +99,12 @@ function AlertIcon({ icon }: { icon: ManagerAlert["icon"] }) {
           />
         </svg>
       );
+    case "inventory":
+      return (
+        <svg className={common} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+          <path d="M3.5 3.75A1.75 1.75 0 015.25 2h9.5A1.75 1.75 0 0116.5 3.75v12.5A1.75 1.75 0 0114.75 18H5.25A1.75 1.75 0 013.5 16.25V3.75zM5.25 4.5v11.75h9.5V4.5h-9.5zM7 7.25a.75.75 0 000 1.5h6a.75.75 0 000-1.5H7zm0 3.5a.75.75 0 000 1.5h6a.75.75 0 000-1.5H7z" />
+        </svg>
+      );
     case "invoice":
       return (
         <svg className={common} viewBox="0 0 20 20" fill="currentColor" aria-hidden>

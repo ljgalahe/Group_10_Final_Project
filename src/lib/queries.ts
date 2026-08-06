@@ -284,27 +284,42 @@ async function fetchAllPaged<T>(
 export async function fetchAccountantVisits() {
   const supabase = await createDataClient();
 
-  const { data: pagedVisits, error } = await fetchAllPaged((from, to) =>
-    supabase
+  const { data: pagedVisits, error } = await fetchAllPaged<
+    Record<string, unknown> & {
+      id: string;
+      contract_id: string;
+      scheduled_date: string;
+      status: string;
+      crew_notes: string | null;
+      completed_at: string | null;
+      created_at: string;
+    }
+  >(async (from, to) => {
+    const result = await supabase
       .from("service_visits")
       .select(
         "*, contracts(id, title, monthly_fee, visits_per_week, assigned_crew, billing_method, customer_id, customers(name))"
       )
       .order("scheduled_date", { ascending: false })
       .order("id", { ascending: true })
-      .range(from, to)
-  );
+      .range(from, to);
+    return { data: result.data, error: result.error };
+  });
 
   // Dedupe in case page boundaries still overlap on shared scheduled_date values.
   const visits = Array.from(
     new Map(
-      (pagedVisits as Array<{ id: string }>).map((visit) => [visit.id, visit])
+      pagedVisits.map((visit) => [visit.id, visit])
     ).values()
   ) as Array<{
     id: string;
     contract_id: string;
+    scheduled_date: string;
     status: string;
-    [key: string]: unknown;
+    crew_notes: string | null;
+    completed_at: string | null;
+    created_at: string;
+    contracts?: unknown;
   }>;
 
   if (error || visits.length === 0) {
