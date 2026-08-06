@@ -65,7 +65,11 @@ export default async function ProfitabilityPage() {
   );
 
   const totalRevenue = report.reduce((s, r) => s + r.revenue, 0);
-  const totalCosts = report.reduce((s, r) => s + r.costs, 0);
+  // Match Total Direct Costs (actual visit_costs), not estimated scheduled costs.
+  const totalCosts =
+    isAccountant && directCostsBreakdown
+      ? directCostsBreakdown.total
+      : report.reduce((s, r) => s + r.costs, 0);
   const totalMargin = totalRevenue - totalCosts;
   const avgMarginPct = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
   const grossMarginColor =
