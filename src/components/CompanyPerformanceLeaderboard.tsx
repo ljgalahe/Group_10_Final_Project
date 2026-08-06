@@ -141,9 +141,6 @@ export function CompanyPerformanceLeaderboard({
           <h2 className="text-lg font-semibold text-green-950">
             Company Performance Overview
           </h2>
-          <p className="mt-1 text-sm text-stone-500">
-            Spot highs and lows at a glance. Open one category for full analysis.
-          </p>
         </div>
         <p
           className="max-w-xs text-right text-[11px] leading-snug text-stone-400"

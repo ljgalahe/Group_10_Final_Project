@@ -1,4 +1,4 @@
-import { Card, EmptyState, StatCard } from "@/components/ui";
+import { EmptyState, StatCard } from "@/components/ui";
 import { formatCurrency } from "@/lib/format";
 
 type ProfitabilityRow = {
@@ -88,19 +88,6 @@ export function ManagerProfitabilityView({
           </table>
         </div>
       )}
-
-      <Card className="mt-8">
-        <h2 className="text-lg font-semibold text-green-950">
-          How to Read This Report
-        </h2>
-        <p className="mt-2 text-sm text-stone-600">
-          <strong>Revenue</strong> comes from invoices billed on each contract.{" "}
-          <strong>Direct costs</strong> are labor, materials, and equipment
-          logged on service visits. A contract with high crew hours or mulch
-          costs will show a lower margin — that helps managers decide whether to
-          renegotiate pricing.
-        </p>
-      </Card>
     </>
   );
 }

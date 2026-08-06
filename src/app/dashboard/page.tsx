@@ -218,8 +218,7 @@ export default async function DashboardPage({
   const roleTitles: Record<string, { title: string; description: string }> = {
     manager: {
       title: "Manager Dashboard",
-      description:
-        "Summary hub for collections, holds, alerts, and performance — open a section for detail.",
+      description: "",
     },
     accountant: {
       title: "Accounting Dashboard",
