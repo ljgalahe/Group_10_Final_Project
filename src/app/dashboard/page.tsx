@@ -802,37 +802,6 @@ export default async function DashboardPage({
           >
             <ManagerApprovalsPanel visitLabels={visitLabels} hideIntro />
           </DashboardCollapsibleSection>
-          <Card className="p-4 sm:p-5">
-            <h2 className="text-base font-semibold text-green-950">
-              Quick Actions
-            </h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                href="/reports/ar-aging"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                AR Aging
-              </Link>
-              <Link
-                href="/reports/profitability"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Profitability
-              </Link>
-              <Link
-                href="/payments"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Payments
-              </Link>
-              <Link
-                href="/support"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Support
-              </Link>
-            </div>
-          </Card>
         </div>
       ) : null}
 
