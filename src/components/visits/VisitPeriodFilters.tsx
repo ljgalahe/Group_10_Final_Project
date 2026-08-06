@@ -32,13 +32,12 @@ export function VisitPeriodFilters({
   }
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-stone-700">Time range</p>
-      <div className="mt-3 flex flex-wrap items-end gap-3">
-        <label className="text-sm text-stone-600">
-          Show
+    <div className="gs-reveal-delay">
+      <p className="gs-mark mb-3">Index</p>
+      <div className="gs-index-bar">
+        <label className="gs-index-field">
+          <span>Show</span>
           <select
-            className="mt-1 block rounded-md border border-stone-300 px-3 py-2"
             value={period.grain}
             disabled={pending}
             onChange={(e) =>
@@ -54,10 +53,9 @@ export function VisitPeriodFilters({
         </label>
 
         {period.grain !== "all" && (
-          <label className="text-sm text-stone-600">
-            Year
+          <label className="gs-index-field">
+            <span>Year</span>
             <select
-              className="mt-1 block rounded-md border border-stone-300 px-3 py-2"
               value={period.year}
               disabled={pending}
               onChange={(e) => go({ year: Number(e.target.value) })}
@@ -74,10 +72,9 @@ export function VisitPeriodFilters({
         {(period.grain === "month" ||
           period.grain === "week" ||
           period.grain === "day") && (
-          <label className="text-sm text-stone-600">
-            Month
+          <label className="gs-index-field">
+            <span>Month</span>
             <select
-              className="mt-1 block rounded-md border border-stone-300 px-3 py-2"
               value={period.month}
               disabled={pending}
               onChange={(e) => go({ month: Number(e.target.value) })}
@@ -94,10 +91,9 @@ export function VisitPeriodFilters({
         )}
 
         {period.grain === "week" && (
-          <label className="text-sm text-stone-600">
-            Week
+          <label className="gs-index-field">
+            <span>Week</span>
             <select
-              className="mt-1 block rounded-md border border-stone-300 px-3 py-2"
               value={period.week}
               disabled={pending}
               onChange={(e) => go({ week: Number(e.target.value) })}
@@ -112,10 +108,9 @@ export function VisitPeriodFilters({
         )}
 
         {period.grain === "day" && (
-          <label className="text-sm text-stone-600">
-            Day
+          <label className="gs-index-field">
+            <span>Day</span>
             <select
-              className="mt-1 block rounded-md border border-stone-300 px-3 py-2"
               value={period.day}
               disabled={pending}
               onChange={(e) => go({ day: Number(e.target.value) })}
@@ -153,32 +148,30 @@ export function OrganizeToggle({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <p className="mr-2 text-sm font-medium text-stone-700">Organize by</p>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => setMode("company")}
-        className={`rounded-md px-3 py-2 text-sm font-medium ${
-          organize === "company"
-            ? "bg-green-800 text-white"
-            : "border border-stone-300 text-stone-700 hover:bg-stone-50"
-        }`}
-      >
-        Company
-      </button>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => setMode("jobs")}
-        className={`rounded-md px-3 py-2 text-sm font-medium ${
-          organize === "jobs"
-            ? "bg-green-800 text-white"
-            : "border border-stone-300 text-stone-700 hover:bg-stone-50"
-        }`}
-      >
-        Jobs
-      </button>
+    <div>
+      <p className="gs-mark mb-2">Organize</p>
+      <div className="gs-index-tabs" role="tablist" aria-label="Organize by">
+        <button
+          type="button"
+          role="tab"
+          disabled={pending}
+          aria-current={organize === "company" ? "true" : undefined}
+          onClick={() => setMode("company")}
+          className={`gs-index-tab ${organize === "company" ? "is-active" : ""}`}
+        >
+          Company
+        </button>
+        <button
+          type="button"
+          role="tab"
+          disabled={pending}
+          aria-current={organize === "jobs" ? "true" : undefined}
+          onClick={() => setMode("jobs")}
+          className={`gs-index-tab ${organize === "jobs" ? "is-active" : ""}`}
+        >
+          Jobs
+        </button>
+      </div>
     </div>
   );
 }

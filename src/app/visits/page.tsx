@@ -10,6 +10,7 @@ import {
   VisitStatusFilter,
   type VisitStatusFilterValue,
 } from "@/components/VisitStatusFilter";
+import { VisitCostForm } from "@/components/VisitCostForm";
 import {
   CrewLeadVisitsBoard,
   type CrewLeadVisitCardData,
@@ -29,7 +30,7 @@ import {
   VisitPeriodFilters,
 } from "@/components/visits/VisitPeriodFilters";
 import { VisitsSummaryBlocks } from "@/components/visits/VisitsSummaryBlocks";
-import { Card, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
 import { jobIncludesCrewMember } from "@/lib/crew-member";
 import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
@@ -46,6 +47,7 @@ import {
   fetchExtraWorkByContractIds,
   fetchJournalSourceStates,
   fetchVisitCosts,
+  fetchVisitCostsByVisitIds,
   fetchVisits,
 } from "@/lib/queries";
 import {
@@ -62,7 +64,6 @@ import {
   summaryFromJobs,
 } from "@/lib/visit-jobs";
 import {
-  buildVisitsQuery,
   parseOrganizeMode,
   parseVisitPeriod,
   periodLabel,
@@ -111,16 +112,15 @@ export default async function VisitsPage({
     const visitJournalStates = Object.fromEntries(
       (await fetchJournalSourceStates()).visit
     );
-    const [equipmentReport, usageRows] = await Promise.all([
+    const [equipmentRows, usageRows] = await Promise.all([
       fetchEquipment(),
       fetchEquipmentUsage(),
     ]);
-    const equipmentRows = equipmentReport.assets;
 
     return (
       <AppShell>
         <PageHeader
-          title="Service Visits"
+          title="Visits"
           description="Accountant visit workspace with crew hours × hourly rate labor costs, profitability, variance, and audit controls."
         />
         {visits.length === 0 ? (
@@ -340,58 +340,64 @@ export default async function VisitsPage({
         ? visits.filter((visit) => jobIncludesCrewMember(visit.id))
         : visits;
 
-    const cardData: CrewLeadVisitCardData[] = await Promise.all(
-      scopedVisits.map(async (visit) => {
-        const contract = visit.contracts as {
-          title: string;
-          customer_id?: string;
-          customers: { name: string } | null;
-        } | null;
-        const { data: costs } = await fetchVisitCosts(visit.id);
-        const costRows = costs ?? [];
-        const totalCosts = costRows.reduce(
-          (sum, c) => sum + Number(c.amount),
-          0
-        );
-        const crewJob = crewJobsByVisitId.get(visit.id) ?? null;
-        const customerId =
-          crewJob?.customerId ??
-          contract?.customer_id ??
-          (contract?.customers as { id?: string } | null)?.id;
-        const displayStatus = effectiveVisitDisplayStatus(
-          visit.status,
-          visit.scheduled_date.slice(0, 10),
-          Boolean(customerId && heldIds.has(customerId)),
-          today
-        );
-
-        return {
-          id: visit.id,
-          status: displayStatus,
-          customerName: contract?.customers?.name ?? "Unknown Customer",
-          contractTitle: contract?.title ?? "Contract",
-          scheduledDate: visit.scheduled_date,
-          crewNotes: visit.crew_notes,
-          totalCosts,
-          costs: costRows.map((cost) => ({
-            id: cost.id,
-            cost_type: cost.cost_type,
-            description: cost.description,
-            amount: Number(cost.amount),
-          })),
-          crewJob,
-        };
-      })
+    const { data: allScopedCosts } = await fetchVisitCostsByVisitIds(
+      scopedVisits.map((visit) => visit.id)
     );
+    const costsByVisitId = new Map<string, typeof allScopedCosts>();
+    for (const cost of allScopedCosts) {
+      const list = costsByVisitId.get(cost.visit_id) ?? [];
+      list.push(cost);
+      costsByVisitId.set(cost.visit_id, list);
+    }
+    const cardData: CrewLeadVisitCardData[] = scopedVisits.map((visit) => {
+      const contract = visit.contracts as {
+        title: string;
+        customer_id?: string;
+        customers: { name: string } | null;
+      } | null;
+      const costRows = costsByVisitId.get(visit.id) ?? [];
+      const totalCosts = costRows.reduce(
+        (sum, c) => sum + Number(c.amount),
+        0
+      );
+      const crewJob = crewJobsByVisitId.get(visit.id) ?? null;
+      const customerId =
+        crewJob?.customerId ??
+        contract?.customer_id ??
+        (contract?.customers as { id?: string } | null)?.id;
+      const displayStatus = effectiveVisitDisplayStatus(
+        visit.status,
+        visit.scheduled_date.slice(0, 10),
+        Boolean(customerId && heldIds.has(customerId)),
+        today
+      );
+
+      return {
+        id: visit.id,
+        status: displayStatus,
+        customerName: contract?.customers?.name ?? "Unknown Customer",
+        contractTitle: contract?.title ?? "Contract",
+        scheduledDate: visit.scheduled_date,
+        crewNotes: visit.crew_notes,
+        totalCosts,
+        costs: costRows.map((cost) => ({
+          id: cost.id,
+          cost_type: cost.cost_type,
+          description: cost.description,
+          amount: Number(cost.amount),
+        })),
+        crewJob,
+      };
+    });
 
     return (
       <AppShell>
         <PageHeader
-          title="Service Visits"
+          title="Visits"
           description={
             role === "crew_member"
               ? "Upcoming and completed visits assigned to you (read-only)."
-              : "Scheduled and completed crew visits with hours, materials, and equipment."
+              : undefined
           }
         />
         {cardData.length === 0 ? (
@@ -413,9 +419,7 @@ export default async function VisitsPage({
     );
   }
 
-  // Manager + Operations share the same visit dataset (fetchVisits → buildJobRows),
-  // including active/scheduled demo fill other roles see. Ops owns create/assign on /schedule.
-  if (role === "manager" || role === "operations") {
+  if (role === "manager") {
     const period = parseVisitPeriod(params);
     const organize = parseOrganizeMode(params);
 
@@ -431,32 +435,16 @@ export default async function VisitsPage({
     const summary = summaryFromJobs(jobs);
     const groups =
       organize === "jobs" ? groupJobsByTask(jobs) : groupJobsByCompany(jobs);
-    const completedHref = `/visits/completed?${buildVisitsQuery(period, organize, { sort: "date" })}`;
-    const pendingHref = `/visits/pending?${buildVisitsQuery(period, organize, { sort: "date" })}`;
-    const isOps = role === "operations";
 
     return (
       <AppShell>
         <PageHeader
-          title="Service Visits"
-          description={
-            isOps
-              ? `Active and completed visits for ${periodLabel(period)} — same work directory as Manager. Create, assign, and reschedule on Scheduling.`
-              : `Work directory and visit outcomes for ${periodLabel(period)}. Company scheduling (create, assign, calendar, reschedule) is owned by Operations.`
-          }
-          action={
-            isOps ? (
-              <a
-                href="/schedule"
-                className="rounded-lg border border-green-800 px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Open Scheduling
-              </a>
-            ) : undefined
-          }
+          kicker="Visits"
+          title="Visits"
+          description={`Summary and job list for ${periodLabel(period)}. Change the time range or organize by company or job.`}
         />
 
-        <div className="mb-6">
+        <div className="mb-5">
           <VisitPeriodFilters period={period} organize={organize} />
         </div>
 
@@ -466,33 +454,29 @@ export default async function VisitsPage({
           weatherAffected={summary.weatherAffected}
           weatherCount={summary.weatherCount}
           periodLabelText={periodLabel(period)}
-          completedHref={completedHref}
-          pendingHref={pendingHref}
-          showSchedule={false}
           afterSummary={
-            <Card>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-green-950">
+            <section className="gs-section">
+              <div className="gs-section-head flex flex-wrap items-end justify-between gap-3">
+                <div className="max-w-xl">
+                  <p className="gs-mark mb-1">Directory</p>
+                  <h3 className="font-display text-xl font-semibold text-green-950 sm:text-2xl">
                     Work Directory
                   </h3>
-                  <p className="mt-1 text-sm text-stone-500">
+                  <p className="gs-help">
                     {organize === "company"
-                      ? "Browse companies, open a job, then a visit for crew, pay, costs, and photo proof."
-                      : "Browse jobs across companies, then open a visit for crew, pay, costs, and photo proof."}
+                      ? "Open a company, then a job, then a visit for crew, pay, costs, and photos."
+                      : "Open a job, then a visit for crew, pay, costs, and photos."}
                   </p>
                 </div>
                 <OrganizeToggle period={period} organize={organize} />
               </div>
 
-              <div className="mt-4">
-                <OrganizedJobList
-                  groups={groups}
-                  organizeBy={organize}
-                  emptyMessage="No jobs in this time range. Try All time or June 2026."
-                />
-              </div>
-            </Card>
+              <OrganizedJobList
+                groups={groups}
+                organizeBy={organize}
+                emptyMessage="No jobs in this time range. Try All time or June 2026."
+              />
+            </section>
           }
         />
       </AppShell>
@@ -552,7 +536,7 @@ export default async function VisitsPage({
   return (
     <AppShell>
       <PageHeader
-        title="Service Visits"
+        title="Visits"
         description={
           isCustomer
             ? "Upcoming and completed maintenance visits for your properties."
@@ -748,6 +732,12 @@ export default async function VisitsPage({
                           </p>
                         )}
                       </div>
+
+                      {role === "manager" ? (
+                        <div className="mt-4 border-t border-stone-100 pt-4">
+                          <VisitCostForm visitId={visit.id} />
+                        </div>
+                      ) : null}
                     </>
                   ) : null}
                 </div>

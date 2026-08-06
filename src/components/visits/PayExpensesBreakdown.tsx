@@ -196,7 +196,7 @@ export function PayExpensesBreakdown({ jobs }: { jobs: JobRow[] }) {
             <p className="text-xs font-semibold uppercase tracking-wide text-green-800">
               {focused ? displayKey(selectedName, mode) : "Period Total"}
             </p>
-            <p className="mt-2 text-4xl font-bold text-green-950">
+            <p className="mt-2 gs-metric-value text-4xl text-green-950">
               {formatCurrency(overall.total)}
             </p>
           </div>

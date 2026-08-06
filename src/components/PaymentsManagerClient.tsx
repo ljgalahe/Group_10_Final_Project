@@ -203,9 +203,6 @@ export function PaymentsManagerClient({
           <h2 className="text-lg font-semibold text-green-950">
             Payment Dashboard
           </h2>
-          <p className="text-sm text-stone-500">
-            Snapshot of collections and outstanding balances.
-          </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <DashboardStatCard
@@ -540,7 +537,7 @@ function PaymentDetailPanel({
               Close
             </button>
           </div>
-          <p className="mt-4 text-3xl font-bold">
+          <p className="mt-4 gs-metric-value text-3xl">
             {formatCurrency(Number(payment.amount))}
           </p>
           <div className="mt-3">
@@ -640,11 +637,6 @@ function CollectionRiskSection({
     <section id="collection-risk" className="scroll-mt-24 space-y-3">
       <div>
         <h2 className="text-lg font-semibold text-green-950">Collection Risk</h2>
-        <p className="text-sm text-stone-500">
-          Customers ranked by overdue exposure, outstanding balance, and each
-          account&apos;s own Average Days to Pay from invoice and payment
-          history. Service Hold appears when any invoice is 30+ days overdue.
-        </p>
         {highRiskOnly ? (
           <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
             Showing{" "}
@@ -787,7 +779,7 @@ function DashboardStatCard({
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-stone-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-green-900">{value}</p>
+      <p className="mt-2 gs-metric-value text-3xl text-green-900">{value}</p>
       {hint ? <p className="mt-1 text-xs text-stone-400">{hint}</p> : null}
     </div>
   );

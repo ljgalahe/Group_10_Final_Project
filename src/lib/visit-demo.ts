@@ -40,6 +40,14 @@ export interface WeatherOverlay {
   label: string;
   detail: string;
   severity: "delayed" | "rescheduled" | "completed_response";
+  /** Originally scheduled work date before the weather move. */
+  originalDate: string;
+  /** New date after reschedule; null when still delayed / not moved yet. */
+  rescheduledDate: string | null;
+  /** Crew pay budgeted before the weather change. */
+  plannedCrewPay: number;
+  /** Materials/equipment budgeted before the weather change. */
+  plannedCost: number;
 }
 
 export interface ProofOverlay {
@@ -121,24 +129,40 @@ export const WEATHER_EVENTS: WeatherOverlay[] = [
     label: "Rain delay",
     detail: "Thunderstorms postponed Riverside weekly grounds.",
     severity: "delayed",
+    originalDate: "2026-08-05",
+    rescheduledDate: null,
+    plannedCrewPay: 216,
+    plannedCost: 80,
   },
   {
     visitId: SEED_VISIT.harborSched,
     label: "Heat reschedule",
     detail: "Heat advisory moved Harbor View to an early slot.",
     severity: "rescheduled",
+    originalDate: "2026-08-04",
+    rescheduledDate: "2026-08-06",
+    plannedCrewPay: 96,
+    plannedCost: 40,
   },
   {
     visitId: SEED_VISIT.summitSched,
     label: "Wind safety hold",
     detail: "High winds paused Summit edging — still outstanding.",
     severity: "delayed",
+    originalDate: "2026-08-07",
+    rescheduledDate: null,
+    plannedCrewPay: 156,
+    plannedCost: 55,
   },
   {
     visitId: SEED_VISIT.summit1,
     label: "Storm cleanup",
     detail: "Post-storm debris cleared during Summit visit.",
     severity: "completed_response",
+    originalDate: "2026-06-03",
+    rescheduledDate: "2026-06-03",
+    plannedCrewPay: 296,
+    plannedCost: 120,
   },
 ];
 
@@ -192,17 +216,113 @@ export function crewPayTotal(crew: CrewMember[]) {
   return crew.reduce((sum, m) => sum + m.hours * m.payRate, 0);
 }
 
+/** One-word / vague crew-note fragments → readable landscaping job names. */
+const VAGUE_JOB_LABELS: Record<string, string> = {
+  busy: "Campus grounds maintenance",
+  winter: "Winter grounds prep",
+  summer: "Summer grounds maintenance",
+  spring: "Spring cleanup",
+  fall: "Fall leaf cleanup",
+  autumn: "Fall leaf cleanup",
+  routine: "Routine grounds visit",
+  regular: "Regular maintenance visit",
+  weekly: "Weekly grounds maintenance",
+  monthly: "Monthly grounds visit",
+  mow: "Mowing & edging",
+  mowing: "Mowing & edging",
+  trim: "Hedge trimming",
+  trimming: "Hedge trimming",
+  cleanup: "Site cleanup",
+  clean: "Site cleanup",
+  irrigation: "Irrigation check",
+  beds: "Bed maintenance",
+  weeding: "Bed weeding",
+  fertilize: "Fertilization",
+  fertilization: "Fertilization",
+  work: "Grounds maintenance visit",
+  visit: "Grounds maintenance visit",
+  job: "Grounds maintenance visit",
+  done: "Completed grounds visit",
+  ok: "Routine grounds visit",
+  good: "Routine grounds visit",
+};
+
+function titleCaseWords(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((w) =>
+      w.length <= 2 && w.toLowerCase() !== "of"
+        ? w.toUpperCase()
+        : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+    )
+    .join(" ");
+}
+
+function polishContractTitle(title: string): string {
+  const cleaned = title
+    .replace(/^20\d{2}\s+/i, "")
+    .replace(/\s*[—–-]\s*.*$/, "")
+    .trim();
+  if (!cleaned) return "Grounds maintenance visit";
+  if (/grounds|mow|maint|landscape|lawn|bed|irrig/i.test(cleaned)) {
+    return titleCaseWords(cleaned);
+  }
+  return `${titleCaseWords(cleaned)} grounds visit`;
+}
+
+function polishCrewNoteJobLabel(
+  raw: string,
+  contractTitle?: string | null
+): string {
+  const trimmed = raw.trim().replace(/\s+/g, " ");
+  if (!trimmed) {
+    return contractTitle
+      ? polishContractTitle(contractTitle)
+      : "Grounds maintenance visit";
+  }
+
+  const vague = VAGUE_JOB_LABELS[trimmed.toLowerCase()];
+  if (vague) return vague;
+
+  // "Scheduled commercial grounds" → "Commercial grounds maintenance"
+  if (/^scheduled\b/i.test(trimmed)) {
+    const rest = trimmed.replace(/^scheduled\s+/i, "").trim();
+    if (!rest) return "Scheduled grounds visit";
+    if (/grounds$/i.test(rest) && !/maintenance/i.test(rest)) {
+      return `${titleCaseWords(rest)} maintenance`;
+    }
+    return titleCaseWords(rest);
+  }
+
+  // Single short token with no landscaping context → use contract or a clear default
+  const words = trimmed.split(/\s+/);
+  if (words.length === 1 && trimmed.length <= 12) {
+    if (contractTitle) return polishContractTitle(contractTitle);
+    return `${titleCaseWords(trimmed)} service visit`;
+  }
+
+  return titleCaseWords(trimmed);
+}
+
 export function inferJobLabel(
   visitId: string,
-  crewNotes: string | null
+  crewNotes: string | null,
+  contractTitle?: string | null
 ): string {
   const schedule = SCHEDULE_CREW[visitId];
   if (schedule?.jobLabel) return schedule.jobLabel;
+
   if (crewNotes?.trim()) {
-    const first = crewNotes.split(/[—-]/)[0]?.trim();
-    if (first) return first;
+    const first = crewNotes.split(/[—–-]/)[0]?.trim();
+    if (first) return polishCrewNoteJobLabel(first, contractTitle);
   }
-  return "Service visit";
+
+  if (contractTitle?.trim()) {
+    return polishContractTitle(contractTitle);
+  }
+
+  return "Grounds maintenance visit";
 }
 
 const SAMPLE_SITES = DEMO_SITES.map((s) => ({
@@ -241,7 +361,73 @@ export function oxfordAddressForCustomer(
     .replace(/,\s*TX\b/gi, ", MS");
 }
 
-const WEATHER_ROTATION: Omit<WeatherOverlay, "visitId">[] = [
+/** Demo crew lead assigned to a customer site (matches SCHEDULE_CREW). */
+export function crewLeadNameForCustomer(
+  customerName?: string | null
+): string {
+  const key = (customerName ?? "").trim().toLowerCase();
+  if (key.includes("riverside")) return "Alex Rivera";
+  if (key.includes("summit")) return "Taylor Brooks";
+  if (key.includes("harbor")) return "Sam Ortiz";
+  if (key.includes("metro")) return "Taylor Brooks";
+  return "Alex Rivera";
+}
+
+/** Crew lead for a scheduled visit, falling back to customer assignment. */
+export function crewLeadNameForVisit(
+  visitId?: string | null,
+  customerName?: string | null
+): string {
+  if (visitId) {
+    const schedule = SCHEDULE_CREW[visitId];
+    const lead = schedule?.crew.find((m) => /lead/i.test(m.role));
+    if (lead?.name) return lead.name;
+  }
+  return crewLeadNameForCustomer(customerName);
+}
+
+const SAMPLE_CREWS: CrewMember[][] = [
+  [
+    { name: "Alex Rivera", role: "Crew lead", hours: 3, payRate: 28 },
+    { name: "Jordan Lee", role: "Crew", hours: 3, payRate: 22 },
+  ],
+  [
+    { name: "Taylor Brooks", role: "Crew lead", hours: 4, payRate: 30 },
+    { name: "Morgan Diaz", role: "Crew", hours: 4, payRate: 22 },
+    { name: "Riley Chen", role: "Crew", hours: 4, payRate: 22 },
+  ],
+  [
+    { name: "Sam Ortiz", role: "Crew lead", hours: 2.5, payRate: 26 },
+    { name: "Casey Ng", role: "Crew", hours: 2.5, payRate: 22 },
+  ],
+  [
+    { name: "Taylor Brooks", role: "Crew lead", hours: 5, payRate: 30 },
+    { name: "Jamie Park", role: "Crew", hours: 5, payRate: 22 },
+    { name: "Morgan Diaz", role: "Crew", hours: 5, payRate: 22 },
+  ],
+];
+
+/** Stable demo crew when a visit has no schedule overlay / assignment. */
+export function demoCrewForSeed(seed: string): CrewMember[] {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  const crew = SAMPLE_CREWS[hash % SAMPLE_CREWS.length] ?? SAMPLE_CREWS[0];
+  return crew.map((member) => ({ ...member }));
+}
+
+/** Demo materials/equipment total when visit_costs are empty. */
+export function demoJobCostTotal(crewPay: number, status: string) {
+  if (crewPay <= 0) return 0;
+  const factor = status === "completed" ? 1.15 : 0.85;
+  return Math.round(crewPay * factor);
+}
+
+const WEATHER_ROTATION: Pick<
+  WeatherOverlay,
+  "label" | "detail" | "severity"
+>[] = [
   {
     label: "Rain delay",
     detail: "Afternoon storms delayed fieldwork — make-up hours later in the week.",
@@ -263,6 +449,48 @@ const WEATHER_ROTATION: Omit<WeatherOverlay, "visitId">[] = [
     severity: "completed_response",
   },
 ];
+
+function shiftDateKey(dateStr: string, days: number) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return formatDateKey(d);
+}
+
+/** Build weather overlay with plan dates and budget for a sample visit day. */
+export function weatherOverlayForSample(
+  visitId: string,
+  dateStr: string,
+  template: (typeof WEATHER_ROTATION)[number],
+  crewPay: number,
+  costTotal: number
+): WeatherOverlay {
+  const originalDate =
+    template.severity === "rescheduled"
+      ? shiftDateKey(dateStr, -2)
+      : template.severity === "delayed"
+        ? dateStr
+        : shiftDateKey(dateStr, 0);
+  const rescheduledDate =
+    template.severity === "delayed" ? null : dateStr;
+  // Storm / heat moves often burn overtime + extra materials vs the original plan.
+  const overageFactor =
+    template.severity === "completed_response"
+      ? 0.72
+      : template.severity === "rescheduled"
+        ? 0.88
+        : 1;
+  const plannedCrewPay = Math.round(crewPay * overageFactor);
+  const plannedCost = Math.round(costTotal * overageFactor);
+
+  return {
+    visitId,
+    ...template,
+    originalDate,
+    rescheduledDate,
+    plannedCrewPay,
+    plannedCost,
+  };
+}
 
 const PROOF_IMAGES = {
   before:
@@ -337,12 +565,18 @@ export function generateDailySampleJobs(): DailySampleJob[] {
       const isPast = cursor < today;
       const status: "scheduled" | "completed" = isPast ? "completed" : "scheduled";
       const pay = crewPayTotal(crew);
-      const costTotal = Math.round(pay * (status === "completed" ? 1.15 : 0));
+      const costTotal = demoJobCostTotal(pay, status);
 
       let weather: WeatherOverlay | null = null;
       if (!winter && dayIndex % 11 === 3 && slot === 0) {
         const template = WEATHER_ROTATION[dayIndex % WEATHER_ROTATION.length];
-        weather = { visitId, ...template };
+        weather = weatherOverlayForSample(
+          visitId,
+          dateStr,
+          template,
+          pay,
+          costTotal
+        );
       }
 
       let proof: ProofOverlay | null = null;

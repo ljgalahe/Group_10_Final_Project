@@ -7,7 +7,7 @@ import { CrewLeadVisitDetails } from "@/components/crew-lead/CrewLeadVisitDetail
 import { CrewVisitPhotos } from "@/components/crew-lead/CrewVisitPhotos";
 import {
   getAssignedEmployeesForJob,
-  loadVisitWorkStateForStatus,
+  loadVisitWorkState,
 } from "@/components/crew-lead/crewLeadStorage";
 import type {
   ExtraWorkItem,
@@ -46,13 +46,10 @@ function titleCaseCostType(costType: string): string {
 function employeeNamesForVisit(visit: CrewLeadVisitCardData): string[] {
   const job = visit.crewJob;
   if (!job) return [];
+  // Read-only localStorage load — do not call loadVisitWorkStateForStatus here
+  // (that autofills + writes for every completed visit and freezes the tab).
   if (visit.status === "completed") {
-    const state = loadVisitWorkStateForStatus(
-      visit.id,
-      "completed",
-      [],
-      false
-    );
+    const state = loadVisitWorkState(visit.id);
     const fromLabor = state.employees.map((row) => row.name);
     if (fromLabor.length > 0) return fromLabor;
     return state.assignedEmployees.map((row) => row.name);
@@ -158,8 +155,8 @@ export function CrewLeadVisitsBoard({
               className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-800"
             >
               <option value="all">All Visits</option>
-              <option value="completed">Complete</option>
-              <option value="incomplete">Incomplete</option>
+              <option value="completed">Completed</option>
+              <option value="incomplete">Pending</option>
             </select>
           </label>
 

@@ -1,17 +1,10 @@
 import Link from "next/link";
 import { AccountantContractsView } from "@/components/AccountantContractsView";
 import { AppShell } from "@/components/AppShell";
-import { ContractCompletionChart } from "@/components/contracts/ContractCompletionChart";
-import { OutOfScopeWorkWatch } from "@/components/contracts/OutOfScopeWorkWatch";
-import { PromiseVsActualMap } from "@/components/contracts/PromiseVsActualMap";
-import { PendingContractApprovalsSection } from "@/components/PendingContractApprovalsSection";
-import { Card, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { ManagerContractsDashboard } from "@/components/contracts/ManagerContractsDashboard";
+import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
-import {
-  buildContractProgress,
-  buildScopeCreepAlerts,
-} from "@/lib/contract-controls";
-import { getContractDisplayStatus } from "@/lib/contract-status";
+import { buildContractProgress } from "@/lib/contract-controls";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -77,7 +70,7 @@ function SimpleContractsTable({
                 {contract.visits_per_week ?? "—"}
               </td>
               <td className="px-4 py-3">
-                <StatusBadge status={getContractDisplayStatus(contract)} />
+                <StatusBadge status={contract.status} />
               </td>
             </tr>
           ))}
@@ -112,23 +105,38 @@ export default async function ContractsPage() {
       .filter(([, info]) => info.unprofitable)
       .map(([id]) => id);
 
-    const awaitingAccountant = pendingApprovals.filter(
-      (c) =>
-        !(c as { accountant_approved_at?: string | null }).accountant_approved_at
-    );
-
     return (
       <AppShell>
         <PageHeader
+          kicker="Ledger"
           title="Contracts"
-          description="Review Operations drafts for dual approval, then manage billing, renewals, and audit controls."
+          description="Internal controls for approvals, renewals, and auditability."
+          action={
+            <Link href="/contracts/new" className="gs-text-link border border-stone-300 px-4 py-2 hover:border-[var(--champagne)]">
+              Add Contract →
+            </Link>
+          }
         />
-        <PendingContractApprovalsSection
-          title="Contracts Awaiting Accountant Approval"
-          description="New contracts drafted by Operations. Approve here after reviewing terms — both Manager and Accountant must approve before the Customer can see the contract."
-          contracts={awaitingAccountant}
-          emptyMessage="No Operations drafts are waiting for Accountant approval."
-        />
+        {pendingApprovals.length > 0 ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="font-semibold">
+              {pendingApprovals.length} Operations draft
+              {pendingApprovals.length === 1 ? "" : "s"} need your approval
+            </p>
+            <ul className="mt-2 list-disc pl-5">
+              {pendingApprovals.map((c) => (
+                <li key={c.id}>
+                  <Link
+                    href={`/contracts/${c.id}`}
+                    className="font-medium text-green-900 hover:underline"
+                  >
+                    {c.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <AccountantContractsView
           contracts={contracts}
           unprofitableIds={unprofitableIds}
@@ -153,11 +161,12 @@ export default async function ContractsPage() {
     return (
       <AppShell>
         <PageHeader
+          kicker={isCustomer ? "Portal" : "Field"}
           title="Contracts"
           description={
             isCustomer
-              ? "Your seasonal service agreements, terms, and included services."
-              : "Structured seasonal agreements with service terms, billing rules, and included services."
+              ? "Your seasonal agreements, terms, and included services."
+              : "Seasonal agreements with service terms, billing rules, and included services."
           }
         />
 
@@ -179,28 +188,42 @@ export default async function ContractsPage() {
     );
   }
 
-  // Operations: drafts list + pending dual-approval (no manager analytics charts).
+  // Operations: simple drafts list + pending dual-approval (no manager analytics charts).
   if (role === "operations") {
     return (
       <AppShell>
         <PageHeader
           title="Contracts"
-          description="Draft contracts from Quotes. Manager and Accountant must both approve before customers see them."
+          description="Draft contracts from quotes. Manager and Accountant must both approve before customers see them."
           action={
             <Link
               href="/quotes"
               className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
             >
-              Quotes Inbox
+              Quotes inbox
             </Link>
           }
         />
-        <PendingContractApprovalsSection
-          title="Contracts Awaiting Dual Approval"
-          description="Sent to Management and Accounting. Status stays Waiting For Approval until both approve."
-          contracts={pendingApprovals}
-          emptyMessage="No contracts are waiting for dual approval."
-        />
+        {pendingApprovals.length > 0 ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="font-semibold">
+              {pendingApprovals.length} contract
+              {pendingApprovals.length === 1 ? "" : "s"} awaiting dual approval
+            </p>
+            <ul className="mt-2 list-disc pl-5">
+              {pendingApprovals.map((c) => (
+                <li key={c.id}>
+                  <Link
+                    href={`/contracts/${c.id}`}
+                    className="font-medium text-green-900 hover:underline"
+                  >
+                    {c.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {contracts.length === 0 ? (
           <EmptyState message="No contracts yet. Draft one from a quote in the Quotes inbox." />
         ) : (
@@ -222,65 +245,100 @@ export default async function ContractsPage() {
   const progressList = contracts.map((contract) =>
     buildContractProgress(contract, visitsByContract.get(contract.id) ?? [])
   );
-  const outOfScopeAlerts = buildScopeCreepAlerts(contracts);
-
-  const awaitingManager = pendingApprovals.filter(
-    (c) => !(c as { manager_approved_at?: string | null }).manager_approved_at
+  const extraWork = contracts.flatMap((contract) =>
+    ((contract.extra_work_orders ?? []) as {
+      id: string;
+      contract_id: string;
+      title: string;
+      status: string;
+    }[]).map((order) => ({
+      id: order.id,
+      contract_id: order.contract_id || contract.id,
+      title: order.title,
+      status: order.status,
+    }))
   );
+
+  const { data: pendingChangeRequests } =
+    await fetchPendingContractChangeRequests();
+
+  const directoryContracts = contracts.map((contract) => ({
+    id: contract.id,
+    title: contract.title,
+    status: contract.status,
+    season_start: contract.season_start,
+    season_end: contract.season_end,
+    monthly_fee: contract.monthly_fee != null ? Number(contract.monthly_fee) : null,
+    visits_per_week: contract.visits_per_week,
+    customerName:
+      (contract.customers as { name?: string } | null)?.name ?? "Customer",
+  }));
+
+  const pendingChangeApprovals = (
+    pendingChangeRequests as {
+      id: string;
+      contract_id: string;
+      customer_id: string | null;
+      summary: string | null;
+      created_at: string;
+      requested_by_role: string;
+      proposed_contract: {
+        monthly_fee?: number | null;
+        season_start?: string;
+        season_end?: string;
+        title?: string;
+      };
+      proposed_customer?: { name?: string } | null;
+    }[]
+  ).map((request) => ({
+    id: request.id,
+    contract_id: request.contract_id,
+    customer_id: request.customer_id,
+    summary: request.summary,
+    created_at: request.created_at,
+    requested_by_role: request.requested_by_role,
+    proposed_contract: request.proposed_contract ?? {},
+    proposed_customer: request.proposed_customer ?? null,
+  }));
 
   return (
     <AppShell>
       <PageHeader
+        kicker="Portfolio"
         title="Contracts"
-        description="Approve Operations drafts, then track completion, promise vs actual work, and out-of-scope items."
+        description="Completion rates, promise vs actual, company agreements, and pending approvals."
       />
 
-      <PendingContractApprovalsSection
-        title="Contracts Awaiting Management Approval"
-        description="New contracts received from Operations. Review and approve — both Manager and Accountant must approve before the Customer can see the contract."
-        contracts={awaitingManager}
-        emptyMessage="No Operations drafts are waiting for Management approval."
-      />
+      {pendingApprovals.length > 0 ? (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">
+            {pendingApprovals.length} contract
+            {pendingApprovals.length === 1 ? "" : "s"} awaiting dual approval
+          </p>
+          <ul className="mt-2 list-disc pl-5">
+            {pendingApprovals.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/contracts/${c.id}`}
+                  className="font-medium text-green-900 hover:underline"
+                >
+                  {c.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {contracts.length === 0 ? (
         <EmptyState message="No contracts yet. Run the seed script in Supabase to load demo data." />
       ) : (
-        <div className="space-y-6">
-          <Card>
-            <h3 className="text-lg font-semibold text-green-950">
-              Contract Completion
-            </h3>
-            <p className="mt-1 text-sm text-stone-500">
-              Percent complete, on-track status, and contract status. Filter by
-              company or view overall.
-            </p>
-            <div className="mt-4">
-              <ContractCompletionChart progressList={progressList} />
-            </div>
-          </Card>
-
-          <Card>
-            <h3 className="text-lg font-semibold text-green-950">
-              Contract Promise vs Actual
-            </h3>
-            <p className="mt-1 text-sm text-stone-500">
-              Job, contracted visits, completed visits, and status. Filter by
-              one company or overall across all companies.
-            </p>
-            <PromiseVsActualMap progressList={progressList} />
-          </Card>
-
-          <Card>
-            <h3 className="text-lg font-semibold text-green-950">
-              Out-of-Scope Work Watch
-            </h3>
-            <p className="mt-1 text-sm text-stone-500">
-              Filter by company or task. Each row shows company, job, and amount
-              — click for details and actions.
-            </p>
-            <OutOfScopeWorkWatch alerts={outOfScopeAlerts} />
-          </Card>
-        </div>
+        <ManagerContractsDashboard
+          progressList={progressList}
+          extraWork={extraWork}
+          contracts={directoryContracts}
+          pendingApprovals={pendingChangeApprovals}
+        />
       )}
     </AppShell>
   );

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
@@ -64,11 +63,6 @@ import {
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
 import { AccountantDashboardPanel } from "@/app/dashboard/components/AccountantDashboardPanel";
 import { fetchAccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
-import {
-  fetchOperationsDashboardData,
-  type OperationsDashboardData,
-} from "@/app/dashboard/operations-dashboard-data";
-import { OperationsDashboardPanel } from "@/app/dashboard/components/OperationsDashboardPanel";
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
@@ -210,10 +204,6 @@ export default async function DashboardPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  // Inquiries is a prospect start page only — never the internal KPI dashboard.
-  if (role === "inquiries") {
-    redirect("/inquiries");
-  }
   const stats = await fetchDashboardStats();
   const accountantDashboard =
     role === "accountant" ? await fetchAccountantDashboardData() : null;
@@ -230,11 +220,6 @@ export default async function DashboardPage({
       title: "Accounting Dashboard",
       description:
         "Track billing, outstanding balances, and contract profitability.",
-    },
-    operations: {
-      title: "Operations Dashboard",
-      description:
-        "Upcoming visits and site surveys, plus quick links — create quotes from Inquiries, track status on Quotes.",
     },
     crew_lead: {
       title: "Crew Lead Dashboard",
@@ -497,6 +482,16 @@ export default async function DashboardPage({
 
   if (role === "crew_lead" || role === "manager" || role === "crew_member") {
     const supabase = await createDataClient();
+    const windowStart = (() => {
+      const d = new Date(`${today}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() - 14);
+      return d.toISOString().slice(0, 10);
+    })();
+    const windowEnd = (() => {
+      const d = new Date(`${today}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + 90);
+      return d.toISOString().slice(0, 10);
+    })();
     const [{ data: contracts }, { data: visits }, { data: extraWorkRows }] =
       await Promise.all([
         supabase
@@ -510,6 +505,8 @@ export default async function DashboardPage({
           .select(
             "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
           )
+          .gte("scheduled_date", windowStart)
+          .lte("scheduled_date", windowEnd)
           .order("scheduled_date", { ascending: true }),
         role === "crew_member"
           ? supabase
@@ -591,11 +588,6 @@ export default async function DashboardPage({
   if (role === "crew_lead") {
     const { data } = await fetchCrewApplicableSupportRequests();
     crewSupportRequests = data;
-  }
-
-  let operationsDashboard: OperationsDashboardData | null = null;
-  if (role === "operations") {
-    operationsDashboard = await fetchOperationsDashboardData();
   }
 
   const customerId =
@@ -749,7 +741,7 @@ export default async function DashboardPage({
 
           <div className="mt-8 rounded-xl border border-green-800/15 bg-green-50/60 px-5 py-4">
             <p className="text-sm font-semibold text-green-950">
-              Quick Actions
+              Quick actions
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
@@ -795,7 +787,6 @@ export default async function DashboardPage({
 
       {role !== "customer" &&
       role !== "crew_member" &&
-      role !== "operations" &&
       role !== "manager" &&
       role !== "accountant"
         ? staffStatsRow
@@ -811,7 +802,7 @@ export default async function DashboardPage({
             initialCategory={initialPerfCategory}
           />
           <DashboardCollapsibleSection
-            title="Service Hold details"
+            title="Service Hold Details"
             summary={
               serviceHolds.length === 0
                 ? "No customers currently on hold"
@@ -822,7 +813,7 @@ export default async function DashboardPage({
             <ServiceHoldDashboardCard holds={serviceHolds} embedded />
           </DashboardCollapsibleSection>
           <DashboardCollapsibleSection
-            title="Approvals & crew alerts"
+            title="Approvals & Crew Alerts"
             summary="Field concerns, extra-work approvals, and visit comments"
             defaultOpen={false}
           >
@@ -851,19 +842,9 @@ export default async function DashboardPage({
               >
                 Payments
               </Link>
-              <Link
-                href="/support"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Support
-              </Link>
             </div>
           </Card>
         </div>
-      ) : null}
-
-      {role === "operations" && operationsDashboard ? (
-        <OperationsDashboardPanel data={operationsDashboard} />
       ) : null}
 
       {role === "crew_lead" ? (
@@ -871,9 +852,6 @@ export default async function DashboardPage({
           <CrewLeadTomorrowPreview jobs={scheduleJobs} today={today} />
           <CrewLeadCustomerRequests requests={crewSupportRequests} />
           <Card>
-            <h2 className="mb-4 text-lg font-semibold text-green-950">
-              Crew Lead Quick Actions
-            </h2>
             <CrewLeadQuickActions
               todaysJobs={scheduleJobs.filter(
                 (job) =>

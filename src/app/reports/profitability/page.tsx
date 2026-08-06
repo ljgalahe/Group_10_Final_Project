@@ -94,7 +94,7 @@ export default async function ProfitabilityPage({
   return (
     <AppShell>
       <PageHeader
-        title="Contract Profitability"
+        title="Profitability"
         description={
           isAccountant
             ? "Revenue billed minus visit costs — scheduled visits use estimated cost; completed visits use actual cost."

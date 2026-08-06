@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { SectionSearch, matchesJobSearch } from "@/components/visits/SectionSearch";
 import { WorkStatusPie } from "@/components/visits/WorkStatusPie";
 import { formatCurrency } from "@/lib/format";
@@ -10,13 +9,9 @@ import type { JobRow } from "@/lib/visit-jobs";
 export function WorkStatusSection({
   completed,
   pending,
-  completedHref,
-  pendingHref,
 }: {
   completed: JobRow[];
   pending: JobRow[];
-  completedHref: string;
-  pendingHref: string;
 }) {
   const [query, setQuery] = useState("");
 
@@ -50,8 +45,6 @@ export function WorkStatusSection({
           pendingCount={filteredPending.length}
           completedPay={completedPay}
           pendingPay={pendingPay}
-          completedHref={completedHref}
-          pendingHref={pendingHref}
         />
       </div>
       {query.trim() ? (
@@ -72,11 +65,11 @@ export function WorkStatusSection({
                   {job.jobLabel}
                   {" · "}
                   <span
-                    className={
+                    className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold capitalize ${
                       job.status === "completed"
-                        ? "text-green-800"
-                        : "text-amber-700"
-                    }
+                        ? "gs-complete-badge border"
+                        : "border border-amber-200 bg-amber-50 text-amber-800"
+                    }`}
                   >
                     {job.status}
                   </span>
@@ -84,23 +77,10 @@ export function WorkStatusSection({
               ))}
             </ul>
           )}
-          {(filteredCompleted.length > 0 || filteredPending.length > 0) && (
-            <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
-              {filteredCompleted.length > 0 ? (
-                <Link href={completedHref} className="text-green-800 hover:underline">
-                  Open completed →
-                </Link>
-              ) : null}
-              {filteredPending.length > 0 ? (
-                <Link href={pendingHref} className="text-amber-800 hover:underline">
-                  Open pending →
-                </Link>
-              ) : null}
-            </div>
-          )}
           <p className="mt-2 text-xs text-stone-400">
-            Pie counts update with this search · {formatCurrency(completedPay + pendingPay)}{" "}
-            crew pay in matches
+            Pie counts update with this search ·{" "}
+            {formatCurrency(completedPay + pendingPay)} crew pay in matches.
+            Use the work directory filter below for completed vs pending.
           </p>
         </div>
       ) : null}

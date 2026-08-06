@@ -24,11 +24,14 @@ export function PostJournalEntryButton({
   sourceId,
   journalStatus,
   disabledReason,
+  readOnly = false,
 }: {
   source: Exclude<JournalSource, "manual">;
   sourceId: string;
   journalStatus?: JournalStatus | null;
   disabledReason?: string;
+  /** Show journal status without create / edit actions (manager review). */
+  readOnly?: boolean;
 }) {
   const [state, action, pending] = useActionState(
     async (_prev: State, formData: FormData): Promise<State> => {
@@ -42,15 +45,17 @@ export function PostJournalEntryButton({
   if (journalStatus || state?.ok) {
     return (
       <div className="flex flex-col items-start gap-1">
-        <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-          Journal created
+        <span className="inline-flex rounded-md border px-2 py-0.5 text-xs font-medium gs-complete-badge">
+          Journal Created
         </span>
-        <Link
-          href="/reports/journal-entries"
-          className="text-xs font-medium text-green-800 hover:underline"
-        >
-          Edit Journal Entry
-        </Link>
+        {!readOnly ? (
+          <Link
+            href="/reports/journal-entries"
+            className="text-xs font-medium text-green-800 hover:underline"
+          >
+            Edit Journal Entry
+          </Link>
+        ) : null}
       </div>
     );
   }
@@ -62,6 +67,10 @@ export function PostJournalEntryButton({
         <span className="max-w-[12rem] text-xs text-stone-500">{disabledReason}</span>
       </div>
     );
+  }
+
+  if (readOnly) {
+    return <ReadyBadge ready label="Ready to post" />;
   }
 
   return (

@@ -1,9 +1,5 @@
-import { redirect } from "next/navigation";
-import { hasAppAccess } from "@/lib/auth-access";
+import { WelcomeLanding } from "@/components/welcome/WelcomeLanding";
 
-export default async function Home() {
-  if (await hasAppAccess()) {
-    redirect("/dashboard");
-  }
-  redirect("/demo-enter");
+export default function Home() {
+  return <WelcomeLanding />;
 }

@@ -28,7 +28,7 @@ export function InvoiceWorkflowActions({
           <input type="hidden" name="status" value="approved" />
           <button
             type="submit"
-            className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600"
+            className="gs-btn-approve rounded-lg px-4 py-2 text-sm font-medium"
           >
             Approve
           </button>
