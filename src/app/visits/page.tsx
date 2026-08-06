@@ -1,10 +1,10 @@
 import { completeVisit } from "@/app/actions/business";
+import { ensureCompletedVisitLaborSynced } from "@/app/actions/labor";
 import { AccountantVisitsView } from "@/components/AccountantVisitsView";
-import { fetchEquipment } from "@/app/equipment/queries";
 import {
-  ensureAccountantCompletedVisitEquipmentUsage,
-  fetchAccountantVisitEquipmentUsage,
-} from "@/app/visits/accountant-equipment";
+  fetchEquipment,
+  fetchEquipmentUsage,
+} from "@/app/equipment/queries";
 import { AppShell } from "@/components/AppShell";
 import {
   VisitStatusFilter,
@@ -15,7 +15,6 @@ import {
   CrewLeadVisitsBoard,
   type CrewLeadVisitCardData,
 } from "@/components/crew-lead/CrewLeadVisitsBoard";
-import { CrewMemberVisitsBoard } from "@/components/crew-member/CrewMemberVisitsBoard";
 import {
   normalizeServiceName,
   oxfordAddressForCustomer,
@@ -74,6 +73,10 @@ function formatVisitDescription(notes: string | null) {
   return withPeriod.charAt(0).toUpperCase() + withPeriod.slice(1);
 }
 
+function formatExtraWorkStatus(status: string) {
+  return status.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function parseStatusFilter(raw?: string): VisitStatusFilterValue {
   if (raw === "completed" || raw === "all") return raw;
   return "scheduled";
@@ -96,14 +99,15 @@ export default async function VisitsPage({
   const isAccountant = roleCanEditContractDetails(role);
 
   if (isAccountant) {
-    await ensureAccountantCompletedVisitEquipmentUsage();
+    const { data: initialVisits } = await fetchAccountantVisits();
+    await ensureCompletedVisitLaborSynced(initialVisits.map((visit) => visit.id));
     const { data: visits } = await fetchAccountantVisits();
     const visitJournalStates = Object.fromEntries(
       (await fetchJournalSourceStates()).visit
     );
     const [equipmentRows, usageRows] = await Promise.all([
       fetchEquipment(),
-      fetchAccountantVisitEquipmentUsage(),
+      fetchEquipmentUsage(),
     ]);
 
     return (
@@ -127,10 +131,12 @@ export default async function VisitsPage({
             }))}
             equipmentUsage={usageRows.map((row) => ({
               id: row.id,
-              visitId: row.visitId,
-              equipmentId: row.equipmentId,
-              equipmentName: row.equipmentName,
-              category: row.category,
+              visitId: row.visit_id,
+              equipmentId: row.equipment_id,
+              equipmentName: row.equipment_name,
+              category:
+                equipmentRows.find((item) => item.id === row.equipment_id)
+                  ?.category ?? "Other",
               hours: row.hours,
               notes: row.notes,
             }))}
@@ -313,12 +319,11 @@ export default async function VisitsPage({
                 : "No visits scheduled. Run the seed script to load demo visits."
             }
           />
-        ) : role === "crew_member" ? (
-          <CrewMemberVisitsBoard visits={cardData} extraWork={extraWork} />
         ) : (
           <CrewLeadVisitsBoard
             visits={cardData}
             extraWork={extraWork}
+            readOnly={role === "crew_member"}
           />
         )}
       </AppShell>
@@ -348,7 +353,7 @@ export default async function VisitsPage({
       <AppShell>
         <PageHeader
           title="Service Visits"
-          description={`Work directory and visit outcomes for ${periodLabel(period)}. Company scheduling (create, assign, calendar, reschedule) is owned by Operations.`}
+          description={`Summary and job list for ${periodLabel(period)}. Switch the time range or organize by company or job.`}
         />
 
         <div className="mb-6">
@@ -363,7 +368,6 @@ export default async function VisitsPage({
           periodLabelText={periodLabel(period)}
           completedHref={completedHref}
           pendingHref={pendingHref}
-          showSchedule={false}
           afterSummary={
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -398,11 +402,7 @@ export default async function VisitsPage({
   const filteredVisits =
     statusFilter === "all"
       ? visits
-      : statusFilter === "scheduled"
-        ? visits.filter(
-            (v) => v.status === "scheduled" || v.status === "rescheduled"
-          )
-        : visits.filter((v) => v.status === statusFilter);
+      : visits.filter((v) => v.status === statusFilter);
 
   const emptyMessage = (() => {
     if (statusFilter === "scheduled") {
@@ -504,23 +504,12 @@ export default async function VisitsPage({
                           <p className="mt-1 text-sm text-stone-500">
                             Visit date: {formatDate(visit.scheduled_date)}
                           </p>
-                          {visit.status === "rescheduled" ? (
-                            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
-                              <p className="font-medium">
-                                Rescheduled for weather
-                              </p>
-                              <p className="mt-0.5 text-amber-900/90">
-                                {formatVisitDescription(visit.crew_notes)}
-                              </p>
-                            </div>
-                          ) : (
-                            <p className="mt-3 text-sm text-stone-700">
-                              <span className="font-medium text-stone-800">
-                                Service summary:{" "}
-                              </span>
-                              {formatVisitDescription(visit.crew_notes)}
-                            </p>
-                          )}
+                          <p className="mt-3 text-sm text-stone-700">
+                            <span className="font-medium text-stone-800">
+                              Service summary:{" "}
+                            </span>
+                            {formatVisitDescription(visit.crew_notes)}
+                          </p>
                           {customerNotes.length > 0 ? (
                             <div className="mt-4">
                               <p className="text-sm font-medium text-stone-800">
@@ -538,34 +527,28 @@ export default async function VisitsPage({
                             </div>
                           ) : null}
                           {contractExtra.length > 0 ? (
-                            <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
+                            <div className="mt-4">
                               <p className="text-sm font-medium text-stone-800">
-                                Extra work
+                                Extra work for this agreement
                               </p>
-                              <p className="mt-0.5 text-xs text-stone-500">
-                                Add-on work for this agreement (outside routine
-                                visits).
-                              </p>
-                              <ul className="mt-3 space-y-2">
+                              <ul className="mt-1.5 space-y-2">
                                 {contractExtra.map((work) => (
                                   <li
                                     key={work.id}
-                                    className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2.5 shadow-sm"
+                                    className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm"
                                   >
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <p className="font-medium text-green-950">
-                                          {work.title}
-                                        </p>
-                                        <StatusBadge status={work.status} />
-                                      </div>
-                                      {work.description ? (
-                                        <p className="mt-1 text-sm text-stone-600">
-                                          {work.description}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                    <p className="shrink-0 text-sm font-semibold tabular-nums text-green-900">
+                                    <p className="font-medium text-green-950">
+                                      {work.title}
+                                      <span className="ml-2 text-xs font-normal text-stone-500">
+                                        {formatExtraWorkStatus(work.status)}
+                                      </span>
+                                    </p>
+                                    {work.description ? (
+                                      <p className="mt-0.5 text-stone-600">
+                                        {work.description}
+                                      </p>
+                                    ) : null}
+                                    <p className="mt-1 text-xs text-stone-500">
                                       {formatCurrency(
                                         Number(work.quoted_amount)
                                       )}
@@ -650,7 +633,7 @@ export default async function VisitsPage({
                         )}
                       </div>
 
-                      {canManage && !isCustomer ? (
+                      {role === "manager" ? (
                         <div className="mt-4 border-t border-stone-100 pt-4">
                           <VisitCostForm visitId={visit.id} />
                         </div>

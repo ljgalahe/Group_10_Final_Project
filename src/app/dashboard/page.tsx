@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
@@ -13,33 +12,10 @@ import {
 import { CrewMemberAvailabilityPanel } from "@/components/crew-member/CrewMemberAvailabilityPanel";
 import { CrewMemberHoursWorked } from "@/components/crew-member/CrewMemberHoursWorked";
 import { CrewMemberTodayJobs } from "@/components/crew-member/CrewMemberTodayJobs";
-import { CompanyPerformanceLeaderboard } from "@/components/CompanyPerformanceLeaderboard";
-import { DashboardCollapsibleSection } from "@/components/DashboardCollapsibleSection";
-import { ManagerAlertsCenter } from "@/components/ManagerAlertsCenter";
-import { ManagerKpiStrip, type ManagerKpi } from "@/components/ManagerKpiStrip";
 import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPanel";
-import {
-  ServiceHoldAuditSync,
-  ServiceHoldDashboardCard,
-} from "@/components/ServiceHoldDashboardCard";
 import { Card, PageHeader, StatCard } from "@/components/ui";
-import {
-  fetchEquipment,
-  fetchEquipmentUsage,
-} from "@/app/equipment/queries";
 import { filterJobsForCrewMember } from "@/lib/crew-member";
 import type { VisitLaborEntry } from "@/lib/crew-hours";
-import { buildCollectionRisk } from "@/lib/collection-risk";
-import { buildCompanyPerformanceLeaderboard } from "@/lib/company-performance";
-import type { PerformanceCategory } from "@/lib/company-performance";
-import {
-  buildManagerAlerts,
-  type ManagerAlert,
-} from "@/lib/manager-alerts";
-import {
-  buildCustomerServiceHolds,
-  type CustomerServiceHold,
-} from "@/lib/service-hold";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type {
@@ -47,39 +23,14 @@ import type {
   SupportRequestQueueItem,
 } from "@/lib/queries";
 import {
-  fetchAllVisitCosts,
-  fetchContracts,
   fetchCrewApplicableSupportRequests,
   fetchCustomerAccountHealth,
   fetchCustomerNeedsAttention,
   fetchCustomerUpcomingVisits,
   fetchDashboardStats,
-  fetchInvoices,
-  fetchPayments,
-  fetchPendingContractApprovals,
-  fetchPendingContractChangeRequests,
-  fetchProfitabilityReport,
-  fetchQuoteRequests,
   fetchVisitLaborEntries,
-  fetchVisits,
 } from "@/lib/queries";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
-import { AccountantDashboardPanel } from "@/app/dashboard/components/AccountantDashboardPanel";
-import { fetchAccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
-
-function parsePerfCategory(
-  value: string | undefined
-): PerformanceCategory | undefined {
-  if (
-    value === "crew" ||
-    value === "equipment" ||
-    value === "customer" ||
-    value === "contract"
-  ) {
-    return value;
-  }
-  return undefined;
-}
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
@@ -112,20 +63,6 @@ function attentionDetail(item: CustomerAttentionItem) {
     }
   }
   return item.detail;
-}
-
-async function OpsDashboardCounts() {
-  const [{ data: quotes }, { data: pending }] = await Promise.all([
-    fetchQuoteRequests(),
-    fetchPendingContractApprovals(),
-  ]);
-  const openQuotes = quotes.filter((q) => q.status === "new" || q.status === "survey_scheduled" || q.status === "budgeted").length;
-  return (
-    <p className="mt-4 text-sm text-stone-600">
-      {openQuotes} open quote{openQuotes === 1 ? "" : "s"} · {pending.length}{" "}
-      contract draft{pending.length === 1 ? "" : "s"} awaiting dual approval
-    </p>
-  );
 }
 
 function NeedsAttentionList({ items }: { items: CustomerAttentionItem[] }) {
@@ -215,36 +152,24 @@ export default async function DashboardPage({
     renewal?: string;
     quote?: string;
     error?: string;
-    perf?: string;
   }>;
 }) {
   await requireAppAccess();
 
   const role = await getViewRole();
-  if (role === "inquiries") {
-    redirect("/inquiries");
-  }
   const stats = await fetchDashboardStats();
-  const accountantDashboard =
-    role === "accountant" ? await fetchAccountantDashboardData() : null;
   const params = await searchParams;
-  const initialPerfCategory = parsePerfCategory(params.perf);
 
   const roleTitles: Record<string, { title: string; description: string }> = {
     manager: {
       title: "Manager Dashboard",
       description:
-        "Summary hub for collections, holds, alerts, and performance — open a section for detail.",
+        "Overview of active contracts, scheduled visits, and collections performance.",
     },
     accountant: {
       title: "Accounting Dashboard",
       description:
         "Track billing, outstanding balances, and contract profitability.",
-    },
-    operations: {
-      title: "Operations Dashboard",
-      description:
-        "Quotes, scheduling, crew availability, and contract drafts awaiting approval.",
     },
     crew_lead: {
       title: "Crew Lead Dashboard",
@@ -271,239 +196,12 @@ export default async function DashboardPage({
   let memberJobs: ReturnType<typeof buildCrewSchedule> = [];
   let memberExtraWork: ExtraWorkItem[] = [];
   let memberLaborEntries: VisitLaborEntry[] = [];
-  const memberLaborByVisit: Record<
+  let memberLaborByVisit: Record<
     string,
     { quantity: number | null; description: string | null }
   > = {};
   const visitLabels: Record<string, string> = {};
   let crewSupportRequests: SupportRequestQueueItem[] = [];
-  let performanceCategories: ReturnType<
-    typeof buildCompanyPerformanceLeaderboard
-  > = [];
-  let serviceHolds: CustomerServiceHold[] = [];
-  let managerAlerts: ManagerAlert[] = [];
-  let managerKpis: ManagerKpi[] = [];
-
-  if (role === "manager") {
-    const [
-      { data: contracts },
-      { data: visits },
-      { data: visitCosts },
-      equipment,
-      equipmentUsage,
-      { data: invoices },
-      { data: payments },
-      profitability,
-      { data: pendingChangeRequests },
-    ] = await Promise.all([
-      fetchContracts(),
-      fetchVisits(),
-      fetchAllVisitCosts(),
-      fetchEquipment(),
-      fetchEquipmentUsage(),
-      fetchInvoices(),
-      fetchPayments(),
-      fetchProfitabilityReport(),
-      fetchPendingContractChangeRequests(),
-    ]);
-
-    const contractCustomerById = new Map(
-      contracts.map((contract) => [
-        contract.id,
-        String(contract.customer_id),
-      ])
-    );
-
-    serviceHolds = buildCustomerServiceHolds(
-      invoices.map((invoice) => ({
-        id: invoice.id,
-        invoice_number: invoice.invoice_number,
-        customer_id: String(invoice.customer_id),
-        total: Number(invoice.total),
-        amount_paid: Number(invoice.amount_paid),
-        status: invoice.status,
-        due_date: invoice.due_date,
-        customers: invoice.customers
-          ? { name: invoice.customers.name }
-          : null,
-      })),
-      visits.map((visit) => ({
-        id: visit.id,
-        customer_id:
-          (visit.contracts as { customer_id?: string } | null)?.customer_id ??
-          null,
-        contract_id: visit.contract_id,
-        status: visit.status,
-        scheduled_date: visit.scheduled_date,
-      })),
-      { today, contractCustomerById }
-    );
-
-    const customerRisk = buildCollectionRisk(
-      invoices.map((invoice) => ({
-        id: invoice.id,
-        customer_id: String(invoice.customer_id),
-        total: Number(invoice.total),
-        amount_paid: Number(invoice.amount_paid),
-        status: invoice.status,
-        due_date: invoice.due_date,
-        issue_date: invoice.issue_date ?? null,
-        customers: invoice.customers ?? null,
-      })),
-      payments
-    );
-
-    performanceCategories = buildCompanyPerformanceLeaderboard({
-      contracts: contracts.map((contract) => ({
-        id: contract.id,
-        title: contract.title,
-        status: contract.status,
-        assigned_crew: contract.assigned_crew ?? null,
-        customer_id: contract.customer_id,
-        visits_per_week: contract.visits_per_week ?? null,
-      })),
-      visits: visits.map((visit) => ({
-        id: visit.id,
-        contract_id: visit.contract_id,
-        status: visit.status,
-        scheduled_date: visit.scheduled_date,
-        crew_notes: visit.crew_notes ?? null,
-        completed_at: visit.completed_at ?? null,
-      })),
-      visitCosts: visitCosts.map((cost) => ({
-        visit_id: cost.visit_id,
-        cost_type: cost.cost_type,
-        amount: Number(cost.amount),
-        quantity: cost.quantity == null ? null : Number(cost.quantity),
-        description: cost.description ?? null,
-      })),
-      equipment: equipment.map((asset) => ({
-        id: asset.id,
-        name: asset.name,
-        status: asset.status,
-        cost: asset.cost,
-        salvage_value: asset.salvage_value,
-        estimated_total_hours: asset.estimated_total_hours,
-        hours_used: asset.hours_used,
-      })),
-      equipmentUsage: equipmentUsage.map((row) => ({
-        equipment_id: row.equipment_id,
-        visit_id: row.visit_id,
-        hours: row.hours,
-      })),
-      invoices: invoices.map((invoice) => ({
-        id: invoice.id,
-        customer_id: String(invoice.customer_id),
-        contract_id: invoice.contract_id ?? null,
-        total: Number(invoice.total),
-        amount_paid: Number(invoice.amount_paid),
-        status: invoice.status,
-        due_date: invoice.due_date,
-        issue_date: invoice.issue_date ?? null,
-        customers: invoice.customers ?? null,
-      })),
-      profitability,
-      customerRisk,
-      heldCustomerIds: serviceHolds.map((hold) => hold.customerId),
-    });
-
-    managerAlerts = buildManagerAlerts({
-      today,
-      serviceHolds,
-      invoices: invoices.map((invoice) => ({
-        id: invoice.id,
-        invoice_number: invoice.invoice_number,
-        customer_id: String(invoice.customer_id),
-        total: Number(invoice.total),
-        amount_paid: Number(invoice.amount_paid),
-        status: invoice.status,
-        due_date: invoice.due_date,
-        issue_date: invoice.issue_date ?? null,
-        contract_id: invoice.contract_id ?? null,
-        customers: invoice.customers
-          ? { name: invoice.customers.name }
-          : null,
-      })),
-      contracts: contracts.map((contract) => ({
-        id: contract.id,
-        title: contract.title,
-        status: contract.status,
-        season_end: contract.season_end ?? null,
-        customer_id: String(contract.customer_id),
-      })),
-      profitability: profitability.map((row) => ({
-        contractId: row.contractId,
-        title: row.title,
-        margin: row.margin,
-        marginPct: row.marginPct,
-      })),
-      customerRisk,
-      performanceCategories,
-      equipment: equipment.map((asset) => ({
-        id: asset.id,
-        name: asset.name,
-        status: asset.status,
-        estimated_total_hours: Number(asset.estimated_total_hours),
-        hours_used: Number(asset.hours_used),
-      })),
-      pendingChangeRequests: pendingChangeRequests.map((row) => ({
-        id: row.id,
-        contract_id: row.contract_id,
-        status: row.status,
-      })),
-    });
-
-    const totalRevenue = profitability.reduce((sum, row) => sum + row.revenue, 0);
-    const totalMargin = profitability.reduce((sum, row) => sum + row.margin, 0);
-    const avgMarginPct =
-      totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
-
-    const visitsRequiringAttention = visits.filter(
-      (visit) =>
-        visit.status === "scheduled" && visit.scheduled_date < today
-    ).length;
-
-    managerKpis = [
-      {
-        id: "collected",
-        label: "Revenue collected",
-        value: formatCurrency(stats.totalCollected),
-        hint: `YTD against ${formatCurrency(stats.totalBilled)} billed`,
-        href: "/payments",
-      },
-      {
-        id: "ar",
-        label: "Outstanding AR",
-        value: formatCurrency(stats.outstanding),
-        hint: `${stats.overdueCount} open invoice(s) need follow-up`,
-        href: "/reports/ar-aging",
-      },
-      {
-        id: "holds",
-        label: "Customers on service hold",
-        value: String(serviceHolds.length),
-        hint:
-          serviceHolds.length === 0
-            ? "No accounts currently blocked"
-            : "Invoices 30+ days overdue",
-        href: "/reports/ar-aging",
-      },
-      {
-        id: "margin",
-        label: "Average contract margin",
-        value: `${avgMarginPct.toFixed(1)}%`,
-        hint: "Across active contracts with billed revenue",
-        href: "/reports/profitability",
-      },
-      {
-        id: "visits",
-        label: "Visits requiring attention",
-        value: String(visitsRequiringAttention),
-        hint: "Scheduled visits past their planned date",
-        href: "/visits",
-      },
-    ];
-  }
 
   if (role === "crew_lead" || role === "manager" || role === "crew_member") {
     const supabase = await createDataClient();
@@ -798,137 +496,35 @@ export default async function DashboardPage({
         </>
       ) : null}
 
-      {role !== "customer" &&
-      role !== "crew_member" &&
-      role !== "manager" &&
-      role !== "accountant"
-        ? staffStatsRow
-        : null}
+      {role !== "customer" && role !== "crew_member" ? staffStatsRow : null}
 
       {role === "manager" ? (
-        <div className="mt-6 space-y-5">
-          <ServiceHoldAuditSync holds={serviceHolds} />
-          <ManagerKpiStrip kpis={managerKpis} />
-          <ManagerAlertsCenter alerts={managerAlerts} />
-          <CompanyPerformanceLeaderboard
-            key={initialPerfCategory ?? "overview"}
-            categories={performanceCategories}
-            initialCategory={initialPerfCategory}
-          />
-          <DashboardCollapsibleSection
-            title="Service Hold details"
-            summary={
-              serviceHolds.length === 0
-                ? "No customers currently on hold"
-                : `${serviceHolds.length} customer${serviceHolds.length === 1 ? "" : "s"} blocked from new service`
-            }
-            defaultOpen={false}
-          >
-            <ServiceHoldDashboardCard holds={serviceHolds} embedded />
-          </DashboardCollapsibleSection>
-          <DashboardCollapsibleSection
-            title="Approvals & crew alerts"
-            summary="Field concerns, extra-work approvals, and visit comments"
-            defaultOpen={false}
-          >
-            <ManagerApprovalsPanel visitLabels={visitLabels} hideIntro />
-          </DashboardCollapsibleSection>
-          <Card className="p-4 sm:p-5">
-            <h2 className="text-base font-semibold text-green-950">
+        <div className="mt-8 space-y-6">
+          <ManagerApprovalsPanel visitLabels={visitLabels} />
+          <Card>
+            <h2 className="text-lg font-semibold text-green-950">
               Quick Actions
             </h2>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-3">
               <Link
                 href="/reports/ar-aging"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
               >
-                AR Aging
+                AR Aging Report
               </Link>
               <Link
                 href="/reports/profitability"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
               >
-                Profitability
-              </Link>
-              <Link
-                href="/payments"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Payments
+                Profitability Report
               </Link>
               <Link
                 href="/support"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
               >
-                Support
-              </Link>
-              <Link
-                href="/contracts"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Approve drafts
+                Customer Support
               </Link>
             </div>
-          </Card>
-        </div>
-      ) : null}
-
-      {role === "operations" ? (
-        <div className="mt-8 space-y-6">
-          <Card>
-            <h2 className="text-lg font-semibold text-green-950">
-              Scheduling hub
-            </h2>
-            <p className="mt-1 text-sm text-stone-600">
-              Calendar, visit create/assign, missed visits needing reschedule,
-              and crew time-off live on Scheduling.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/schedule"
-                className="rounded-lg bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
-              >
-                Open Scheduling
-              </Link>
-              <Link
-                href="/schedule#needs-rescheduling"
-                className="rounded-lg border border-amber-700 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-50"
-              >
-                Needs rescheduling
-              </Link>
-              <Link
-                href="/schedule#crew-availability"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Crew time-off
-              </Link>
-            </div>
-          </Card>
-          <Card>
-            <h2 className="text-lg font-semibold text-green-950">
-              Operations Quick Actions
-            </h2>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/quotes"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Quotes inbox
-              </Link>
-              <Link
-                href="/schedule"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Scheduling
-              </Link>
-              <Link
-                href="/contracts"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Contracts
-              </Link>
-            </div>
-            <OpsDashboardCounts />
           </Card>
         </div>
       ) : null}
@@ -992,8 +588,34 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
-      {role === "accountant" && accountantDashboard ? (
-        <AccountantDashboardPanel data={accountantDashboard} />
+      {role === "accountant" ? (
+        <div className="mt-8">
+          <Card>
+            <h2 className="text-lg font-semibold text-green-950">
+              Quick Actions
+            </h2>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/reports/ar-aging"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                AR Aging Report
+              </Link>
+              <Link
+                href="/reports/profitability"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Profitability Report
+              </Link>
+              <Link
+                href="/reports/journal-entries"
+                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Journal Entries
+              </Link>
+            </div>
+          </Card>
+        </div>
       ) : null}
     </AppShell>
   );
