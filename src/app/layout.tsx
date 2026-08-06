@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Sans, Manrope } from "next/font/google";
+import { CursorRefHydrationFix } from "@/components/CursorRefHydrationFix";
 import "./globals.css";
 
 const display = Cormorant_Garamond({
@@ -36,8 +37,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${display.variable} ${sans.variable} ${metric.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
+        <CursorRefHydrationFix />
+        {children}
+      </body>
     </html>
   );
 }

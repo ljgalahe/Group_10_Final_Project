@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { postDepreciationJournalForUsage } from "@/app/actions/journal";
 import { createDataClient } from "@/lib/auth-access";
 import { getViewRole } from "@/lib/demo-role";
 import { EQUIPMENT_CATEGORIES } from "./equipment-types";
@@ -160,13 +161,21 @@ export async function logEquipmentHours(formData: FormData): Promise<void> {
 
   if (!visit || visit.status !== "completed") return;
 
-  await supabase.from("equipment_usage").insert({
-    equipment_id: equipmentId,
-    visit_id: visitId,
-    hours,
-    used_on: visit.scheduled_date,
-    notes,
-  });
+  const { data: inserted } = await supabase
+    .from("equipment_usage")
+    .insert({
+      equipment_id: equipmentId,
+      visit_id: visitId,
+      hours,
+      used_on: visit.scheduled_date,
+      notes,
+    })
+    .select("id")
+    .single();
+
+  if (inserted?.id) {
+    await postDepreciationJournalForUsage(inserted.id, { revalidate: false });
+  }
 
   revalidatePath("/equipment");
   revalidatePath("/visits");
@@ -191,13 +200,21 @@ export async function addVisitEquipmentUsage(formData: FormData): Promise<void> 
 
   if (!visit) return;
 
-  await supabase.from("equipment_usage").insert({
-    equipment_id: equipmentId,
-    visit_id: visitId,
-    hours,
-    used_on: visit.scheduled_date,
-    notes,
-  });
+  const { data: inserted } = await supabase
+    .from("equipment_usage")
+    .insert({
+      equipment_id: equipmentId,
+      visit_id: visitId,
+      hours,
+      used_on: visit.scheduled_date,
+      notes,
+    })
+    .select("id")
+    .single();
+
+  if (inserted?.id) {
+    await postDepreciationJournalForUsage(inserted.id, { revalidate: false });
+  }
 
   revalidatePath("/visits");
   revalidatePath("/equipment");
