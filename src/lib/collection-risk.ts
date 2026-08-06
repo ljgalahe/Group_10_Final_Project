@@ -1,7 +1,13 @@
-import { daysBetween, isOpenInvoiceStatus } from "@/lib/payment-utils";
+﻿import { daysBetween, isOpenInvoiceStatus } from "@/lib/payment-utils";
 import type { Payment } from "@/lib/types";
 
 export type CollectionRiskLevel = "high" | "medium" | "low";
+
+export type PaymentBehavior =
+  | "excellent"
+  | "on_time"
+  | "slow"
+  | "high_risk";
 
 export type CustomerCollectionRisk = {
   customerId: string;
@@ -9,7 +15,11 @@ export type CustomerCollectionRisk = {
   risk: CollectionRiskLevel;
   outstandingBalance: number;
   overdueInvoiceCount: number;
+  /** Average of (payment date − invoice date) for fully paid invoices; null = no payment history. */
   averageDaysToPay: number | null;
+  /** True when the customer has at least one fully paid invoice with payment history. */
+  hasPaymentHistory: boolean;
+  paymentBehavior: PaymentBehavior | null;
   riskScore: number;
 };
 
@@ -20,7 +30,7 @@ type RiskInvoice = {
   amount_paid: number;
   status: string;
   due_date: string;
-  issue_date?: string;
+  issue_date?: string | null;
   customers?: { name: string } | null;
 };
 
@@ -33,7 +43,8 @@ function isOverdueInvoice(invoice: RiskInvoice, today: string): boolean {
     return false;
   }
   const balance =
-    Math.round((Number(invoice.total) - Number(invoice.amount_paid)) * 100) / 100;
+    Math.round((Number(invoice.total) - Number(invoice.amount_paid)) * 100) /
+    100;
   if (balance <= 0 && invoice.status === "paid") return false;
 
   if (invoice.status === "overdue" || invoice.status === "past_due") {
@@ -55,9 +66,109 @@ function riskRank(level: CollectionRiskLevel): number {
   return 1;
 }
 
+function invoiceIsPaid(invoice: RiskInvoice): boolean {
+  if (invoice.status === "paid") return true;
+  const total = Number(invoice.total);
+  const paid = Number(invoice.amount_paid);
+  return total > 0 && paid + 0.001 >= total;
+}
+
+function paymentCustomerId(payment: Payment): string | undefined {
+  return (
+    payment.invoices?.customers?.id ??
+    payment.invoices?.customer_id ??
+    payment.customer_id ??
+    undefined
+  );
+}
+
+function isAppliedPayment(payment: Payment): boolean {
+  const status = payment.status ?? "applied";
+  if (status === "void") return false;
+  if (status === "unapplied") return false;
+  const applied = Number(payment.applied_amount ?? payment.amount);
+  return applied > 0;
+}
+
+/** Net-30 style issue-date fallback when issue_date is missing. */
+function resolveIssueDate(invoice: RiskInvoice): string | null {
+  if (invoice.issue_date) return invoice.issue_date;
+  if (invoice.due_date) {
+    const due = new Date(invoice.due_date + "T00:00:00");
+    due.setDate(due.getDate() - 30);
+    return due.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+export function paymentBehaviorFromDays(
+  averageDaysToPay: number | null
+): PaymentBehavior | null {
+  if (averageDaysToPay == null) return null;
+  if (averageDaysToPay <= 15) return "excellent";
+  if (averageDaysToPay <= 30) return "on_time";
+  if (averageDaysToPay <= 45) return "slow";
+  return "high_risk";
+}
+
 /**
- * Simple manager-facing collection risk from existing invoice + payment data.
- * Higher score = higher risk. Sorted high → low.
+ * Average Days to Pay for one customer from that customer's paid invoices only:
+ * average of (final payment date − invoice issue date).
+ */
+export function averageDaysToPayForCustomer(
+  invoices: RiskInvoice[],
+  payments: Payment[],
+  customerId: string
+): number | null {
+  const customerInvoices = invoices.filter(
+    (invoice) =>
+      invoice.customer_id === customerId &&
+      invoice.status !== "canceled" &&
+      invoice.status !== "voided"
+  );
+  if (customerInvoices.length === 0) return null;
+
+  const lastPaymentByInvoice = new Map<string, string>();
+  for (const payment of payments) {
+    if (!isAppliedPayment(payment)) continue;
+    const invoiceId = payment.invoice_id;
+    if (!invoiceId) continue;
+
+    const payCustomerId = paymentCustomerId(payment);
+    if (payCustomerId && payCustomerId !== customerId) continue;
+
+    const existing = lastPaymentByInvoice.get(invoiceId);
+    if (!existing || payment.payment_date > existing) {
+      lastPaymentByInvoice.set(invoiceId, payment.payment_date);
+    }
+  }
+
+  const days: number[] = [];
+  for (const invoice of customerInvoices) {
+    if (!invoiceIsPaid(invoice)) continue;
+    const issueDate = resolveIssueDate(invoice);
+    const paidDate = lastPaymentByInvoice.get(invoice.id);
+    if (!issueDate || !paidDate) continue;
+    const lag = daysBetween(issueDate, paidDate);
+    if (lag >= 0) days.push(lag);
+  }
+
+  if (days.length === 0) return null;
+  return Math.round(days.reduce((sum, value) => sum + value, 0) / days.length);
+}
+
+/** Display helper for Average Days to Pay. */
+export function formatAverageDaysToPay(
+  averageDaysToPay: number | null
+): string {
+  if (averageDaysToPay == null) return "No Payment History";
+  return `Average Days to Pay: ${averageDaysToPay} Days`;
+}
+
+/**
+ * Manager-facing collection risk from existing invoice + payment data.
+ * Average Days to Pay is computed per customer from that customer's paid invoices.
+ * Never uses a company-wide average or a hard-coded constant.
  */
 export function buildCollectionRisk(
   invoices: RiskInvoice[],
@@ -71,10 +182,11 @@ export function buildCollectionRisk(
     outstandingBalance: number;
     overdueInvoiceCount: number;
     hasInvoice: boolean;
-    daysToPay: number[];
+    paidInvoiceDays: number[];
   };
 
   const byCustomer = new Map<string, Acc>();
+  const invoiceById = new Map<string, RiskInvoice>();
 
   function ensure(customerId: string, customerName: string): Acc {
     const existing = byCustomer.get(customerId);
@@ -90,7 +202,7 @@ export function buildCollectionRisk(
       outstandingBalance: 0,
       overdueInvoiceCount: 0,
       hasInvoice: false,
-      daysToPay: [],
+      paidInvoiceDays: [],
     };
     byCustomer.set(customerId, created);
     return created;
@@ -101,6 +213,7 @@ export function buildCollectionRisk(
       continue;
     }
 
+    invoiceById.set(invoice.id, invoice);
     const customerName = invoice.customers?.name ?? "Unknown customer";
     const row = ensure(invoice.customer_id, customerName);
     row.hasInvoice = true;
@@ -118,36 +231,65 @@ export function buildCollectionRisk(
     }
   }
 
+  const paymentsByInvoice = new Map<string, Payment[]>();
   for (const payment of payments) {
-    const status = payment.status ?? "applied";
-    if (status === "void") continue;
+    if (!isAppliedPayment(payment)) continue;
+    const invoiceId = payment.invoice_id;
+    if (!invoiceId) continue;
+    const list = paymentsByInvoice.get(invoiceId) ?? [];
+    list.push(payment);
+    paymentsByInvoice.set(invoiceId, list);
 
-    const customerId =
-      payment.invoices?.customers?.id ??
-      payment.invoices?.customer_id ??
-      payment.customer_id;
+    const customerId = paymentCustomerId(payment);
     if (!customerId) continue;
+    ensure(
+      customerId,
+      payment.invoices?.customers?.name ?? "Unknown customer"
+    );
+  }
 
-    const customerName = payment.invoices?.customers?.name ?? "Unknown customer";
-    const row = ensure(customerId, customerName);
-    const issueDate = payment.invoices?.issue_date;
-    if (issueDate) {
-      row.daysToPay.push(daysBetween(issueDate, payment.payment_date));
-    }
+  for (const invoice of invoiceById.values()) {
+    if (!invoiceIsPaid(invoice)) continue;
+    const invPayments = paymentsByInvoice.get(invoice.id) ?? [];
+    if (invPayments.length === 0) continue;
+
+    const resolvedIssue =
+      resolveIssueDate(invoice) ??
+      invPayments
+        .map((payment) => payment.invoices?.issue_date)
+        .find((value): value is string => Boolean(value)) ??
+      null;
+    if (!resolvedIssue) continue;
+
+    const settlementDate = invPayments.reduce(
+      (latest, payment) =>
+        payment.payment_date > latest ? payment.payment_date : latest,
+      invPayments[0].payment_date
+    );
+    const days = daysBetween(resolvedIssue, settlementDate);
+    if (days < 0) continue;
+
+    const row = byCustomer.get(invoice.customer_id);
+    if (!row) continue;
+    row.paidInvoiceDays.push(days);
   }
 
   const results: CustomerCollectionRisk[] = [];
 
   for (const row of byCustomer.values()) {
-    if (!row.hasInvoice && row.daysToPay.length === 0) continue;
+    if (!row.hasInvoice && row.paidInvoiceDays.length === 0) continue;
 
-    const averageDaysToPay =
-      row.daysToPay.length > 0
-        ? Math.round(
-            row.daysToPay.reduce((sum, days) => sum + days, 0) /
-              row.daysToPay.length
-          )
-        : null;
+    const hasPaymentHistory = row.paidInvoiceDays.length > 0;
+    const averageDaysToPay = hasPaymentHistory
+      ? Math.round(
+          row.paidInvoiceDays.reduce((sum, days) => sum + days, 0) /
+            row.paidInvoiceDays.length
+        )
+      : null;
+
+    const paymentBehavior = hasPaymentHistory
+      ? paymentBehaviorFromDays(averageDaysToPay)
+      : null;
 
     let score = 0;
     score += row.overdueInvoiceCount * 3;
@@ -157,12 +299,13 @@ export function buildCollectionRisk(
     else if (row.outstandingBalance > 0) score += 1;
 
     if (averageDaysToPay != null) {
-      if (averageDaysToPay >= 60) score += 3;
-      else if (averageDaysToPay >= 40) score += 2;
-      else if (averageDaysToPay >= 30) score += 1;
+      if (averageDaysToPay >= 46) score += 3;
+      else if (averageDaysToPay >= 31) score += 2;
+      else if (averageDaysToPay >= 16) score += 1;
+    } else if (row.overdueInvoiceCount > 0) {
+      score += 2;
     }
 
-    // Paid-up customers with no overdue stay low even with slow historical speed.
     if (row.outstandingBalance <= 0 && row.overdueInvoiceCount === 0) {
       score = Math.min(score, 2);
     }
@@ -172,10 +315,11 @@ export function buildCollectionRisk(
       customerId: row.customerId,
       customerName: row.customerName,
       risk,
-      outstandingBalance:
-        Math.round(row.outstandingBalance * 100) / 100,
+      outstandingBalance: Math.round(row.outstandingBalance * 100) / 100,
       overdueInvoiceCount: row.overdueInvoiceCount,
       averageDaysToPay,
+      hasPaymentHistory,
+      paymentBehavior,
       riskScore: score,
     });
   }

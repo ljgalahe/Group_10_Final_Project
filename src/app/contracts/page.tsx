@@ -113,7 +113,8 @@ export default async function ContractsPage() {
       .map(([id]) => id);
 
     const awaitingAccountant = pendingApprovals.filter(
-      (c) => !(c as { accountant_approved_at?: string | null }).accountant_approved_at
+      (c) =>
+        !(c as { accountant_approved_at?: string | null }).accountant_approved_at
     );
 
     return (
@@ -178,7 +179,7 @@ export default async function ContractsPage() {
     );
   }
 
-  // Operations: simple drafts list + pending dual-approval (no manager analytics charts).
+  // Operations: drafts list + pending dual-approval (no manager analytics charts).
   if (role === "operations") {
     return (
       <AppShell>

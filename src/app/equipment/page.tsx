@@ -29,9 +29,13 @@ export default async function EquipmentPage() {
     <AppShell>
       <PageHeader
         title="Equipment"
-        description="Fixed assets with unit-of-production depreciation from cost, salvage, estimated life hours, and hours used on visits."
+        description="Fixed assets with unit-of-production depreciation. Job revenue is split across equipment by hours (or evenly when hours are missing)."
       />
-      <EquipmentReport assets={assets} usage={usage} visits={visits} />
+      <EquipmentReport
+        report={assets}
+        usage={usage}
+        visits={visits}
+      />
     </AppShell>
   );
 }

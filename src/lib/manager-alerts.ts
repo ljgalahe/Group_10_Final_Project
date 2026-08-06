@@ -136,7 +136,7 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
       explanation: `${serviceHolds.length} customer${serviceHolds.length === 1 ? "" : "s"} blocked from new service due to invoices ${SERVICE_HOLD_THRESHOLD_DAYS}+ days overdue.`,
       priority: "critical",
       count: serviceHolds.length,
-      href: "/reports/ar-aging",
+      href: "/reports/ar-aging?hold=1",
       icon: "hold",
     });
   }
@@ -160,7 +160,7 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
       explanation: `${approachingCustomerIds.size} customer${approachingCustomerIds.size === 1 ? "" : "s"} have invoices ${APPROACHING_HOLD_MIN_DAYS}–${SERVICE_HOLD_THRESHOLD_DAYS - 1} days overdue and are nearing automatic credit hold.`,
       priority: "high",
       count: approachingCustomerIds.size,
-      href: "/reports/ar-aging",
+      href: "/reports/ar-aging?approaching=1",
       icon: "warning",
     });
   }
@@ -176,7 +176,7 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
       explanation: `${lowProfit.length} contract${lowProfit.length === 1 ? "" : "s"} are below a healthy margin target or currently unprofitable.`,
       priority: lowProfit.some((row) => row.margin < 0) ? "high" : "medium",
       count: lowProfit.length,
-      href: "/reports/profitability",
+      href: "/reports/profitability?low=1",
       icon: "profit",
     });
   }
@@ -190,7 +190,7 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
       explanation: `${highRisk.length} customer${highRisk.length === 1 ? "" : "s"} show elevated overdue exposure and collection pressure.`,
       priority: "high",
       count: highRisk.length,
-      href: "/payments",
+      href: "/payments?risk=high#collection-risk",
       icon: "risk",
     });
   }
@@ -252,7 +252,7 @@ export function buildManagerAlerts(input: ManagerAlertsInput): ManagerAlert[] {
       explanation: `${dueSoon.length} open invoice${dueSoon.length === 1 ? "" : "s"} ${dueSoon.length === 1 ? "is" : "are"} due within the next 7 days.`,
       priority: "medium",
       count: dueSoon.length,
-      href: "/invoices",
+      href: "/invoices?due=soon",
       icon: "invoice",
     });
   }

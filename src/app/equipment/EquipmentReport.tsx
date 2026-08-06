@@ -20,16 +20,18 @@ import {
 } from "./equipment-math";
 import {
   EQUIPMENT_CATEGORIES,
+  aggregateEquipmentRevenue,
   categoryIsDepreciable,
   categoryTracksUsefulLife,
   type CompletedVisitOption,
   type EquipmentCategory,
+  type EquipmentReportData,
   type EquipmentRow,
   type EquipmentUsageRow,
 } from "./equipment-types";
 
 type Props = {
-  assets: EquipmentRow[];
+  report: EquipmentReportData;
   usage: EquipmentUsageRow[];
   visits: CompletedVisitOption[];
 };
@@ -279,7 +281,8 @@ function AssetForm({
   );
 }
 
-export function EquipmentReport({ assets, usage, visits }: Props) {
+export function EquipmentReport({ report, usage, visits }: Props) {
+  const { assets, jobs, companyRevenue } = report;
   const [category, setCategory] = useState<"All" | EquipmentCategory>("All");
   const [statusFilter, setStatusFilter] = useState<"All" | "active" | "retired">(
     "active"
@@ -290,6 +293,8 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
   const [logOpen, setLogOpen] = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string>("All");
   const [equipmentFilter, setEquipmentFilter] = useState<string>("All");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const companies = useMemo(() => {
     const names = new Set<string>();
@@ -319,12 +324,45 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
       if (equipmentFilter !== "All" && row.equipment_id !== equipmentFilter) {
         return false;
       }
+      const date = row.visit_date || row.used_on;
+      if (dateFrom && date < dateFrom) return false;
+      if (dateTo && date > dateTo) return false;
       return true;
     });
-  }, [usage, companyFilter, equipmentFilter]);
+  }, [usage, companyFilter, equipmentFilter, dateFrom, dateTo]);
+
+  const jobsInRange = useMemo(() => {
+    return jobs.filter((job) => {
+      if (dateFrom && job.visit_date < dateFrom) return false;
+      if (dateTo && job.visit_date > dateTo) return false;
+      return true;
+    });
+  }, [jobs, dateFrom, dateTo]);
+
+  const revenueAssets = useMemo(
+    () => aggregateEquipmentRevenue(assets, jobsInRange),
+    [assets, jobsInRange]
+  );
+
+  const allocatedRevenueTotal = useMemo(
+    () =>
+      Math.round(
+        revenueAssets.reduce((sum, a) => sum + a.revenue_produced, 0) * 100
+      ) / 100,
+    [revenueAssets]
+  );
+
+  const companyRevenueInView = useMemo(() => {
+    // Job revenues in range sum to the invoice dollars attributed to those jobs.
+    return (
+      Math.round(
+        jobsInRange.reduce((sum, job) => sum + job.job_revenue, 0) * 100
+      ) / 100
+    );
+  }, [jobsInRange]);
 
   const enriched = useMemo(() => {
-    return assets.map((a) => {
+    return revenueAssets.map((a) => {
       if (!categoryIsDepreciable(a.category)) {
         return {
           ...a,
@@ -352,7 +390,7 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
         remaining: hoursRemaining(a.estimated_total_hours, a.hours_used),
       };
     });
-  }, [assets]);
+  }, [revenueAssets]);
 
   const filtered = useMemo(() => {
     return enriched.filter((a) => {
@@ -360,6 +398,7 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
       if (statusFilter !== "All" && a.status !== statusFilter) return false;
       return true;
     });
+    // already sorted by revenue desc from aggregateEquipmentRevenue
   }, [enriched, category, statusFilter]);
 
   const totals = useMemo(() => {
@@ -385,6 +424,12 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
       .sort((a, b) => a.remaining - b.remaining);
   }, [enriched]);
 
+  // Keep detail panel in sync when date filters change.
+  const detailAssetLive = useMemo(() => {
+    if (!detailAsset) return null;
+    return filtered.find((a) => a.id === detailAsset.id) ?? detailAsset;
+  }, [detailAsset, filtered]);
+
   function openCreate() {
     setEditing(null);
     setFormMode("create");
@@ -405,8 +450,8 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
     category === "All" ? "Net Book Value" : `${category} Net Book Value`;
   const revenueLabel =
     category === "All"
-      ? "Total Revenue Produced"
-      : `${category} Revenue Produced`;
+      ? "Allocated Job Revenue"
+      : `${category} Allocated Job Revenue`;
   const showDepreciationStats =
     category === "All" || categoryIsDepreciable(category);
 
@@ -414,23 +459,64 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
     <>
       <div className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)] lg:items-stretch">
         <div className="space-y-4">
-          <label className="block text-sm">
-            <span className="text-stone-600">Category</span>
-            <select
-              value={category}
-              onChange={(e) =>
-                setCategory(e.target.value as "All" | EquipmentCategory)
-              }
-              className="mt-1 block w-full max-w-xs rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="All">All categories</option>
-              {EQUIPMENT_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block text-sm">
+              <span className="text-stone-600">Category</span>
+              <select
+                value={category}
+                onChange={(e) =>
+                  setCategory(e.target.value as "All" | EquipmentCategory)
+                }
+                className="mt-1 block w-full min-w-[11rem] max-w-xs rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="All">All categories</option>
+                {EQUIPMENT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="text-stone-600">Revenue from</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="mt-1 block rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-stone-600">Revenue to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="mt-1 block rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+              />
+            </label>
+            {dateFrom || dateTo ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="self-end pb-2 text-sm font-medium text-stone-600 underline-offset-2 hover:underline"
+              >
+                Clear dates
+              </button>
+            ) : null}
+          </div>
+          <p className="text-xs text-stone-500">
+            Job revenue = share of billed invoices. Split across equipment by
+            hours on each job (evenly if hours are missing). Allocated{" "}
+            {formatCurrency(allocatedRevenueTotal)}
+            {dateFrom || dateTo
+              ? ` in range (jobs ${formatCurrency(companyRevenueInView)})`
+              : ` of ${formatCurrency(companyRevenue)} company revenue`}
+            .
+          </p>
           <div
             className={`grid grid-cols-1 gap-4 ${
               showDepreciationStats
@@ -560,7 +646,7 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
         }}
       />
 
-      {detailAsset ? (
+      {detailAssetLive ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
           role="dialog"
@@ -578,10 +664,22 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                   id="equipment-detail-title"
                   className="text-lg font-semibold text-green-950"
                 >
-                  {detailAsset.name}
+                  {detailAssetLive.name}
                 </h3>
                 <p className="mt-0.5 text-sm text-stone-500">
-                  Contracts this asset worked on and allocated revenue produced.
+                  Allocated job revenue
+                  {dateFrom || dateTo ? " in the selected date range" : ""}:{" "}
+                  {formatCurrency(detailAssetLive.revenue_produced)} across{" "}
+                  {detailAssetLive.jobs_count} job
+                  {detailAssetLive.jobs_count === 1 ? "" : "s"}
+                  {detailAssetLive.jobs_count > 0
+                    ? ` (avg ${formatCurrency(detailAssetLive.avg_revenue_per_job)}/job)`
+                    : ""}
+                  . Hours used (all time): {detailAssetLive.hours_used.toFixed(1)}
+                  {detailAssetLive.estimated_total_hours > 0
+                    ? ` of ${detailAssetLive.estimated_total_hours.toLocaleString()} estimated`
+                    : ""}
+                  .
                 </p>
               </div>
               <button
@@ -592,20 +690,31 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                 Close
               </button>
             </div>
-            {detailAsset.contracts_worked.length === 0 ? (
-              <EmptyState message="No contract usage logged for this equipment yet." />
+            {detailAssetLive.contracts_worked.length === 0 ? (
+              <div className="space-y-3">
+                <EmptyState message="No contract usage logged for this equipment in the selected range." />
+                {detailAssetLive.hours_used > 0 ? (
+                  <p className="text-sm text-stone-600">
+                    Total hours used (all time):{" "}
+                    <span className="font-semibold tabular-nums text-stone-900">
+                      {detailAssetLive.hours_used.toFixed(1)}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
             ) : (
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
                   <tr>
                     <th className="px-2 py-2 font-medium">Contract</th>
                     <th className="px-2 py-2 font-medium">Customer</th>
+                    <th className="px-2 py-2 font-medium">Jobs</th>
                     <th className="px-2 py-2 font-medium">Hours</th>
-                    <th className="px-2 py-2 font-medium">Revenue Produced</th>
+                    <th className="px-2 py-2 font-medium">Allocated Revenue</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {detailAsset.contracts_worked.map((c) => (
+                  {detailAssetLive.contracts_worked.map((c) => (
                     <tr key={c.contract_id}>
                       <td className="px-2 py-2.5 font-medium text-stone-900">
                         {c.contract_title}
@@ -613,6 +722,7 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                       <td className="px-2 py-2.5 text-stone-600">
                         {c.customer_name}
                       </td>
+                      <td className="px-2 py-2.5 tabular-nums">{c.jobs}</td>
                       <td className="px-2 py-2.5 tabular-nums">
                         {c.hours.toFixed(1)}
                       </td>
@@ -631,12 +741,15 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                       Total
                     </td>
                     <td className="px-2 py-2.5 text-sm font-semibold tabular-nums text-stone-900">
-                      {detailAsset.contracts_worked
+                      {detailAssetLive.jobs_count}
+                    </td>
+                    <td className="px-2 py-2.5 text-sm font-semibold tabular-nums text-stone-900">
+                      {detailAssetLive.contracts_worked
                         .reduce((sum, c) => sum + c.hours, 0)
                         .toFixed(1)}
                     </td>
                     <td className="px-2 py-2.5 text-sm font-semibold tabular-nums text-green-950">
-                      {formatCurrency(detailAsset.revenue_produced)}
+                      {formatCurrency(detailAssetLive.revenue_produced)}
                     </td>
                   </tr>
                 </tfoot>
@@ -651,8 +764,8 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
           Equipment Register
         </h2>
         <p className="mb-4 text-sm text-stone-500">
-          Unit-of-production book values for the current filters. Click a row to
-          see contracts and revenue.
+          Sorted by allocated job revenue (highest first). Click a row for
+          contract detail.
         </p>
         {filtered.length === 0 ? (
           <EmptyState message="No equipment matches these filters." />
@@ -664,7 +777,10 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                 <th className="px-2 py-2 font-medium">Cost</th>
                 <th className="px-2 py-2 font-medium">Acc. Dep.</th>
                 <th className="px-2 py-2 font-medium">Book Value</th>
-                <th className="px-2 py-2 font-medium">Revenue Produced</th>
+                <th className="px-2 py-2 font-medium">Allocated Revenue</th>
+                <th className="px-2 py-2 font-medium">Jobs</th>
+                <th className="px-2 py-2 font-medium">Avg $/Job</th>
+                <th className="px-2 py-2 font-medium">Rev / Cost</th>
                 <th className="px-2 py-2 font-medium">Life Left</th>
                 <th className="px-2 py-2 font-medium">Status</th>
                 <th className="px-2 py-2 font-medium">Actions</th>
@@ -694,8 +810,19 @@ export function EquipmentReport({ assets, usage, visits }: Props) {
                   <td className="px-2 py-2.5 font-medium tabular-nums text-green-950">
                     {formatCurrency(row.book)}
                   </td>
-                  <td className="px-2 py-2.5 tabular-nums text-stone-800">
+                  <td className="px-2 py-2.5 tabular-nums font-medium text-stone-800">
                     {formatCurrency(row.revenue_produced)}
+                  </td>
+                  <td className="px-2 py-2.5 tabular-nums text-stone-700">
+                    {row.jobs_count}
+                  </td>
+                  <td className="px-2 py-2.5 tabular-nums text-stone-700">
+                    {row.jobs_count > 0
+                      ? formatCurrency(row.avg_revenue_per_job)
+                      : "—"}
+                  </td>
+                  <td className="px-2 py-2.5 tabular-nums text-stone-700">
+                    {row.cost > 0 ? `${row.revenue_per_cost.toFixed(2)}×` : "—"}
                   </td>
                   <td className="px-2 py-2.5">
                     {categoryTracksUsefulLife(row.category) ? (

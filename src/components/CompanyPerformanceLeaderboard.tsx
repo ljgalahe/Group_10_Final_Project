@@ -86,6 +86,17 @@ export function CompanyPerformanceLeaderboard({
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (initialCategory && available.includes(initialCategory)) {
+      setSelectedCategory(initialCategory);
+    }
+  }, [initialCategory, available]);
+
+  useEffect(() => {
+    setSelectedId(null);
+    setSortMode("score");
+  }, [selectedCategory]);
+
+  useEffect(() => {
     if (!selectedCategory || !panelRef.current) return;
     panelRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [selectedCategory]);
@@ -119,14 +130,8 @@ export function CompanyPerformanceLeaderboard({
     );
   }
 
-  function openCategory(key: PerformanceCategory | null) {
-    setSelectedCategory(key);
-    setSelectedId(null);
-    setSortMode("score");
-  }
-
   function toggleCategory(key: PerformanceCategory) {
-    openCategory(selectedCategory === key ? null : key);
+    setSelectedCategory((currentKey) => (currentKey === key ? null : key));
   }
 
   return (
@@ -226,7 +231,10 @@ export function CompanyPerformanceLeaderboard({
               onSelectEntry={(id) =>
                 setSelectedId((currentId) => (currentId === id ? null : id))
               }
-              onClose={() => openCategory(null)}
+              onClose={() => {
+                setSelectedCategory(null);
+                setSelectedId(null);
+              }}
             />
           ) : null}
         </div>

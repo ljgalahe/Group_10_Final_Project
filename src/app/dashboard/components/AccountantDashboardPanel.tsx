@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { CreateFinancialStatementButton } from "@/app/reports/profitability/components/CreateFinancialStatementButton";
 import { Card, StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { AccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
@@ -139,47 +138,51 @@ export function AccountantDashboardPanel({
         </Card>
       </div>
 
-      <div className="rounded-xl border border-green-800/15 bg-green-50/60 px-5 py-4">
-        <p className="text-sm font-semibold text-green-950">Quick Actions</p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Link
-            href="/invoices"
-            className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700"
+      <div className="border-y border-green-800/10 bg-white py-3">
+        <div className="mx-auto flex max-w-4xl flex-col items-center gap-2 px-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+            Quick Actions
+          </p>
+          <nav
+            aria-label="Quick Actions"
+            className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2"
           >
-            Invoices &amp; Payments
-          </Link>
-          <Link
-            href="/reports/journal-entries"
-            className="rounded-lg border border-green-800/40 bg-white px-4 py-2 text-sm font-medium text-green-900 shadow-sm hover:border-green-800 hover:bg-green-50"
-          >
-            Journal Entries
-            {data.readyToPostCount > 0 ? (
-              <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900">
-                {data.readyToPostCount}
-              </span>
-            ) : null}
-          </Link>
-          <Link
-            href="/equipment"
-            className="rounded-lg border border-green-800/40 bg-white px-4 py-2 text-sm font-medium text-green-900 shadow-sm hover:border-green-800 hover:bg-green-50"
-          >
-            Equipment
-          </Link>
-          <Link
-            href="/reports/profitability"
-            className="rounded-lg border border-green-800/40 bg-white px-4 py-2 text-sm font-medium text-green-900 shadow-sm hover:border-green-800 hover:bg-green-50"
-          >
-            Profitability
-          </Link>
-          <Link
-            href="/reports/ar-aging"
-            className="rounded-lg border border-green-800/40 bg-white px-4 py-2 text-sm font-medium text-green-900 shadow-sm hover:border-green-800 hover:bg-green-50"
-          >
-            AR Aging
-          </Link>
-          <CreateFinancialStatementButton
-            inputs={data.financialStatementInputs}
-          />
+            <Link
+              href="/invoices"
+              className="rounded-md bg-green-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700"
+            >
+              Invoices
+            </Link>
+            <Link
+              href="/reports/journal-entries"
+              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
+            >
+              Journal Entries
+              {data.readyToPostCount > 0 ? (
+                <span className="ml-1 rounded-full bg-amber-100 px-1 py-0.5 text-[10px] font-semibold text-amber-900">
+                  {data.readyToPostCount}
+                </span>
+              ) : null}
+            </Link>
+            <Link
+              href="/equipment"
+              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
+            >
+              Equipment
+            </Link>
+            <Link
+              href="/reports/profitability"
+              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
+            >
+              Profitability
+            </Link>
+            <Link
+              href="/reports/ar-aging"
+              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
+            >
+              AR Aging
+            </Link>
+          </nav>
         </div>
       </div>
     </div>

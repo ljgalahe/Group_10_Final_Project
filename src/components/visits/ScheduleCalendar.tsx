@@ -32,7 +32,7 @@ function modeNameLabel(mode: FilterMode) {
 }
 
 function isPending(status: string) {
-  return status === "scheduled";
+  return status === "scheduled" || status === "on_hold";
 }
 
 function isCompleted(status: string) {
