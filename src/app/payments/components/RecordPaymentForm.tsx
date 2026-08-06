@@ -116,8 +116,6 @@ export function RecordPaymentForm({
         >
           <option value="check">Check</option>
           <option value="cash">Cash</option>
-          <option value="ach">ACH</option>
-          <option value="simulated_card">Card</option>
         </select>
       </div>
 

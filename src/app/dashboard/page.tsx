@@ -64,6 +64,8 @@ import {
   fetchVisits,
 } from "@/lib/queries";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
+import { AccountantDashboardPanel } from "@/app/dashboard/components/AccountantDashboardPanel";
+import { fetchAccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
 
 function parsePerfCategory(
   value: string | undefined
@@ -223,6 +225,8 @@ export default async function DashboardPage({
     redirect("/inquiries");
   }
   const stats = await fetchDashboardStats();
+  const accountantDashboard =
+    role === "accountant" ? await fetchAccountantDashboardData() : null;
   const params = await searchParams;
   const initialPerfCategory = parsePerfCategory(params.perf);
 
@@ -796,7 +800,8 @@ export default async function DashboardPage({
 
       {role !== "customer" &&
       role !== "crew_member" &&
-      role !== "manager"
+      role !== "manager" &&
+      role !== "accountant"
         ? staffStatsRow
         : null}
 
@@ -987,34 +992,8 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
-      {role === "accountant" ? (
-        <div className="mt-8">
-          <Card>
-            <h2 className="text-lg font-semibold text-green-950">
-              Quick Actions
-            </h2>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/reports/ar-aging"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                AR Aging Report
-              </Link>
-              <Link
-                href="/reports/profitability"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Profitability Report
-              </Link>
-              <Link
-                href="/reports/journal-entries"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Journal Entries
-              </Link>
-            </div>
-          </Card>
-        </div>
+      {role === "accountant" && accountantDashboard ? (
+        <AccountantDashboardPanel data={accountantDashboard} />
       ) : null}
     </AppShell>
   );
