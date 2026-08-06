@@ -48,3 +48,8 @@ export function roleCanAccessCrewSchedule(role: UserRole) {
 export function roleIsReadOnlyCrew(role: UserRole) {
   return role === "crew_member";
 }
+
+/** Hourly rates / labor pay totals — managers & accountants only. */
+export function roleCanViewLaborPay(role: UserRole) {
+  return role === "manager" || role === "accountant";
+}

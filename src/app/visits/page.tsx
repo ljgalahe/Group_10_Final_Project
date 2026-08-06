@@ -38,6 +38,7 @@ import {
   roleCanManageVisits,
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { formatVisitCostDescription } from "@/lib/crew-hours";
 import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
 import {
   fetchAccountantVisits,
@@ -307,7 +308,7 @@ export default async function VisitsPage({
           description={
             role === "crew_member"
               ? "Upcoming and completed visits assigned to you (read-only)."
-              : "Scheduled and completed crew visits with Labor, Materials, and Equipment costs."
+              : "Scheduled and completed crew visits with hours, materials, and equipment."
           }
         />
         {cardData.length === 0 ? (
@@ -606,11 +607,22 @@ export default async function VisitsPage({
                           <ul className="mt-2 space-y-1 text-sm text-stone-600">
                             {costs.map((cost) => (
                               <li key={cost.id}>
-                                <span className="capitalize">
-                                  {cost.cost_type}
+                                <span className="font-medium text-stone-800">
+                                  {cost.cost_type === "labor"
+                                    ? "Labor"
+                                    : cost.cost_type === "materials"
+                                      ? "Materials"
+                                      : cost.cost_type === "equipment"
+                                        ? "Equipment"
+                                        : cost.cost_type}
                                 </span>
-                                : {cost.description ?? "—"} —{" "}
-                                {formatCurrency(Number(cost.amount))}
+                                :{" "}
+                                {formatVisitCostDescription(
+                                  visit.id,
+                                  cost.cost_type,
+                                  cost.description
+                                )}{" "}
+                                — {formatCurrency(Number(cost.amount))}
                               </li>
                             ))}
                           </ul>

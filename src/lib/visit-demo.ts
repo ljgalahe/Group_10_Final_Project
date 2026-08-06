@@ -1,5 +1,15 @@
 /** Demo overlays for schedule/crew/weather/proof — keyed to seed visit IDs. */
 
+import {
+  DEMO_SITES,
+  DEMO_TODAY,
+  crewLabel,
+  employeesForCrew,
+  isWinterMonth,
+  weeklyHourTarget,
+  type DemoCrewId,
+} from "@/lib/demo-org";
+
 export const SEED_VISIT = {
   riverside1: "33333333-3333-3333-3333-333333333301",
   riverside2: "33333333-3333-3333-3333-333333333302",
@@ -43,66 +53,56 @@ export interface ProofOverlay {
   concernLabel?: string;
 }
 
+function crewMembersFor(
+  crew: DemoCrewId,
+  dateIso: string,
+  hoursOverride?: number
+): CrewMember[] {
+  const target = weeklyHourTarget(dateIso);
+  const hours = hoursOverride ?? Number((target / 5).toFixed(1));
+  return employeesForCrew(crew, { dateIso, forVisit: true }).map((e) => ({
+    name: e.name,
+    role: e.role,
+    hours: e.role === "Crew lead" ? hours : Number((hours * 0.92).toFixed(1)),
+    payRate: e.payRate,
+  }));
+}
+
 export const SCHEDULE_CREW: Record<string, ScheduleOverlay> = {
   [SEED_VISIT.riverside1]: {
     visitId: SEED_VISIT.riverside1,
     jobLabel: "Mowing & edging",
-    crew: [
-      { name: "Alex Rivera", role: "Crew lead", hours: 3, payRate: 28 },
-      { name: "Jordan Lee", role: "Crew", hours: 3, payRate: 22 },
-    ],
+    crew: crewMembersFor("A", "2026-06-02", 3),
   },
   [SEED_VISIT.riverside2]: {
     visitId: SEED_VISIT.riverside2,
     jobLabel: "Hedge trimming",
-    crew: [
-      { name: "Alex Rivera", role: "Crew lead", hours: 2.5, payRate: 28 },
-      { name: "Sam Ortiz", role: "Crew", hours: 2.5, payRate: 22 },
-    ],
+    crew: crewMembersFor("A", "2026-06-09", 2.5),
   },
   [SEED_VISIT.riversideSched]: {
     visitId: SEED_VISIT.riversideSched,
     jobLabel: "Weekly grounds",
-    crew: [
-      { name: "Alex Rivera", role: "Crew lead", hours: 3, payRate: 28 },
-      { name: "Jordan Lee", role: "Crew", hours: 3, payRate: 22 },
-      { name: "Casey Ng", role: "Crew", hours: 3, payRate: 22 },
-    ],
+    crew: crewMembersFor("A", "2026-08-05", 3),
   },
   [SEED_VISIT.summit1]: {
     visitId: SEED_VISIT.summit1,
     jobLabel: "Retail frontage mow",
-    crew: [
-      { name: "Taylor Brooks", role: "Crew lead", hours: 4, payRate: 30 },
-      { name: "Morgan Diaz", role: "Crew", hours: 4, payRate: 22 },
-      { name: "Riley Chen", role: "Crew", hours: 4, payRate: 22 },
-    ],
+    crew: crewMembersFor("B", "2026-06-03", 4),
   },
   [SEED_VISIT.metro1]: {
     visitId: SEED_VISIT.metro1,
     jobLabel: "Pond & industrial grounds",
-    crew: [
-      { name: "Taylor Brooks", role: "Crew lead", hours: 5, payRate: 30 },
-      { name: "Morgan Diaz", role: "Crew", hours: 5, payRate: 22 },
-      { name: "Riley Chen", role: "Crew", hours: 5, payRate: 22 },
-      { name: "Jamie Park", role: "Crew", hours: 5, payRate: 22 },
-    ],
+    crew: crewMembersFor("C", "2026-06-04", 5),
   },
   [SEED_VISIT.harborSched]: {
     visitId: SEED_VISIT.harborSched,
     jobLabel: "HOA common areas",
-    crew: [
-      { name: "Sam Ortiz", role: "Crew lead", hours: 2, payRate: 26 },
-      { name: "Casey Ng", role: "Crew", hours: 2, payRate: 22 },
-    ],
+    crew: crewMembersFor("A", "2026-08-06", 2),
   },
   [SEED_VISIT.summitSched]: {
     visitId: SEED_VISIT.summitSched,
     jobLabel: "Retail maintenance",
-    crew: [
-      { name: "Taylor Brooks", role: "Crew lead", hours: 3, payRate: 30 },
-      { name: "Jordan Lee", role: "Crew", hours: 3, payRate: 22 },
-    ],
+    crew: crewMembersFor("B", "2026-08-07", 3),
   },
 };
 
@@ -196,57 +196,28 @@ export function inferJobLabel(
   return "Service visit";
 }
 
-const SAMPLE_SITES = [
-  {
-    companyName: "Riverside Office Park",
-    customerId: "11111111-1111-1111-1111-111111111101",
-    contractId: "22222222-2222-2222-2222-222222222201",
-    location: "1200 University Ave, Oxford, MS",
-    lat: 34.3702,
-    lng: -89.5251,
-    jobs: ["Mowing & edging", "Hedge trimming", "Weekly grounds", "Bed cleanup"],
-  },
-  {
-    companyName: "Summit Retail Center",
-    customerId: "11111111-1111-1111-1111-111111111102",
-    contractId: "22222222-2222-2222-2222-222222222202",
-    location: "450 Jackson Ave W, Oxford, MS",
-    lat: 34.3624,
-    lng: -89.5128,
-    jobs: ["Retail frontage mow", "Fertilization", "Retail maintenance", "Edging pass"],
-  },
-  {
-    companyName: "Harbor View HOA",
-    customerId: "11111111-1111-1111-1111-111111111103",
-    contractId: "22222222-2222-2222-2222-222222222203",
-    location: "88 South Lamar Blvd, Oxford, MS",
-    lat: 34.3756,
-    lng: -89.5084,
-    jobs: ["HOA common areas", "Entrance beds", "Bed weeding", "Leaf cleanup"],
-  },
-  {
-    companyName: "Metro Industrial Complex",
-    customerId: "11111111-1111-1111-1111-111111111104",
-    contractId: "22222222-2222-2222-2222-222222222204",
-    location: "900 Molly Barr Rd, Oxford, MS",
-    lat: 34.3558,
-    lng: -89.5302,
-    jobs: [
-      "Pond & industrial grounds",
-      "Lot perimeter mow",
-      "Detention pond check",
-      "Fence-line trim",
-    ],
-  },
-] as const;
+const SAMPLE_SITES = DEMO_SITES.map((s) => ({
+  companyName: s.companyName,
+  customerId: s.customerId,
+  contractId: `crew-${s.crew}`,
+  location: s.location,
+  lat: s.lat,
+  lng: s.lng,
+  crew: s.crew,
+  jobs: s.summerJobs,
+  winterJobs: s.winterJobs,
+}));
 
 /** Canonical Oxford, MS site addresses keyed by customer id (shared manager + crew lead). */
-export const OXFORD_CUSTOMER_ADDRESSES: Record<string, string> = Object.fromEntries(
-  SAMPLE_SITES.map((s) => [s.customerId, s.location])
-);
+export const OXFORD_CUSTOMER_ADDRESSES: Record<string, string> =
+  Object.fromEntries(DEMO_SITES.map((s) => [s.customerId, s.location]));
 
-export const OXFORD_CUSTOMER_COORDS: Record<string, { lat: number; lng: number }> =
-  Object.fromEntries(SAMPLE_SITES.map((s) => [s.customerId, { lat: s.lat, lng: s.lng }]));
+export const OXFORD_CUSTOMER_COORDS: Record<
+  string,
+  { lat: number; lng: number }
+> = Object.fromEntries(
+  DEMO_SITES.map((s) => [s.customerId, { lat: s.lat, lng: s.lng }])
+);
 
 export function oxfordAddressForCustomer(
   customerId: string,
@@ -261,46 +232,25 @@ export function oxfordAddressForCustomer(
     .replace(/,\s*TX\b/gi, ", MS");
 }
 
-const SAMPLE_CREWS: CrewMember[][] = [
-  [
-    { name: "Alex Rivera", role: "Crew lead", hours: 3, payRate: 28 },
-    { name: "Jordan Lee", role: "Crew", hours: 3, payRate: 22 },
-  ],
-  [
-    { name: "Taylor Brooks", role: "Crew lead", hours: 4, payRate: 30 },
-    { name: "Morgan Diaz", role: "Crew", hours: 4, payRate: 22 },
-    { name: "Riley Chen", role: "Crew", hours: 4, payRate: 22 },
-  ],
-  [
-    { name: "Sam Ortiz", role: "Crew lead", hours: 2.5, payRate: 26 },
-    { name: "Casey Ng", role: "Crew", hours: 2.5, payRate: 22 },
-  ],
-  [
-    { name: "Taylor Brooks", role: "Crew lead", hours: 5, payRate: 30 },
-    { name: "Jamie Park", role: "Crew", hours: 5, payRate: 22 },
-    { name: "Morgan Diaz", role: "Crew", hours: 5, payRate: 22 },
-  ],
-];
-
 const WEATHER_ROTATION: Omit<WeatherOverlay, "visitId">[] = [
   {
     label: "Rain delay",
-    detail: "Afternoon storms delayed fieldwork.",
+    detail: "Afternoon storms delayed fieldwork — make-up hours later in the week.",
     severity: "delayed",
   },
   {
     label: "Heat reschedule",
-    detail: "Heat advisory moved crew to early morning.",
+    detail: "Heat advisory moved crew to early morning (still ~40h week).",
     severity: "rescheduled",
   },
   {
     label: "Wind safety hold",
-    detail: "High winds paused trimming work.",
+    detail: "High winds paused trimming — overtime week to catch variance.",
     severity: "delayed",
   },
   {
     label: "Storm cleanup",
-    detail: "Crew cleared storm debris during the visit.",
+    detail: "Crew cleared storm debris during the visit (busy-season OT).",
     severity: "completed_response",
   },
 ];
@@ -335,12 +285,17 @@ export interface DailySampleJob {
   proof: ProofOverlay | null;
 }
 
-/** Dense demo jobs: at least one job every day from June–August 2026. */
+/**
+ * Dense demo calendar: Apr 2024 → Nov 2026.
+ * Mar–Nov = full crews; Dec–Feb = crew leads / year-round staff (leaf blow, shop).
+ * Hours track ~40h weeks with occasional ~50h busy-season OT.
+ */
 export function generateDailySampleJobs(): DailySampleJob[] {
   const jobs: DailySampleJob[] = [];
-  const start = new Date(2026, 5, 1); // June 1
-  const end = new Date(2026, 7, 31); // August 31
-  const today = new Date(2026, 7, 4); // demo "today" for completed vs pending
+  const start = new Date(2024, 3, 1); // Apr 1, 2024
+  const end = new Date(2026, 10, 30); // Nov 30, 2026
+  const [ty, tm, td] = DEMO_TODAY.split("-").map(Number);
+  const today = new Date(ty, tm - 1, td);
 
   for (
     let cursor = new Date(start);
@@ -348,14 +303,27 @@ export function generateDailySampleJobs(): DailySampleJob[] {
     cursor.setDate(cursor.getDate() + 1)
   ) {
     const dateStr = formatDateKey(cursor);
-    const dayIndex =
-      Math.floor((cursor.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    const jobsToday = dayIndex % 5 === 0 ? 2 : 1;
+    const month = cursor.getMonth() + 1;
+    const dow = cursor.getDay();
+    const winter = isWinterMonth(month);
+    const dayIndex = Math.floor(
+      (cursor.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Winter: Tue/Thu only, one job; full season: weekdays, 1–3 jobs
+    if (winter) {
+      if (dow !== 2 && dow !== 4) continue;
+    } else if (dow === 0 || dow === 6) {
+      continue;
+    }
+
+    const jobsToday = winter ? 1 : dayIndex % 5 === 0 ? 3 : dayIndex % 3 === 0 ? 2 : 1;
 
     for (let slot = 0; slot < jobsToday; slot++) {
       const site = SAMPLE_SITES[(dayIndex + slot) % SAMPLE_SITES.length];
-      const jobLabel = site.jobs[(dayIndex + slot) % site.jobs.length];
-      const crew = SAMPLE_CREWS[(dayIndex + slot) % SAMPLE_CREWS.length];
+      const catalog = winter ? site.winterJobs : site.jobs;
+      const jobLabel = catalog[(dayIndex + slot) % catalog.length];
+      const crew = crewMembersFor(site.crew, dateStr);
       const visitId = `demo-day-${dateStr}-${slot}`;
       const isPast = cursor < today;
       const status: "scheduled" | "completed" = isPast ? "completed" : "scheduled";
@@ -363,25 +331,25 @@ export function generateDailySampleJobs(): DailySampleJob[] {
       const costTotal = Math.round(pay * (status === "completed" ? 1.15 : 0));
 
       let weather: WeatherOverlay | null = null;
-      if (dayIndex % 7 === 3 && slot === 0) {
+      if (!winter && dayIndex % 11 === 3 && slot === 0) {
         const template = WEATHER_ROTATION[dayIndex % WEATHER_ROTATION.length];
         weather = { visitId, ...template };
       }
 
       let proof: ProofOverlay | null = null;
-      if (status === "completed" && dayIndex % 3 === 0 && slot === 0) {
+      if (status === "completed" && dayIndex % 5 === 0 && slot === 0) {
         proof = {
           visitId,
           arrival: "Crew arrival photo",
           before: `${jobLabel} before`,
           after: `${jobLabel} after`,
           submittedAt: `${dateStr}T16:00:00.000Z`,
-          acknowledged: dayIndex % 6 === 0,
+          acknowledged: dayIndex % 10 === 0,
           beforeImage: PROOF_IMAGES.before,
           afterImage: PROOF_IMAGES.after,
-          concernImage: dayIndex % 6 === 0 ? PROOF_IMAGES.concern : undefined,
+          concernImage: dayIndex % 10 === 0 ? PROOF_IMAGES.concern : undefined,
           concernLabel:
-            dayIndex % 6 === 0
+            dayIndex % 10 === 0
               ? "Potential concern — dry edge near curb"
               : "Potential concern — none noted",
         };
@@ -391,7 +359,9 @@ export function generateDailySampleJobs(): DailySampleJob[] {
         visitId,
         companyName: site.companyName,
         location: site.location,
-        jobLabel,
+        jobLabel: winter
+          ? `${jobLabel} (${crewLabel(site.crew)} winter)`
+          : jobLabel,
         date: dateStr,
         status,
         crew,
@@ -405,4 +375,3 @@ export function generateDailySampleJobs(): DailySampleJob[] {
 
   return jobs;
 }
-

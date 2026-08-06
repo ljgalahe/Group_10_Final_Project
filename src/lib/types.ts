@@ -254,4 +254,4 @@ export const DEMO_CREW_MEMBER = {
   roleTitle: "Crew Member",
 } as const;
 
-export const DEMO_CREW_LEAD_NAME = "Morgan Hale";
+export const DEMO_CREW_LEAD_NAME = "Alex Rivera";

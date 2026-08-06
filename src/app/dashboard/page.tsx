@@ -537,7 +537,12 @@ export default async function DashboardPage({
             <h2 className="mb-4 text-lg font-semibold text-green-950">
               Crew Lead Quick Actions
             </h2>
-            <CrewLeadQuickActions />
+            <CrewLeadQuickActions
+              todaysJobs={scheduleJobs.filter(
+                (job) =>
+                  job.scheduledDate === today && job.status !== "cancelled"
+              )}
+            />
           </Card>
         </div>
       ) : null}

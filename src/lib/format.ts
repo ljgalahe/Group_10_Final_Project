@@ -1,8 +1,9 @@
 export function formatCurrency(amount: number) {
+  const value = Number(amount);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-  }).format(amount);
+  }).format(Number.isFinite(value) ? value : 0);
 }
 
 export function formatDate(dateStr: string) {

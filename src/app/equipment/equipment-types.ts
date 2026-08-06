@@ -1,5 +1,6 @@
 export const EQUIPMENT_CATEGORIES = [
   "Mowers",
+  "Trucks",
   "Trucks/Trailers",
   "Trailers",
   "Irrigation tools",

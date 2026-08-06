@@ -1,5 +1,6 @@
-﻿import type { ScheduleJob } from "@/components/crew-lead/schedule-types";
+import type { ScheduleJob } from "@/components/crew-lead/schedule-types";
 import { customerNotesForCrew } from "@/lib/customer-notes";
+import { DEMO_SITES } from "@/lib/demo-org";
 import {
   OXFORD_CUSTOMER_COORDS,
   generateDailySampleJobs,
@@ -88,28 +89,23 @@ function sampleJobsAsScheduleJobs(existing: ScheduleJob[]): ScheduleJob[] {
     existing.map((j) => `${j.scheduledDate}::${j.customerName}`)
   );
   const siteByCompany = new Map(
-    [
+    DEMO_SITES.map((s) => [
+      s.companyName,
       {
-        companyName: "Riverside Office Park",
-        customerId: "11111111-1111-1111-1111-111111111101",
-        contractId: "22222222-2222-2222-2222-222222222201",
+        companyName: s.companyName,
+        customerId: s.customerId,
+        contractId:
+          s.customerId === "11111111-1111-1111-1111-111111111101"
+            ? "22222222-2222-2222-2222-222222222201"
+            : s.customerId === "11111111-1111-1111-1111-111111111102"
+              ? "22222222-2222-2222-2222-222222222202"
+              : s.customerId === "11111111-1111-1111-1111-111111111103"
+                ? "22222222-2222-2222-2222-222222222203"
+                : s.customerId === "11111111-1111-1111-1111-111111111104"
+                  ? "22222222-2222-2222-2222-222222222204"
+                  : s.customerId,
       },
-      {
-        companyName: "Summit Retail Center",
-        customerId: "11111111-1111-1111-1111-111111111102",
-        contractId: "22222222-2222-2222-2222-222222222202",
-      },
-      {
-        companyName: "Harbor View HOA",
-        customerId: "11111111-1111-1111-1111-111111111103",
-        contractId: "22222222-2222-2222-2222-222222222203",
-      },
-      {
-        companyName: "Metro Industrial Complex",
-        customerId: "11111111-1111-1111-1111-111111111104",
-        contractId: "22222222-2222-2222-2222-222222222204",
-      },
-    ].map((s) => [s.companyName, s] as const)
+    ] as const)
   );
 
   return generateDailySampleJobs()
