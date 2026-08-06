@@ -229,7 +229,7 @@ export function AccountantVisitsView({
     "all" | "ready_to_invoice" | "already_invoiced" | "journal_ready"
   >("all");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
-  const [visitsListOpen, setVisitsListOpen] = useState(true);
+  const [visitsListOpen, setVisitsListOpen] = useState(false);
   const today = todayIso;
   const todayVisits = visits.filter((visit) => visit.scheduled_date === today);
 
@@ -404,7 +404,7 @@ export function AccountantVisitsView({
         <p className="mb-3 text-sm font-semibold text-green-950">
           Accounting Metrics
         </p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+        <div className="gs-kpi-grid">
           <StatCard
             label="Today's Visits"
             value={todayVisits.length || summaryVisits}

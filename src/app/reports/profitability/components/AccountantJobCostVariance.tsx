@@ -111,7 +111,7 @@ export function AccountantJobCostVariance({
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="gs-kpi-grid sm:!grid-cols-2">
         <StatCard
           label="Jobs over quote"
           value={`${report.jobsOverQuote} / ${report.jobsWithCosts}`}
@@ -120,13 +120,16 @@ export function AccountantJobCostVariance({
         <button
           type="button"
           onClick={() => setMarginLeakedOpen(true)}
-          className="rounded-xl border border-stone-200 bg-stone-50 p-5 text-left shadow-sm transition hover:border-red-400 hover:ring-2 hover:ring-red-700/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700/30"
+          className="gs-kpi-tile gs-kpi-tile--interactive gs-kpi-tile--danger"
         >
-          <p className="text-sm font-medium text-stone-500">Margin leaked</p>
-          <p className="mt-2 gs-metric-value text-3xl text-red-800">
+          <p className="gs-kpi-label">Margin leaked</p>
+          <p
+            className="gs-metric-value gs-kpi-value text-red-800"
+            title={formatCurrency(report.totalOverrun)}
+          >
             {formatCurrency(report.totalOverrun)}
           </p>
-          <p className="mt-1 text-xs text-red-800/80">
+          <p className="gs-kpi-hint text-red-800/80">
             Click to see why margin leaked
           </p>
         </button>

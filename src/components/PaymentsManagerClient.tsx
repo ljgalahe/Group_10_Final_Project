@@ -210,7 +210,7 @@ export function PaymentsManagerClient({
             Payment Dashboard
           </h2>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="gs-kpi-grid">
           <DashboardStatCard
             label="Total Payments This Month"
             value={formatCurrency(summary.collectedThisMonth)}
@@ -816,10 +816,15 @@ function DashboardStatCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-medium text-stone-500">{label}</p>
-      <p className="mt-2 gs-metric-value text-3xl text-green-900">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-stone-400">{hint}</p> : null}
+    <div className="gs-kpi-tile">
+      <p className="gs-kpi-label">{label}</p>
+      <p
+        className="gs-metric-value gs-kpi-value text-green-900"
+        title={String(value)}
+      >
+        {value}
+      </p>
+      {hint ? <p className="gs-kpi-hint">{hint}</p> : null}
     </div>
   );
 }
