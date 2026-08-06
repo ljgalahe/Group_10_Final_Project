@@ -1,29 +1,28 @@
 import { redirect } from "next/navigation";
-import { backfillDepreciationJournals } from "@/app/actions/journal";
 import { AppShell } from "@/components/AppShell";
 import { PageHeader } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
 import { getViewRole, roleCanViewEquipment } from "@/lib/demo-role";
 import { EquipmentReport } from "./EquipmentReport";
-import {
-  fetchCompletedVisitsForEquipment,
-  fetchEquipment,
-  fetchEquipmentUsage,
-} from "./queries";
+import { loadEquipmentPageData } from "./queries";
 
-export default async function EquipmentPage() {
+type PageProps = {
+  searchParams: Promise<{ from?: string; to?: string }>;
+};
+
+export default async function EquipmentPage({ searchParams }: PageProps) {
   await requireAppAccess();
 
   const role = await getViewRole();
   if (!roleCanViewEquipment(role)) redirect("/dashboard");
 
-  await backfillDepreciationJournals();
+  const params = await searchParams;
+  const dateFrom = typeof params.from === "string" ? params.from : "";
+  const dateTo = typeof params.to === "string" ? params.to : "";
 
-  const [assets, usage, visits] = await Promise.all([
-    fetchEquipment(),
-    fetchEquipmentUsage(),
-    fetchCompletedVisitsForEquipment(),
-  ]);
+  // Depreciation journals are posted when hours are logged (not on every page load).
+  const { report, usage, visits, companyRevenueInView } =
+    await loadEquipmentPageData({ dateFrom, dateTo });
 
   return (
     <AppShell>
@@ -32,9 +31,12 @@ export default async function EquipmentPage() {
         description="Fixed assets with unit-of-production depreciation. Job revenue is split across equipment by hours (or evenly when hours are missing)."
       />
       <EquipmentReport
-        report={assets}
+        report={report}
         usage={usage}
         visits={visits}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        companyRevenueInView={companyRevenueInView}
       />
     </AppShell>
   );
