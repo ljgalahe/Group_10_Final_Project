@@ -59,7 +59,11 @@ export function ContractDualApprovalPanel({
         <li className="text-stone-600">
           State:{" "}
           <span className="font-medium text-green-950">
-            {approvalState ?? "approved"}
+            {approvalState === "pending_approvals"
+              ? "Waiting For Approval"
+              : approvalState === "changes_requested"
+                ? "Changes Requested"
+                : (approvalState ?? "approved")}
           </span>
         </li>
       </ul>

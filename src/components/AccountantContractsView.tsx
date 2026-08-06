@@ -8,6 +8,7 @@ import {
   rejectContractChangeRequest,
 } from "@/app/actions/business";
 import {
+  getContractDisplayStatus,
   getContractEndDate,
   getRenewalStatus,
   type RenewalStatus,
@@ -620,7 +621,9 @@ export function AccountantContractsView({
                           : "—"}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={contract.status} />
+                        <StatusBadge
+                          status={getContractDisplayStatus(contract)}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={renewal} />

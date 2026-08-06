@@ -22,15 +22,46 @@ type TabFilter = "all" | "announcement" | "direct" | "fyi" | "question";
 /** Must match VIEW_ROLE_COOKIE in demo-role.ts (avoid importing that server module here). */
 const VIEW_ROLE_COOKIE = "greenscape_view_role";
 
-function clientChatAuthorId(): string {
+function clientViewRole(): string {
   if (typeof document === "undefined") return "manager";
   const match = document.cookie.match(
     new RegExp(`(?:^|; )${VIEW_ROLE_COOKIE}=([^;]*)`)
   );
-  const role = match ? decodeURIComponent(match[1]) : "manager";
+  return match ? decodeURIComponent(match[1]) : "manager";
+}
+
+/** Manager + Operations share staff-directory DM / board compose (lead authors). */
+function isLeadChatAuthor(personId: string) {
+  return personId === "manager" || personId === "operations";
+}
+
+/**
+ * Who each role may start a direct chat with (Manager directory mirrored for Ops).
+ * Crew roles: Manager + Operations only; Ops/Manager: full demo directory except self.
+ */
+function allowedDmPeople(selfId: string, role: string) {
+  const others = CHAT_PEOPLE.filter((p) => p.id !== selfId);
+  if (role === "crew_lead" || role === "crew_member") {
+    return others.filter((p) => p.id === "manager" || p.id === "operations");
+  }
+  if (role === "accountant") {
+    return others.filter(
+      (p) =>
+        p.id === "manager" ||
+        p.id === "operations" ||
+        p.role === "Crew lead"
+    );
+  }
+  // manager + operations: same directory (everyone except self)
+  return others;
+}
+
+function clientChatAuthorId(): string {
+  const role = clientViewRole();
   if (role === "crew_lead") return DEFAULT_CREW_LEAD_PERSON_ID;
   if (role === "crew_member") return "jordan-lee";
   if (role === "accountant") return "accountant";
+  if (role === "operations") return "operations";
   return "manager";
 }
 
@@ -102,7 +133,7 @@ export function ChatWorkspace({
   useEffect(() => {
     const authorId = clientChatAuthorId();
     setSelfId(authorId);
-    if (authorId !== "manager") {
+    if (!isLeadChatAuthor(authorId) || authorId === "operations") {
       setDmPersonId("manager");
     }
     refresh();
@@ -370,7 +401,7 @@ export function ChatWorkspace({
               onChange={(e) => setDmPersonId(e.target.value)}
               className="w-full rounded-md border border-stone-300 px-3 py-2"
             >
-              {CHAT_PEOPLE.filter((p) => p.id !== selfId).map((p) => (
+              {allowedDmPeople(selfId, clientViewRole()).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} · {p.role}
                 </option>

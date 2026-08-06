@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { getRenewalStatus, type RenewalStatus } from "@/lib/contract-status";
+import {
+  getContractDisplayStatus,
+  getRenewalStatus,
+  type RenewalStatus,
+} from "@/lib/contract-status";
 import { EmptyState, StatusBadge } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { Contract, ContractStatus } from "@/lib/types";
@@ -280,7 +284,9 @@ export function ContractsTable({
                       {contract.visits_per_week ?? "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={contract.status} />
+                      <StatusBadge
+                        status={getContractDisplayStatus(contract)}
+                      />
                     </td>
                     {showFilters ? (
                       <>

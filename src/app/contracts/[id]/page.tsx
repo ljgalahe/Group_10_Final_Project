@@ -17,6 +17,10 @@ import {
   buildScopeCreepAlerts,
 } from "@/lib/contract-controls";
 import {
+  getContractDisplayStatus,
+  isContractFullyApproved,
+} from "@/lib/contract-status";
+import {
   getViewRole,
   roleCanEditContractDetails,
   roleCanManageBilling,
@@ -62,8 +66,11 @@ export default async function ContractDetailPage({
   if (!contract) notFound();
 
   if (role === "customer") {
-    const state = (contract as { approval_state?: string | null }).approval_state;
-    if (state && state !== "approved") {
+    if (
+      !isContractFullyApproved(
+        contract as { approval_state?: string | null }
+      )
+    ) {
       redirect("/contracts");
     }
   }
@@ -192,7 +199,7 @@ export default async function ContractDetailPage({
               <div className="flex justify-between gap-4">
                 <dt className="text-stone-500">Status</dt>
                 <dd>
-                  <StatusBadge status={contract.status} />
+                  <StatusBadge status={getContractDisplayStatus(contract)} />
                 </dd>
               </div>
               <div className="flex justify-between gap-4">

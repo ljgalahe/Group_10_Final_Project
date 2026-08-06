@@ -39,6 +39,7 @@ const THREADS_KEY = "greenscape-chat-threads";
 
 export const CHAT_PEOPLE: ChatPerson[] = [
   { id: "manager", name: "Morgan Hale", role: "Manager", initials: "MH" },
+  { id: "operations", name: "Casey Quinn", role: "Operations", initials: "CQ" },
   { id: "alex-rivera", name: "Alex Rivera", role: "Crew lead", initials: "AR" },
   { id: "taylor-brooks", name: "Taylor Brooks", role: "Crew lead", initials: "TB" },
   { id: "sam-ortiz", name: "Sam Ortiz", role: "Crew lead", initials: "SO" },

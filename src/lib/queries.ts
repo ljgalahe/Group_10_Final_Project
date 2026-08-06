@@ -1,4 +1,5 @@
 import { createDataClient } from "@/lib/auth-access";
+import { isContractFullyApproved } from "@/lib/contract-status";
 import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
 import {
   JOURNAL_SOURCE_LABELS,
@@ -40,11 +41,10 @@ export async function fetchContracts() {
   const { data, error } = await query;
   let rows = data ?? [];
   if (customerId) {
-    rows = rows.filter((c) => {
-      const state = (c as { approval_state?: string | null }).approval_state;
-      if (!state || state === "approved") return true;
-      return false;
-    });
+    // Dual-approval gate: customers only see fully approved contracts.
+    rows = rows.filter((c) =>
+      isContractFullyApproved(c as { approval_state?: string | null })
+    );
   }
   return { data: rows, error };
 }
