@@ -73,6 +73,7 @@ export function StatusBadge({ status }: { status: string }) {
     completed: "bg-green-100 text-green-800",
     cancelled: "bg-gray-100 text-gray-800",
     rescheduled: "bg-orange-100 text-orange-800",
+    closed: "bg-stone-200 text-stone-800",
     approved: "bg-green-100 text-green-800",
     quoted: "bg-purple-100 text-purple-800",
     routine: "bg-stone-100 text-stone-700",

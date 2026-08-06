@@ -17,8 +17,18 @@ const navItems = [
     ],
   },
   {
+    href: "/inquiries",
+    label: "Home",
+    roles: ["inquiries"],
+  },
+  {
     href: "/quotes",
     label: "Quotes",
+    roles: ["operations"],
+  },
+  {
+    href: "/ops/inquiries",
+    label: "Inquiries",
     roles: ["operations"],
   },
   {

@@ -14,6 +14,8 @@ export const SEED_VISIT = {
   riverside1: "33333333-3333-3333-3333-333333333301",
   riverside2: "33333333-3333-3333-3333-333333333302",
   riversideSched: "33333333-3333-3333-3333-333333333303",
+  /** Customer demo: weather-rescheduled Riverside grounds visit */
+  riversideWeatherReschedule: "33333333-3333-3333-3333-333333333320",
   summit1: "33333333-3333-3333-3333-333333333304",
   metro1: "33333333-3333-3333-3333-333333333305",
   harborSched: "33333333-3333-3333-3333-333333333306",
@@ -107,6 +109,13 @@ export const SCHEDULE_CREW: Record<string, ScheduleOverlay> = {
 };
 
 export const WEATHER_EVENTS: WeatherOverlay[] = [
+  {
+    visitId: SEED_VISIT.riversideWeatherReschedule,
+    label: "Storm reschedule",
+    detail:
+      "Severe thunderstorms and lightning safety moved Riverside weekly grounds; now first on the open schedule.",
+    severity: "rescheduled",
+  },
   {
     visitId: SEED_VISIT.riversideSched,
     label: "Rain delay",
