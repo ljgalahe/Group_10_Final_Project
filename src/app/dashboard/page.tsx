@@ -1,6 +1,5 @@
 import { buildInvoiceListItem } from "@/app/invoices/lib/build-invoice-list-item";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
@@ -217,10 +216,6 @@ export default async function DashboardPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  // Inquiries is a prospect start page only — never the internal KPI dashboard.
-  if (role === "inquiries") {
-    redirect("/inquiries");
-  }
   // Managers load invoices/visits below for KPIs — no shared staff stats strip.
   const accountantDashboard =
     role === "accountant" ? await fetchAccountantDashboardData() : null;

@@ -22,7 +22,7 @@ export function AccountantPaymentsSection({
   paymentJournalStates,
 }: {
   payments: AccountantPayment[];
-  paymentJournalStates: Map<string, JournalStatus>;
+  paymentJournalStates: Map<string, JournalStatus | null>;
 }) {
   return (
     <details className="group mt-8 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
