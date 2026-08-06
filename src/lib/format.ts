@@ -54,6 +54,11 @@ export function getDisplayInvoiceStatus(
     return "disputed";
   }
 
+  // Customers shouldn't see internal "draft" / "sent" workflow labels.
+  if (forCustomer && status === "draft") {
+    return "upcoming";
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(dueDate + "T00:00:00");
@@ -65,17 +70,11 @@ export function getDisplayInvoiceStatus(
     return "partial";
   }
 
-  // Customers shouldn't see internal "draft" / "sent" workflow labels.
-  if (forCustomer && status === "draft") {
-    return "upcoming";
-  }
   if (forCustomer && status === "sent") {
-    // Due date is today (past due already handled above).
     if (due.getTime() === today.getTime()) {
       return "due_now";
     }
-    // Issued but not yet due.
-    return "open";
+    return "in_progress";
   }
 
   return status;

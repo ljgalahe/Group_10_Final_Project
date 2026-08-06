@@ -80,15 +80,22 @@ function buildReceiptPdf(data: InvoiceReceiptData) {
   doc.setFont("helvetica", "normal");
   for (const payment of data.payments) {
     let methodLabel = payment.payment_method.trim();
+    const normalized = methodLabel.toLowerCase();
     if (/simulated/i.test(methodLabel)) {
       methodLabel =
         methodLabel
           .replace(/simulated[_ ]?/gi, "")
           .replaceAll("_", " ")
-          .trim() || "Card ending in 4242";
-      if (methodLabel.toLowerCase() === "card") {
-        methodLabel = "Card ending in 4242";
-      }
+          .trim() || "Card payment";
+    }
+    if (normalized === "card" || methodLabel.toLowerCase() === "card") {
+      methodLabel = "Card payment";
+    } else if (normalized === "ach") {
+      methodLabel = "ACH bank transfer";
+    } else if (normalized === "bank_transfer") {
+      methodLabel = "Bank transfer";
+    } else if (normalized === "check") {
+      methodLabel = "Check";
     }
     doc.text(
       `${formatDate(payment.payment_date)} · ${methodLabel}`,

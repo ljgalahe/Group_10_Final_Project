@@ -860,8 +860,10 @@ export async function getOpenInvoicesForCustomer(customerId: string) {
   return { data, error: error?.message ?? null };
 }
 
-export async function customerPayInvoice(formData: FormData): Promise<void> {
-  const invoiceId = formData.get("invoice_id") as string;
+export async function customerPayInvoice(
+  formData: FormData
+): Promise<{ success: boolean; error?: string }> {
+  const invoiceId = String(formData.get("invoice_id") ?? "").trim();
   const methodId = ((formData.get("payment_method_id") as string) || "").trim();
   const isNew = formData.get("is_new_method") === "1";
   const newNickname = ((formData.get("new_method_nickname") as string) || "").trim();
@@ -869,6 +871,10 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
   const requestedAmount = parseFloat(
     (formData.get("amount") as string) || ""
   );
+
+  if (!invoiceId) {
+    return { success: false, error: "Invoice is required." };
+  }
 
   const supabase = await createDataClient();
   const role = await getViewRole();
@@ -881,23 +887,35 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
     .eq("id", invoiceId)
     .single();
 
-  if (!invoice) return;
+  if (!invoice) {
+    return { success: false, error: "Invoice not found." };
+  }
 
   // Customers may only pay their own invoices
-  if (customerId && invoice.customer_id !== customerId) return;
+  if (customerId && invoice.customer_id !== customerId) {
+    return { success: false, error: "You can only pay your own invoices." };
+  }
 
   const balance = Number(invoice.total) - Number(invoice.amount_paid);
-  if (balance <= 0) return;
+  if (balance <= 0) {
+    return { success: false, error: "This invoice is already paid." };
+  }
 
   // Default to full balance if amount missing; allow any amount up to balance
   let payAmount = Number.isFinite(requestedAmount)
     ? requestedAmount
     : balance;
   payAmount = Math.round(payAmount * 100) / 100;
-  if (payAmount <= 0 || payAmount > balance + 0.001) return;
+  if (payAmount <= 0 || payAmount > balance + 0.001) {
+    return {
+      success: false,
+      error: `Enter an amount between $0.01 and $${balance.toFixed(2)}.`,
+    };
+  }
   payAmount = Math.min(payAmount, balance);
 
   let paymentMethodLabel = "Card ending in 4242";
+  let paymentMethodValue: "card" | "ach" | "bank_transfer" | "check" = "card";
 
   if (isNew && customerId) {
     const methodTypeRaw = (
@@ -923,7 +941,12 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
       methodType
     );
     const lastFour = extractLastFour(newDetails);
-    if (!displayLabel || !lastFour) return;
+    if (!displayLabel || !lastFour) {
+      return {
+        success: false,
+        error: "Enter a valid card or account number for the new payment method.",
+      };
+    }
 
     const validExpMonth =
       Number.isFinite(expMonth) && expMonth >= 1 && expMonth <= 12;
@@ -956,34 +979,48 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
         expires_year: methodType === "card" && validExpYear ? expYear : null,
         is_default: makeDefault || isFirst,
       })
-      .select("display_label")
+      .select("display_label, method_type")
       .single();
 
-    if (error || !saved) return;
+    if (error || !saved) {
+      return {
+        success: false,
+        error: error?.message || "Could not save the new payment method.",
+      };
+    }
     paymentMethodLabel = saved.display_label;
+    paymentMethodValue = saved.method_type === "bank" ? "ach" : "card";
   } else if (methodId && customerId) {
     const { data: method } = await supabase
       .from("customer_payment_methods")
-      .select("display_label")
+      .select("display_label, method_type")
       .eq("id", methodId)
       .eq("customer_id", customerId)
       .single();
 
-    if (!method) return;
+    if (!method) {
+      return { success: false, error: "Choose a valid payment method." };
+    }
     paymentMethodLabel = method.display_label;
+    paymentMethodValue = method.method_type === "bank" ? "ach" : "card";
   } else if (methodId) {
     const { data: method } = await supabase
       .from("customer_payment_methods")
-      .select("display_label")
+      .select("display_label, method_type")
       .eq("id", methodId)
       .single();
-    if (method) paymentMethodLabel = method.display_label;
+    if (method) {
+      paymentMethodLabel = method.display_label;
+      paymentMethodValue = method.method_type === "bank" ? "ach" : "card";
+    }
+  } else if (isNew) {
+    return { success: false, error: "Sign in as a customer to add a payment method." };
   }
 
   const paymentFormData = new FormData();
   paymentFormData.set("invoice_id", invoiceId);
   paymentFormData.set("amount", payAmount.toFixed(2));
-  paymentFormData.set("payment_method", "card");
+  paymentFormData.set("payment_method", paymentMethodValue);
   paymentFormData.set("payment_date", new Date().toISOString().slice(0, 10));
   paymentFormData.set(
     "notes",
@@ -993,11 +1030,19 @@ export async function customerPayInvoice(formData: FormData): Promise<void> {
   );
   paymentFormData.set("reference_number", "CUSTOMER-PORTAL");
 
-  await recordPayment(paymentFormData);
+  const result = await recordPayment(paymentFormData);
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error || "Payment could not be recorded.",
+    };
+  }
+
   revalidatePath(`/invoices/${invoiceId}`);
   revalidatePath("/invoices");
   revalidatePath("/dashboard");
   revalidatePath("/profile");
+  return { success: true };
 }
 
 /** Persist hub actions on the related contract notes (invoices have no notes column in v1). */
