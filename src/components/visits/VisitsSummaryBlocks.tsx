@@ -86,7 +86,7 @@ export function VisitsSummaryBlocks({
     <div className="space-y-6">
       <Card>
         <h3 className="text-lg font-semibold text-green-950">
-          Work completed vs pending
+          Work Completed vs Pending
         </h3>
         <p className="mt-1 text-sm text-stone-500">
           Search to filter the pie, or click Completed / Pending for the full
@@ -103,14 +103,14 @@ export function VisitsSummaryBlocks({
       <div className="grid gap-4 sm:grid-cols-2">
         <JumpStatCard
           href="#weather-affected"
-          label="Weather affected"
+          label="Weather Affected"
           value={weatherCount}
           hint="Delayed, rescheduled, or weather response"
           tone="sky"
         />
         <div className="rounded-xl border border-green-800 bg-gradient-to-br from-green-50 to-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-green-800">
-            Period total
+            Period Total
           </p>
           <p className="mt-2 text-3xl font-bold text-green-950">
             {formatCurrency(payTotal)}
@@ -146,7 +146,7 @@ export function VisitsSummaryBlocks({
 
       <Card id="weather-affected" className="scroll-mt-24">
         <h3 className="text-lg font-semibold text-green-950">
-          Weather affected
+          Weather Affected
         </h3>
         <p className="mt-1 text-sm text-stone-500">
           Search, then choose a weather category to review company details.

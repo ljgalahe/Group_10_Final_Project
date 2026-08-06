@@ -47,7 +47,7 @@ export default async function QuoteDetailPage({
   return (
     <AppShell>
       <PageHeader
-        title="Quote request"
+        title="Quote Request"
         description={`${customer?.name ?? "Customer"} · received ${formatDate(quote.created_at.slice(0, 10))}`}
       />
 
@@ -91,7 +91,7 @@ export default async function QuoteDetailPage({
               </dd>
             </div>
             <div>
-              <dt className="text-stone-500">Services requested</dt>
+              <dt className="text-stone-500">Services Requested</dt>
               <dd className="text-stone-800">{quote.service_description}</dd>
             </div>
             {quote.notes ? (
@@ -105,13 +105,16 @@ export default async function QuoteDetailPage({
 
         <Card>
           <h2 className="text-lg font-semibold text-green-950">
-            Schedule site survey
+            1. Site Survey (Operations)
           </h2>
           <p className="mt-1 text-sm text-stone-600">
-            Send a hired lead to the site to plan services, hours, and supplies.
+            Operations goes to the client site first to observe the property and
+            gather information, then returns to budget hours/supplies and draft
+            the quote. Manager does not own this step.
           </p>
           <form action={scheduleSurveyVisit} className="mt-4 space-y-3">
             <input type="hidden" name="quote_id" value={quote.id} />
+            <input type="hidden" name="crew_lead_name" value="Operations" />
             <label className="block text-sm">
               <span className="text-stone-600">Survey date</span>
               <input
@@ -123,37 +126,40 @@ export default async function QuoteDetailPage({
               />
             </label>
             <label className="block text-sm">
-              <span className="text-stone-600">Crew Lead</span>
-              <select
-                name="crew_lead_name"
+              <span className="text-stone-600">
+                Property observations (optional)
+              </span>
+              <textarea
+                name="site_observations"
+                rows={3}
                 className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2"
-                defaultValue={DEMO_CREW_LEADS[0]}
-              >
-                {DEMO_CREW_LEADS.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+                placeholder="Site conditions, access notes, scope observations…"
+                defaultValue={quote.notes ?? ""}
+              />
             </label>
             <button
               type="submit"
               className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
             >
-              Schedule survey visit
+              Schedule Ops site survey
             </button>
           </form>
           {quote.survey_visit_id ? (
             <p className="mt-3 text-xs text-stone-500">
-              Survey visit id: {quote.survey_visit_id}
+              Survey visit scheduled (id: {quote.survey_visit_id}). Status:{" "}
+              <StatusBadge status={String(quote.status)} />
             </p>
           ) : null}
         </Card>
 
         <Card>
           <h2 className="text-lg font-semibold text-green-950">
-            Budget hours &amp; supplies
+            2. Budget Hours &amp; Supplies
           </h2>
+          <p className="mt-1 text-sm text-stone-600">
+            After the site survey, turn observations into planned hours and
+            materials for the customer quote.
+          </p>
           <form action={saveQuoteBudget} className="mt-4 space-y-3">
             <input type="hidden" name="quote_id" value={quote.id} />
             <label className="block text-sm">
@@ -188,10 +194,11 @@ export default async function QuoteDetailPage({
 
         <Card>
           <h2 className="text-lg font-semibold text-green-950">
-            Draft contract
+            3. Draft Contract (Quote)
           </h2>
           <p className="mt-1 text-sm text-stone-600">
-            Creates a draft for Manager and Accountant approval before the customer sees it.
+            Operations creates the draft quote/contract; Manager and Accountant
+            approve before the customer sees it.
           </p>
           {quote.draft_contract_id ? (
             <p className="mt-4 text-sm">

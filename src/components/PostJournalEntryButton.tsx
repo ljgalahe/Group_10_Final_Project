@@ -49,7 +49,7 @@ export function PostJournalEntryButton({
           href="/reports/journal-entries"
           className="text-xs font-medium text-green-800 hover:underline"
         >
-          Edit journal entry
+          Edit Journal Entry
         </Link>
       </div>
     );

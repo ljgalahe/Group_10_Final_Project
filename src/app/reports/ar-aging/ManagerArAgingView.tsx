@@ -98,7 +98,7 @@ export function ManagerArAgingView({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <AgingSection
-          title="Current (not yet due)"
+          title="Current (Not Yet Due)"
           invoices={buckets.current ?? []}
         />
         <AgingSection

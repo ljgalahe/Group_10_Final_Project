@@ -85,6 +85,8 @@ export function StatusBadge({ status }: { status: string }) {
     emergency: "bg-red-100 text-red-800",
     seasonal: "bg-blue-100 text-blue-800",
     pending: "bg-amber-100 text-amber-900",
+    waiting_for_approval: "bg-amber-100 text-amber-900",
+    changes_requested: "bg-orange-100 text-orange-900",
     current: "bg-green-100 text-green-800",
     expiring: "bg-amber-100 text-amber-900",
     expired: "bg-red-100 text-red-800",

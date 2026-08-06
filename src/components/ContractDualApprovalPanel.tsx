@@ -37,7 +37,7 @@ export function ContractDualApprovalPanel({
   return (
     <Card>
       <h2 className="text-lg font-semibold text-green-950">
-        Dual approval (Manager + Accountant)
+        Dual Approval (Manager + Accountant)
       </h2>
       <p className="mt-1 text-sm text-stone-600">
         Operations drafts the contract. Both Manager and Accountant must approve
@@ -59,7 +59,11 @@ export function ContractDualApprovalPanel({
         <li className="text-stone-600">
           State:{" "}
           <span className="font-medium text-green-950">
-            {approvalState ?? "approved"}
+            {approvalState === "pending_approvals"
+              ? "Waiting For Approval"
+              : approvalState === "changes_requested"
+                ? "Changes Requested"
+                : (approvalState ?? "approved")}
           </span>
         </li>
       </ul>

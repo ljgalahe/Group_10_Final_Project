@@ -140,7 +140,7 @@ export function PortfolioProgressChart({
         <div className="flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
           <div>
             <p className="font-medium text-stone-800">At risk / behind</p>
-            <p className="text-xs text-stone-500">Needs attention</p>
+            <p className="text-xs text-stone-500">Needs Attention</p>
           </div>
           <p className="font-semibold text-red-800">{atRisk}</p>
         </div>

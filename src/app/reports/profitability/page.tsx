@@ -195,7 +195,7 @@ export default async function ProfitabilityPage({
 
       <Card className="mt-8">
         <h2 className="text-lg font-semibold text-green-950">
-          How to read this report
+          How to Read This Report
         </h2>
         <p className="mt-2 text-sm text-stone-600">
           <strong>Revenue</strong> comes from invoices billed on each contract.

@@ -35,14 +35,16 @@ export async function requestServiceQuote(formData: FormData): Promise<void> {
 
   const supabase = await createDataClient();
   let relatedContractId: string | null = null;
-  let propertyAddress: string | null = null;
 
   const { data: customer } = await supabase
     .from("customers")
-    .select("address")
+    .select("name, address, contact_name, contact_email, contact_phone")
     .eq("id", customerId)
     .maybeSingle();
-  propertyAddress = customer?.address ?? null;
+
+  if (!customer) {
+    redirect("/request-quote?error=1");
+  }
 
   if (contractId) {
     const { data: contract } = await supabase
@@ -56,34 +58,60 @@ export async function requestServiceQuote(formData: FormData): Promise<void> {
     }
   }
 
-  const { error } = await supabase.from("quote_requests").insert({
-    customer_id: customerId,
-    service_description: serviceDescription,
-    notes: notes || null,
-    related_contract_id: relatedContractId,
-    property_address: propertyAddress,
-    status: "new",
+  // Route existing-client service requests through Ops Inquiries so Ops
+  // creates the quote there (Quotes remains the status list after creation).
+  const inquiryMessage = [
+    `Existing client new service request: ${serviceDescription}`,
+    notes ? `Notes: ${notes}` : null,
+    relatedContractId ? `Related contract: ${relatedContractId}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const { error } = await supabase.from("inquiries").insert({
+    company_name: customer.name,
+    contact_name: customer.contact_name?.trim() || customer.name,
+    contact_email:
+      customer.contact_email?.trim() || `customer-${customerId.slice(0, 8)}@greenscape.demo`,
+    contact_phone: customer.contact_phone || null,
+    property_address: customer.address?.trim() || "Address on file",
+    property_type: "other",
+    services_interested: ["other"],
+    message: inquiryMessage,
+    status: "New",
+    converted_customer_id: customerId,
   });
 
   if (error) {
-    // Fallback: legacy support ticket if quotes table not migrated yet
-    await supabase.from("support_requests").insert({
+    // Fallback: create quote directly if inquiries insert fails
+    const { error: quoteError } = await supabase.from("quote_requests").insert({
       customer_id: customerId,
-      category: "service_quote",
-      message: [
-        `Customer requested a quote for additional services: ${serviceDescription}`,
-        notes ? `Notes: ${notes}` : null,
-        "Routed to Operations quotes inbox.",
-      ]
-        .filter(Boolean)
-        .join(" "),
-      linked_type: relatedContractId ? "contract" : null,
-      linked_id: relatedContractId,
-      status: "Open",
+      service_description: serviceDescription,
+      notes: notes || null,
+      related_contract_id: relatedContractId,
+      property_address: customer.address ?? null,
+      status: "new",
     });
+    if (quoteError) {
+      await supabase.from("support_requests").insert({
+        customer_id: customerId,
+        category: "service_quote",
+        message: [
+          `Customer requested a quote for additional services: ${serviceDescription}`,
+          notes ? `Notes: ${notes}` : null,
+          "Routed to Operations inquiries inbox.",
+        ]
+          .filter(Boolean)
+          .join(" "),
+        linked_type: relatedContractId ? "contract" : null,
+        linked_id: relatedContractId,
+        status: "Open",
+      });
+    }
   }
 
   revalidatePath("/dashboard");
+  revalidatePath("/ops/inquiries");
   revalidatePath("/quotes");
   revalidatePath("/request-quote");
   redirect("/dashboard?quote=1");
@@ -142,9 +170,12 @@ export async function scheduleSurveyVisit(formData: FormData): Promise<void> {
 
   const quoteId = (formData.get("quote_id") as string) || "";
   const scheduledDate = (formData.get("scheduled_date") as string) || "";
+  // Ops owns the initial client-site survey (not Crew Lead / Manager).
   const crewLead =
-    ((formData.get("crew_lead_name") as string) || "").trim() ||
-    DEMO_CREW_LEAD_NAME;
+    ((formData.get("crew_lead_name") as string) || "").trim() || "Operations";
+  const siteObservations = (
+    (formData.get("site_observations") as string) || ""
+  ).trim();
 
   if (!quoteId || !scheduledDate) {
     redirect("/quotes");
@@ -198,6 +229,13 @@ export async function scheduleSurveyVisit(formData: FormData): Promise<void> {
     redirect(`/quotes/${quoteId}?error=survey`);
   }
 
+  const surveyNotes = [
+    `Ops site survey for quote: ${quote.service_description}`,
+    siteObservations ? `Observations: ${siteObservations}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   const { data: visit, error } = await supabase
     .from("service_visits")
     .insert({
@@ -207,7 +245,7 @@ export async function scheduleSurveyVisit(formData: FormData): Promise<void> {
       visit_kind: "survey",
       crew_lead_name: crewLead,
       quote_id: quoteId,
-      crew_notes: `Site survey for quote: ${quote.service_description}`,
+      crew_notes: surveyNotes,
     })
     .select("id")
     .single();
@@ -221,6 +259,7 @@ export async function scheduleSurveyVisit(formData: FormData): Promise<void> {
     .update({
       survey_visit_id: visit.id,
       status: "survey_scheduled",
+      notes: siteObservations || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", quoteId);

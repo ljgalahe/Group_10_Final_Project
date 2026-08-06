@@ -369,7 +369,7 @@ export function ArAgingManagerClient({
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-green-950">
-            AR management dashboard
+            AR Management Dashboard
           </h2>
         </div>
 
@@ -538,12 +538,12 @@ function CollectionActionCenter({ rows }: { rows: CustomerCollectionRow[] }) {
         </Card>
       ) : (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-          <div className="hidden grid-cols-[1.3fr_0.8fr_0.9fr_1.1fr_2fr] gap-3 border-b border-stone-200 bg-stone-50 px-4 py-3 text-xs font-medium uppercase tracking-wide text-stone-500 lg:grid">
+          <div className="hidden grid-cols-[1.3fr_0.8fr_0.9fr_1.1fr_2fr] gap-3 border-b border-stone-200 bg-stone-50 px-4 py-3 text-xs font-medium text-stone-500 lg:grid">
             <span>Customer</span>
             <span>Outstanding</span>
-            <span>Priority bucket</span>
-            <span>Overdue invoices</span>
-            <span>Recommended action</span>
+            <span>Priority Bucket</span>
+            <span>Overdue Invoices</span>
+            <span>Recommended Action</span>
           </div>
           <ul className="divide-y divide-stone-100">
             {actionRows.map((row) => (
@@ -566,7 +566,7 @@ function CollectionActionCenter({ rows }: { rows: CustomerCollectionRow[] }) {
                 </div>
                 <div>
                   <p className="text-xs text-stone-400 lg:hidden">
-                    Priority bucket
+                    Priority Bucket
                   </p>
                   <p className="text-sm text-stone-700">
                     {BUCKET_TITLES[row.bucket]}
@@ -574,7 +574,7 @@ function CollectionActionCenter({ rows }: { rows: CustomerCollectionRow[] }) {
                 </div>
                 <div>
                   <p className="text-xs text-stone-400 lg:hidden">
-                    Overdue invoices
+                    Overdue Invoices
                   </p>
                   <p className="text-sm text-stone-700">
                     {row.overdueInvoiceCount}
@@ -741,12 +741,12 @@ function CustomerCollectionCenter({
         </Card>
       ) : (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-          <div className="hidden grid-cols-[1.4fr_0.9fr_0.8fr_1.3fr_0.9fr_0.9fr_auto] gap-3 border-b border-stone-200 bg-stone-50 px-4 py-3 text-xs font-medium uppercase tracking-wide text-stone-500 lg:grid">
+          <div className="hidden grid-cols-[1.4fr_0.9fr_0.8fr_1.3fr_0.9fr_0.9fr_auto] gap-3 border-b border-stone-200 bg-stone-50 px-4 py-3 text-xs font-medium text-stone-500 lg:grid">
             <span>Customer</span>
             <span>Outstanding</span>
-            <span>Overdue invoices</span>
-            <span>Oldest outstanding</span>
-            <span>Avg days past due</span>
+            <span>Overdue Invoices</span>
+            <span>Oldest Outstanding</span>
+            <span>Avg Days Past Due</span>
             <span>Risk</span>
             <span className="text-right">Details</span>
           </div>
@@ -793,7 +793,7 @@ function CustomerCollectionCenter({
                     </div>
                     <div>
                       <p className="text-xs text-stone-400 lg:hidden">
-                        Overdue invoices
+                        Overdue Invoices
                       </p>
                       <p className="text-sm text-stone-700">
                         {row.overdueInvoiceCount}
@@ -801,7 +801,7 @@ function CustomerCollectionCenter({
                     </div>
                     <div>
                       <p className="text-xs text-stone-400 lg:hidden">
-                        Oldest outstanding
+                        Oldest Outstanding
                       </p>
                       <p className="text-sm text-stone-700">
                         {row.oldestInvoice
@@ -811,7 +811,7 @@ function CustomerCollectionCenter({
                     </div>
                     <div>
                       <p className="text-xs text-stone-400 lg:hidden">
-                        Avg days past due
+                        Avg Days Past Due
                       </p>
                       <p className="text-sm text-stone-700">
                         {row.averageDaysPastDue === null

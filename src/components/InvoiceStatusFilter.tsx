@@ -3,9 +3,9 @@
 import { usePathname, useRouter } from "next/navigation";
 
 const OPTIONS = [
-  { value: "due", label: "Due / open" },
+  { value: "due", label: "Due / Open" },
   { value: "paid", label: "Paid" },
-  { value: "all", label: "All invoices" },
+  { value: "all", label: "All Invoices" },
 ] as const;
 
 export type InvoiceStatusFilterValue = (typeof OPTIONS)[number]["value"];

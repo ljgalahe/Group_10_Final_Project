@@ -11,10 +11,13 @@ export function CrewLeadVisitDetails({
   job,
   extraWork,
   readOnly = false,
+  showCustomerNotes = true,
 }: {
   job: ScheduleJob;
   extraWork: ExtraWorkItem[];
   readOnly?: boolean;
+  /** When false, hide customer notes (caller already shows them outside the panel). */
+  showCustomerNotes?: boolean;
 }) {
   return (
     <VisitWorkPanel
@@ -23,6 +26,7 @@ export function CrewLeadVisitDetails({
         (item) => item.contractId === job.contractId
       )}
       readOnly={readOnly}
+      showCustomerNotes={showCustomerNotes}
     />
   );
 }

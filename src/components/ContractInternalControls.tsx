@@ -56,7 +56,7 @@ export function ContractInternalControls({
   return (
     <div className="mt-6 space-y-4">
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-        <p className="font-semibold">Accountant internal controls</p>
+        <p className="font-semibold">Accountant Internal Controls</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-900">
           <li>Contract edits require manager approval before they apply</li>
           <li>Change orders follow a quoted → approved workflow</li>
@@ -84,7 +84,7 @@ export function ContractInternalControls({
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
           <h3 className="text-sm font-semibold text-green-950">
-            Manager approval queue
+            Manager Approval Queue
           </h3>
           <p className="mt-1 text-xs text-stone-500">
             Pending contract edits await manager approval.
@@ -145,7 +145,7 @@ export function ContractInternalControls({
 
         <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
           <h3 className="text-sm font-semibold text-green-950">
-            Change order workflow
+            Change Order Workflow
           </h3>
           <p className="mt-1 text-xs text-stone-500">
             Quoted change orders must be approved before billing.
@@ -196,7 +196,7 @@ export function ContractInternalControls({
         </div>
 
         <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-green-950">Audit log</h3>
+          <h3 className="text-sm font-semibold text-green-950">Audit Log</h3>
           <p className="mt-1 text-xs text-stone-500">
             History of contract changes and control actions.
           </p>

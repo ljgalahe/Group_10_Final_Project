@@ -201,7 +201,7 @@ export function PaymentsManagerClient({
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-green-950">
-            Payment dashboard
+            Payment Dashboard
           </h2>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -272,7 +272,7 @@ export function PaymentsManagerClient({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-semibold text-green-950">
-              Filter payment history
+              Filter Payment History
             </h2>
             <p className="text-xs text-stone-500">
               Narrow the payment table below. This does not record a payment.
@@ -359,14 +359,14 @@ export function PaymentsManagerClient({
           <table className="min-w-full text-sm">
             <thead className="bg-stone-50 text-left text-stone-600">
               <tr>
-                <th className="px-4 py-3 font-medium">Payment date</th>
+                <th className="px-4 py-3 font-medium">Payment Date</th>
                 <th className="px-4 py-3 font-medium">Payment / Ref #</th>
                 <th className="px-4 py-3 font-medium">Invoice</th>
                 <th className="px-4 py-3 font-medium">Customer</th>
                 <th className="px-4 py-3 font-medium">Method</th>
                 <th className="px-4 py-3 font-medium">Amount</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Recorded by</th>
+                <th className="px-4 py-3 font-medium">Recorded By</th>
               </tr>
             </thead>
             <tbody>
@@ -670,10 +670,10 @@ function CollectionRiskSection({
                 <th className="px-4 py-3 font-medium">Customer</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Risk</th>
-                <th className="px-4 py-3 font-medium">Outstanding balance</th>
-                <th className="px-4 py-3 font-medium">Overdue invoices</th>
-                <th className="px-4 py-3 font-medium">Average Days to Pay</th>
-                <th className="px-4 py-3 font-medium">Payment behavior</th>
+                <th className="px-4 py-3 font-medium">Outstanding Balance</th>
+                <th className="px-4 py-3 font-medium">Overdue Invoices</th>
+                <th className="px-4 py-3 font-medium">Average Days To Pay</th>
+                <th className="px-4 py-3 font-medium">Payment Behavior</th>
               </tr>
             </thead>
             <tbody>

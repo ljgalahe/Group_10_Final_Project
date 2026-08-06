@@ -13,7 +13,7 @@ function healthForMargin(marginPct: number): {
   }
   if (marginPct >= 10) {
     return {
-      label: "Needs attention",
+      label: "Needs Attention",
       className: "bg-yellow-100 text-yellow-900",
     };
   }
@@ -77,7 +77,7 @@ export function AccountantServiceLineMargin({
               : "text-lg font-semibold text-green-950"
           }
         >
-          Gross margin by service line
+          Gross Margin by Service Line
         </h2>
         {!embedded ? (
           <p className="text-sm text-stone-500">
@@ -218,7 +218,7 @@ function SelectedServicePanel({
         <div className="space-y-5 overflow-y-auto px-6 py-5">
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-green-950">
-              Accountant summary
+              Accountant Summary
             </h4>
             <div className="rounded-lg border border-stone-200 bg-stone-50/80 p-4">
               <span
@@ -233,7 +233,7 @@ function SelectedServicePanel({
           </div>
 
           <div className="space-y-2">
-            <h4 className="text-sm font-semibold text-green-950">Line details</h4>
+            <h4 className="text-sm font-semibold text-green-950">Line Details</h4>
             <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <DetailItem label="Service" value={row.serviceName} />
               <DetailItem
@@ -254,7 +254,7 @@ function SelectedServicePanel({
                 emphasize={row.margin >= 0 ? "positive" : "negative"}
               />
               <DetailItem
-                label="Gross margin %"
+                label="Gross Margin %"
                 value={`${row.marginPct.toFixed(1)}%`}
                 emphasize={
                   row.marginPct >= 25
@@ -270,7 +270,7 @@ function SelectedServicePanel({
           <div className="space-y-2">
             <div>
               <h4 className="text-sm font-semibold text-green-950">
-                Contracts on this line
+                Contracts on This Line
               </h4>
               <p className="text-xs text-stone-500">
                 Each contract’s revenue and costs are split evenly across its
@@ -283,8 +283,8 @@ function SelectedServicePanel({
                   <tr>
                     <th className="px-3 py-2 font-medium">Contract</th>
                     <th className="px-3 py-2 font-medium">Customer</th>
-                    <th className="px-3 py-2 font-medium">Revenue share</th>
-                    <th className="px-3 py-2 font-medium">Cost share</th>
+                    <th className="px-3 py-2 font-medium">Revenue Share</th>
+                    <th className="px-3 py-2 font-medium">Cost Share</th>
                     <th className="px-3 py-2 font-medium">Margin</th>
                     <th className="px-3 py-2 font-medium">Margin %</th>
                   </tr>

@@ -35,7 +35,7 @@ export function VisitEquipmentUsed({
 
   return (
     <section className="rounded-lg border border-stone-200 p-4">
-      <h3 className="text-sm font-semibold text-green-950">Equipment used</h3>
+      <h3 className="text-sm font-semibold text-green-950">Equipment Used</h3>
       <p className="mt-1 text-xs text-stone-500">
         Record which register assets were used on this visit.
       </p>

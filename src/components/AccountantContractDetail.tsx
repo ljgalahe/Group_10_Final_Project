@@ -4,9 +4,12 @@ import { generateInvoice } from "@/app/actions/business";
 import { AppShell } from "@/components/AppShell";
 import { BillableStatusCard } from "@/components/BillingCards";
 import { ContractDetailsForm } from "@/components/ContractDetailsForm";
+import { ContractDualApprovalPanel } from "@/components/ContractDualApprovalPanel";
 import { ContractInternalControls } from "@/components/ContractInternalControls";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { contractBillableStatus } from "@/lib/billing-status";
+import { getContractDisplayStatus } from "@/lib/contract-status";
+import { getViewRole } from "@/lib/demo-role";
 import {
   fetchAccountantContractBilling,
   fetchContract,
@@ -28,6 +31,7 @@ export async function AccountantContractDetail({
   const { data: contractRow } = await fetchContract(id);
   if (!contractRow) notFound();
 
+  const role = await getViewRole();
   const customer = contractRow.customers as Customer;
   const contract = contractRow as Contract;
   const services = (contractRow.contract_services ?? []) as {
@@ -98,6 +102,16 @@ export async function AccountantContractDetail({
       />
 
       <div className="mb-6">
+        <ContractDualApprovalPanel
+          contractId={id}
+          approvalState={contract.approval_state}
+          managerApprovedAt={contract.manager_approved_at}
+          accountantApprovedAt={contract.accountant_approved_at}
+          role={role}
+        />
+      </div>
+
+      <div className="mb-6">
         <BillableStatusCard current={billableStatus} />
       </div>
 
@@ -110,7 +124,7 @@ export async function AccountantContractDetail({
             startEditing={edit === "1"}
           />
           <div className="mt-4 flex justify-center border-t border-stone-100 pt-4">
-            <StatusBadge status={contract.status} />
+            <StatusBadge status={getContractDisplayStatus(contract)} />
           </div>
         </Card>
 

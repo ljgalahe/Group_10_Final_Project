@@ -21,14 +21,16 @@ const navItems = [
     label: "Home",
     roles: ["inquiries"],
   },
-  {
-    href: "/quotes",
-    label: "Quotes",
-    roles: ["operations"],
-  },
+  // Ops primary order: Dashboard → Inquiries → Quotes → Contracts → Scheduling → Visits
+  // (Inquiries before Quotes so Operations creates quotes from inquiries first.)
   {
     href: "/ops/inquiries",
     label: "Inquiries",
+    roles: ["operations"],
+  },
+  {
+    href: "/quotes",
+    label: "Quotes",
     roles: ["operations"],
   },
   {
@@ -56,7 +58,7 @@ const navItems = [
   {
     href: "/chat",
     label: "Chat",
-    roles: ["manager", "accountant", "crew_lead", "crew_member"],
+    roles: ["manager", "accountant", "operations", "crew_lead", "crew_member"],
   },
   { href: "/invoices", label: "Invoices", roles: ["manager", "accountant", "customer"] },
   { href: "/contact", label: "Contact Us", roles: ["customer"] },
@@ -70,9 +72,30 @@ const navItems = [
   { href: "/reports/general-ledger", label: "General Ledger", roles: ["accountant"] },
 ];
 
+/** Operations top-tab order (other roles keep shared navItems order). */
+const OPERATIONS_NAV_HREF_ORDER = [
+  "/dashboard",
+  "/ops/inquiries",
+  "/quotes",
+  "/contracts",
+  "/schedule",
+  "/visits",
+  "/chat",
+] as const;
+
 export async function AppNav() {
   const role = await getViewRole();
-  const visibleItems = navItems.filter((item) => item.roles.includes(role));
+  let visibleItems = navItems.filter((item) => item.roles.includes(role));
+  if (role === "operations") {
+    const rank = new Map<string, number>(
+      OPERATIONS_NAV_HREF_ORDER.map((href, index) => [href, index])
+    );
+    visibleItems = [...visibleItems].sort((a, b) => {
+      const aRank = rank.get(a.href) ?? OPERATIONS_NAV_HREF_ORDER.length + 1;
+      const bRank = rank.get(b.href) ?? OPERATIONS_NAV_HREF_ORDER.length + 1;
+      return aRank - bRank;
+    });
+  }
 
   return (
     <header className="border-b border-green-800/20 bg-green-900 text-white">
@@ -101,7 +124,7 @@ export async function AppNav() {
               type="submit"
               className="rounded-md border border-green-600 px-3 py-2 text-sm hover:bg-green-800"
             >
-              Sign out
+              Sign Out
             </button>
           </form>
         </div>

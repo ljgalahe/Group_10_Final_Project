@@ -83,10 +83,10 @@ export function AccountantGeneralLedgerView({
                 <th className="px-4 py-3 text-right font-medium">Debits</th>
                 <th className="px-4 py-3 text-right font-medium">Credits</th>
                 <th className="px-4 py-3 text-right font-medium">
-                  Debit balance
+                  Debit Balance
                 </th>
                 <th className="px-4 py-3 text-right font-medium">
-                  Credit balance
+                  Credit Balance
                 </th>
               </tr>
             </thead>

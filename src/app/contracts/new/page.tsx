@@ -3,14 +3,15 @@ import { AppShell } from "@/components/AppShell";
 import { NewContractForm } from "@/components/NewContractForm";
 import { PageHeader } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
-import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
+import { getViewRole, roleCanDraftContracts } from "@/lib/demo-role";
 import { fetchCustomers } from "@/lib/queries";
 
 export default async function NewContractPage() {
   await requireAppAccess();
 
   const role = await getViewRole();
-  if (!roleCanEditContractDetails(role)) {
+  // Only Operations drafts contracts (Quotes / Inquiries flow preferred).
+  if (!roleCanDraftContracts(role)) {
     redirect("/contracts");
   }
 

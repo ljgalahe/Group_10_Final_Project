@@ -37,7 +37,7 @@ export function AddChartOfAccountModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-green-950">
-              Add chart account
+              Add Chart Account
             </h2>
             <p className="mt-1 text-sm text-stone-500">
               New accounts appear in the general ledger browse list and journal

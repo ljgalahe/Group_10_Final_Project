@@ -35,12 +35,21 @@ export function InquiryStatusControl({
               href={`/quotes/${quoteId}`}
               className="text-xs font-medium text-green-800 underline"
             >
-              Open in Quotes
+              Open quote status
             </a>
           ) : null}
         </>
       ) : (
         <>
+          <form action={convertInquiryToQuote}>
+            <input type="hidden" name="id" value={inquiryId} />
+            <button
+              type="submit"
+              className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+            >
+              Create Quote
+            </button>
+          </form>
           <form action={updateInquiryStatus} className="inline-flex">
             <input type="hidden" name="id" value={inquiryId} />
             <select
@@ -60,15 +69,6 @@ export function InquiryStatusControl({
                 </option>
               ))}
             </select>
-          </form>
-          <form action={convertInquiryToQuote}>
-            <input type="hidden" name="id" value={inquiryId} />
-            <button
-              type="submit"
-              className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
-            >
-              Convert to Quote
-            </button>
           </form>
         </>
       )}

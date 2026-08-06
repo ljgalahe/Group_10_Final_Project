@@ -20,15 +20,26 @@ export default async function QuotesPage() {
     <AppShell>
       <PageHeader
         title="Quotes"
-        description="Quote requests from customers. Schedule site surveys, budget hours and supplies, then draft contracts for Manager and Accountant approval."
+        description="Status list of quotes already created from Inquiries. Open a quote to continue site survey, budget, and contract draft. To start from a new or existing-client inquiry, use Inquiries."
       />
 
+      <div className="mb-6 rounded-lg border border-green-800/15 bg-green-50/50 px-4 py-3 text-sm text-stone-700">
+        Need to create a quote from a customer inquiry?{" "}
+        <Link
+          href="/ops/inquiries"
+          className="font-medium text-green-900 underline hover:text-green-700"
+        >
+          Go to Inquiries
+        </Link>
+        .
+      </div>
+
       {quotes.length === 0 ? (
-        <EmptyState message="No quote requests yet. Customers submit them from Request a quote." />
+        <EmptyState message="No quotes yet. Convert a new-client or existing-client inquiry on Inquiries to create one." />
       ) : (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+            <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Customer</th>
                 <th className="px-4 py-3 font-medium">Request</th>

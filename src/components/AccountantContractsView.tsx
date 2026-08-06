@@ -8,6 +8,7 @@ import {
   rejectContractChangeRequest,
 } from "@/app/actions/business";
 import {
+  getContractDisplayStatus,
   getContractEndDate,
   getRenewalStatus,
   type RenewalStatus,
@@ -121,7 +122,7 @@ function RenewalTracker({
   return (
     <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium text-green-950">Renewal tracker</p>
+        <p className="text-sm font-medium text-green-950">Renewal Tracker</p>
         <StatusBadge status={renewal} />
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-stone-200">
@@ -377,7 +378,7 @@ export function AccountantContractsView({
         <StatCard
           label="Pending Approvals"
           value={kpis.pendingApprovals}
-          hint="Manager approval queue"
+          hint="Manager Approval Queue"
         />
       </div>
 
@@ -390,7 +391,7 @@ export function AccountantContractsView({
       />
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-        <p className="font-semibold">Internal controls (accountant contracts)</p>
+        <p className="font-semibold">Internal Controls (Accountant Contracts)</p>
         <p className="mt-1 text-amber-900">
           Edits require manager approval, change orders follow quoted → approved,
           actions are audited, and invoicing stays blocked until visits are
@@ -620,7 +621,9 @@ export function AccountantContractsView({
                           : "—"}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={contract.status} />
+                        <StatusBadge
+                          status={getContractDisplayStatus(contract)}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={renewal} />
@@ -659,7 +662,7 @@ export function AccountantContractsView({
                           <div className="grid gap-4 lg:grid-cols-3">
                             <div className="rounded-lg border border-stone-200 bg-white p-4">
                               <h3 className="text-sm font-semibold text-green-950">
-                                Contract details
+                                Contract Details
                               </h3>
                               <dl className="mt-3 space-y-2 text-sm">
                                 <div className="flex justify-between gap-3">
@@ -718,7 +721,7 @@ export function AccountantContractsView({
 
                             <div className="rounded-lg border border-stone-200 bg-white p-4">
                               <h3 className="text-sm font-semibold text-green-950">
-                                Services included
+                                Services Included
                               </h3>
                               {services.length === 0 ? (
                                 <p className="mt-3 text-sm text-stone-500">
@@ -745,7 +748,7 @@ export function AccountantContractsView({
 
                             <div className="rounded-lg border border-stone-200 bg-white p-4">
                               <h3 className="text-sm font-semibold text-green-950">
-                                Change orders & controls
+                                Change Orders & Controls
                               </h3>
                               <p className="mt-1 text-xs text-stone-500">
                                 Approval workflow + recent audit activity.

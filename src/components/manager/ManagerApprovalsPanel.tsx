@@ -189,7 +189,7 @@ export function ManagerApprovalsPanel({
 
       <Card>
         <h3 className="text-base font-semibold text-green-950">
-          Field concerns
+          Field Concerns
         </h3>
         <p className="mt-1 text-sm text-stone-500">
           Photo concerns from Visits work directory. Approve & clear to proceed,

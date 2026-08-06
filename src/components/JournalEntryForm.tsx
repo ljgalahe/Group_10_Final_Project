@@ -85,7 +85,7 @@ export function JournalEntryForm({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
         <h2 className="text-lg font-semibold text-green-950">
-          {mode === "create" ? "Add journal entry" : "Edit journal entry"}
+          {mode === "create" ? "Add Journal Entry" : "Edit Journal Entry"}
         </h2>
         <p className="mt-1 text-sm text-stone-500">
           Debits must equal credits before the entry can be saved.

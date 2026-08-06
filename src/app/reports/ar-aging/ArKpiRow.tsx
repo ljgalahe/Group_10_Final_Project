@@ -170,7 +170,7 @@ export function CeiKpiCard({
           </button>
           <button
             type="button"
-            title="Annualized month-to-date"
+            title="Annualized Month-to-Date"
             onClick={() => onModeChange("annualized_mtd")}
             className={`rounded px-1.5 py-0.5 font-medium transition ${
               mode === "annualized_mtd"

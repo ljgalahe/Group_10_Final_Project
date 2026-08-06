@@ -179,7 +179,7 @@ export function WorkDirectoryConcernAlerts({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h4 className="text-base font-semibold text-green-950">
-                Field concern review
+                Field Concern Review
               </h4>
               <p className="mt-1 text-sm text-stone-500">
                 Approve to proceed with the job, or place it on hold until the

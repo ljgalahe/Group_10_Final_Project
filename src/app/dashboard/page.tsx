@@ -61,6 +61,13 @@ import {
   fetchVisits,
 } from "@/lib/queries";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
+import { AccountantDashboardPanel } from "@/app/dashboard/components/AccountantDashboardPanel";
+import { fetchAccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
+import {
+  fetchOperationsDashboardData,
+  type OperationsDashboardData,
+} from "@/app/dashboard/operations-dashboard-data";
+import { OperationsDashboardPanel } from "@/app/dashboard/components/OperationsDashboardPanel";
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
@@ -203,6 +210,8 @@ export default async function DashboardPage({
 
   const role = await getViewRole();
   const stats = await fetchDashboardStats();
+  const accountantDashboard =
+    role === "accountant" ? await fetchAccountantDashboardData() : null;
   const params = await searchParams;
   const initialPerfCategory = parsePerfCategory(params.perf);
 
@@ -216,6 +225,11 @@ export default async function DashboardPage({
       title: "Accounting Dashboard",
       description:
         "Track billing, outstanding balances, and contract profitability.",
+    },
+    operations: {
+      title: "Operations Dashboard",
+      description:
+        "Upcoming visits and site surveys, plus quick links — create quotes from Inquiries, track status on Quotes.",
     },
     crew_lead: {
       title: "Crew Lead Dashboard",
@@ -270,7 +284,7 @@ export default async function DashboardPage({
       fetchContracts(),
       fetchVisits(),
       fetchAllVisitCosts(),
-      fetchEquipment(),
+      fetchEquipment().then((data) => data.assets),
       fetchEquipmentUsage(),
       fetchInvoices(),
       fetchPayments(),
@@ -574,6 +588,11 @@ export default async function DashboardPage({
     crewSupportRequests = data;
   }
 
+  let operationsDashboard: OperationsDashboardData | null = null;
+  if (role === "operations") {
+    operationsDashboard = await fetchOperationsDashboardData();
+  }
+
   const customerId =
     role === "customer" ? await getViewCustomerId() : null;
 
@@ -705,7 +724,7 @@ export default async function DashboardPage({
             <Card className="min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-lg font-semibold text-green-950">
-                  Needs attention
+                  Needs Attention
                 </h2>
                 {needsAttention.length > 0 ? (
                   <span className="text-sm text-stone-400">
@@ -725,7 +744,7 @@ export default async function DashboardPage({
 
           <div className="mt-8 rounded-xl border border-green-800/15 bg-green-50/60 px-5 py-4">
             <p className="text-sm font-semibold text-green-950">
-              Quick actions
+              Quick Actions
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
@@ -771,7 +790,9 @@ export default async function DashboardPage({
 
       {role !== "customer" &&
       role !== "crew_member" &&
-      role !== "manager"
+      role !== "operations" &&
+      role !== "manager" &&
+      role !== "accountant"
         ? staffStatsRow
         : null}
 
@@ -803,6 +824,10 @@ export default async function DashboardPage({
             <ManagerApprovalsPanel visitLabels={visitLabels} hideIntro />
           </DashboardCollapsibleSection>
         </div>
+      ) : null}
+
+      {role === "operations" && operationsDashboard ? (
+        <OperationsDashboardPanel data={operationsDashboard} />
       ) : null}
 
       {role === "crew_lead" ? (
@@ -864,34 +889,8 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
-      {role === "accountant" ? (
-        <div className="mt-8">
-          <Card>
-            <h2 className="text-lg font-semibold text-green-950">
-              Quick Actions
-            </h2>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/reports/ar-aging"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                AR Aging Report
-              </Link>
-              <Link
-                href="/reports/profitability"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Profitability Report
-              </Link>
-              <Link
-                href="/reports/journal-entries"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Journal Entries
-              </Link>
-            </div>
-          </Card>
-        </div>
+      {role === "accountant" && accountantDashboard ? (
+        <AccountantDashboardPanel data={accountantDashboard} />
       ) : null}
     </AppShell>
   );
