@@ -18,6 +18,8 @@ export type ManagementExtraWorkRequest = {
   jobLocation: string;
   description: string;
   estimatedHours: number;
+  /** Optional estimated dollar cost for the extra work. */
+  estimatedCost?: number;
   status: "pending_approval" | "approved" | "declined";
   submittedAt: string;
 };
@@ -166,8 +168,9 @@ export function demoAdditionalNotesForCompletedVisit(jobId: string): string {
 }
 
 /**
- * Fills in a completed visit so it looks fully finished:
- * all tasks checked, labor hours calculated, extra work approved.
+ * Fills in a completed visit so it looks fully finished for contracted work:
+ * all tasks checked and labor hours calculated.
+ * Extra-work notes keep their real approval status — never auto-approved.
  */
 export function buildCompletedVisitState(
   jobId: string,
@@ -191,23 +194,9 @@ export function buildCompletedVisitState(
           hours: 3.5 + ((hashString(jobId + member.id) + index) % 5) * 0.5,
         }));
 
-  let extraWorkNotes = (base.extraWorkNotes ?? []).map((note) => ({
-    ...note,
-    status: "approved" as const,
-  }));
-
-  if (extraWorkNotes.length === 0 && hasContractExtraWork) {
-    // Contract extras are shown separately; keep notes empty but approved path covered.
-  } else if (extraWorkNotes.length === 0) {
-    extraWorkNotes = [
-      {
-        id: `completed-extra-${jobId}`,
-        description:
-          "Site conditions required minor additional cleanup; approved with completed visit.",
-        status: "approved",
-      },
-    ];
-  }
+  // Preserve pending / declined / approved as submitted — do not invent approval.
+  const extraWorkNotes = [...(base.extraWorkNotes ?? [])];
+  void hasContractExtraWork;
 
   const totalLabor = employees.reduce((sum, row) => sum + row.hours, 0);
   const plannedHours = base.plannedHours || Math.max(4, Math.round(totalLabor));

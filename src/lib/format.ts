@@ -7,11 +7,18 @@ export function formatCurrency(amount: number) {
 }
 
 export function formatDate(dateStr: string) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  // Parse as UTC noon so SSR and client locales agree on the calendar day.
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!year || !month || !day) return dateStr;
+  return new Date(Date.UTC(year, month - 1, day, 12)).toLocaleDateString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    }
+  );
 }
 
 export function daysBetween(start: string, end: Date = new Date()) {

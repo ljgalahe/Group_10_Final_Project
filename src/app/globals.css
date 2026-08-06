@@ -1,21 +1,85 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafaf9;
-  --foreground: #1c1917;
+  --background: #f3f0ea;
+  --foreground: #1c1a16;
+  --surface: #faf8f4;
+  --ink: #1c1a16;
+  --ink-muted: #6b6560;
+  --line: #d9d2c8;
+  --olive: #3a4034;
+  --olive-deep: #2a2f26;
+  --olive-soft: #5c6652;
+  --sage: #7a8a6a;
+  --cream: #f3f0ea;
+  --champagne: #c4b7a0;
+  --champagne-bright: #d4c4a8;
+  /* Clear dark green for completed / approve — not olive chrome, not neon */
+  --complete: #166534;
+  --complete-deep: #14532d;
+  --complete-soft: #dcfce7;
+  --complete-mid: #15803d;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-cormorant);
+  --font-serif: var(--font-cormorant);
+
+  --color-green-50: #f4f5f0;
+  --color-green-100: #e6ebe0;
+  --color-green-200: #cdd6c4;
+  --color-green-300: #aeb9a0;
+  --color-green-400: #8a9878;
+  --color-green-500: #6f7f5e;
+  --color-green-600: #58664a;
+  --color-green-700: #46523c;
+  --color-green-800: #384232;
+  --color-green-900: #2c3328;
+  --color-green-950: #1a1f18;
+
+  --color-stone-50: #f7f5f1;
+  --color-stone-100: #efece6;
+  --color-stone-200: #e0dbd2;
+  --color-stone-300: #c9c2b6;
+  --color-stone-400: #a89f91;
+  --color-stone-500: #877e72;
+  --color-stone-600: #6b6359;
+  --color-stone-700: #524c45;
+  --color-stone-800: #3d3934;
+  --color-stone-900: #2a2724;
+  --color-stone-950: #1a1816;
+
+  --color-champagne: #c4b7a0;
+  --color-complete: #166534;
+  --color-complete-deep: #14532d;
+  --color-complete-soft: #dcfce7;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-cormorant), "Times New Roman", serif;
+  letter-spacing: -0.01em;
+}
+
+/* KPI / accounting figures — sleek, readable management-data style */
+.gs-metric-value {
+  font-family: var(--font-metric), var(--font-dm-sans), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  letter-spacing: -0.03em;
+  font-weight: 600;
 }
 
 input,
@@ -28,3 +92,517 @@ button {
 table {
   border-collapse: collapse;
 }
+
+@keyframes gs-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gs-rule-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gs-reveal {
+    animation: gs-fade-up 0.55s ease-out both;
+  }
+
+  .gs-reveal-delay {
+    animation: gs-fade-up 0.55s ease-out 0.12s both;
+  }
+
+  .gs-page-header::after {
+    transform-origin: left center;
+    animation: gs-rule-in 0.6s ease-out 0.15s both;
+  }
+}
+
+.gs-canvas {
+  background:
+    radial-gradient(
+      ellipse 80% 50% at 100% 0%,
+      rgba(122, 138, 106, 0.08),
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 0% 100%,
+      rgba(196, 183, 160, 0.12),
+      transparent 50%
+    ),
+    linear-gradient(165deg, #f6f3ed 0%, #efeae2 48%, #f3f0ea 100%);
+}
+
+.gs-sidebar {
+  background: linear-gradient(180deg, #32382d 0%, #2a2f26 55%, #242920 100%);
+  color: #f3f0ea;
+}
+
+.gs-mark {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--olive-soft);
+}
+
+.gs-italic-line {
+  margin-top: 0.5rem;
+  max-width: 36rem;
+  font-family: var(--font-cormorant), "Times New Roman", serif;
+  font-size: 1.125rem;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.gs-help {
+  margin-top: 0.35rem;
+  max-width: 40rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #4a453f;
+}
+
+/* Manager / accountant: denser, higher-contrast data workspace */
+.gs-ops {
+  --ink-muted: #4a453f;
+  --line: #cfc7bb;
+}
+
+.gs-ops .gs-mark {
+  color: #5c564e;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+}
+
+.gs-ops .gs-italic-line {
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #3f3a35;
+}
+
+.gs-ops .gs-page-header {
+  margin-bottom: 1.35rem;
+  padding-bottom: 1rem;
+}
+
+.gs-ops .gs-page-header h1 {
+  font-size: 2rem;
+  line-height: 1.15;
+}
+
+@media (min-width: 640px) {
+  .gs-ops .gs-page-header h1 {
+    font-size: 2.25rem;
+  }
+}
+
+.gs-ops .gs-index-field > span {
+  color: #5c564e;
+  font-weight: 600;
+}
+
+.gs-ops .gs-index-field select,
+.gs-ops .gs-index-field input[type="search"],
+.gs-ops .gs-index-field input:not([type]) {
+  color: #1c1a16;
+  font-weight: 500;
+  border-bottom-color: #b7aea2;
+}
+
+.gs-ops .gs-help {
+  color: #3f3a35;
+}
+
+.gs-ops .text-stone-500 {
+  color: #5c564e;
+}
+
+.gs-ops .text-stone-400 {
+  color: #6b6359;
+}
+
+.gs-page-header {
+  position: relative;
+  margin-bottom: 2.25rem;
+  padding-bottom: 1.5rem;
+}
+
+.gs-page-header::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--line);
+}
+
+.gs-section {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--olive-soft) 55%, transparent);
+  background: color-mix(in srgb, #ffffff 42%, transparent);
+  padding: 1.15rem 1.25rem 1.25rem;
+  backdrop-filter: blur(6px);
+}
+
+.gs-section-panel {
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--olive-soft) 55%, transparent);
+  background: color-mix(in srgb, #ffffff 42%, transparent);
+  padding: 1.25rem 1.35rem;
+  backdrop-filter: blur(6px);
+}
+
+.gs-section-head {
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+}
+
+.gs-ops .gs-section,
+.gs-ops .gs-section-panel {
+  background: color-mix(in srgb, #ffffff 48%, transparent);
+  border-color: color-mix(in srgb, #cfc7bb 75%, transparent);
+  border-left-color: color-mix(in srgb, var(--complete) 50%, transparent);
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+.gs-ops .gs-section-head {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom-color: color-mix(in srgb, #ddd6cb 70%, transparent);
+}
+
+.gs-ops .gs-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.gs-stat-row {
+  display: grid;
+  gap: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--olive-soft) 55%, transparent);
+  background: color-mix(in srgb, #ffffff 42%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+@media (min-width: 640px) {
+  .gs-stat-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.gs-ops .gs-stat-row {
+  background: color-mix(in srgb, #ffffff 48%, transparent);
+  border-color: color-mix(in srgb, #cfc7bb 75%, transparent);
+  border-left-color: color-mix(in srgb, var(--complete) 50%, transparent);
+}
+
+.gs-stat-tile {
+  padding: 0.95rem 1.1rem;
+}
+
+@media (min-width: 640px) {
+  .gs-stat-tile {
+    border-right: 1px solid var(--line);
+  }
+
+  .gs-stat-tile:last-child {
+    border-right: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .gs-stat-tile {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .gs-stat-tile:last-child {
+    border-bottom: none;
+  }
+}
+
+.gs-ops .gs-stat-tile {
+  background: transparent;
+  border-color: var(--line);
+  padding: 0.95rem 1.1rem;
+}
+
+.gs-index-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1.25rem 1.75rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1rem;
+}
+
+.gs-index-field {
+  display: block;
+  min-width: 8rem;
+}
+
+.gs-index-field > span {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.gs-index-field select,
+.gs-index-field input[type="search"],
+.gs-index-field input:not([type]) {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.35rem 0 0.5rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.gs-index-field select:focus,
+.gs-index-field input:focus {
+  border-bottom-color: var(--champagne);
+}
+
+.gs-index-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.gs-index-tab {
+  margin-bottom: -1px;
+  border-bottom: 1px solid transparent;
+  background: none;
+  padding: 0.5rem 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.gs-index-tab:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.gs-index-tab[aria-current="true"],
+.gs-index-tab.is-active {
+  border-bottom-color: var(--champagne);
+  color: var(--ink);
+}
+
+.gs-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  color: var(--olive);
+  transition: color 0.2s ease;
+}
+
+.gs-text-link:hover {
+  color: var(--olive-soft);
+}
+
+.gs-band-bleed {
+  margin-left: -1.25rem;
+  margin-right: -1.25rem;
+  width: calc(100% + 2.5rem);
+}
+
+@media (min-width: 640px) {
+  .gs-band-bleed {
+    margin-left: -2rem;
+    margin-right: -2rem;
+    width: calc(100% + 4rem);
+  }
+}
+
+.gs-olive-band {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      105deg,
+      rgba(26, 31, 24, 0.92) 0%,
+      rgba(42, 47, 38, 0.88) 45%,
+      rgba(58, 64, 52, 0.82) 100%
+    ),
+    url("https://images.unsplash.com/photo-1558904541-efa843a96f01?w=1600&h=700&fit=crop&q=60")
+      center / cover;
+  color: #faf8f4;
+  padding: 2.25rem 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .gs-olive-band {
+    padding: 2.75rem 2.5rem;
+  }
+}
+
+.gs-olive-band .gs-mark {
+  color: var(--champagne-bright);
+}
+
+.gs-olive-band .gs-italic-line {
+  color: #c9c4b8;
+}
+
+.gs-vert-mark {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .gs-vert-mark {
+    display: block;
+    position: absolute;
+    top: 8rem;
+    left: 0.35rem;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: rgba(168, 176, 154, 0.45);
+    transform: rotate(-90deg);
+    transform-origin: left top;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+}
+
+.gs-list-row {
+  transition: background-color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gs-list-row {
+    animation: gs-fade-up 0.35s ease-out both;
+  }
+}
+
+/* Completed / success signal — reads clearly against olive chrome */
+.gs-complete-text {
+  color: var(--complete-deep);
+}
+
+.gs-complete-dot {
+  background: var(--complete);
+}
+
+.gs-complete-badge {
+  border-color: var(--complete);
+  background: var(--complete-soft);
+  color: var(--complete-deep);
+}
+
+/* Approve / success actions — solid dark green */
+.gs-btn-approve {
+  background-color: #166534 !important;
+  color: #fff !important;
+  transition: background-color 0.15s ease;
+}
+
+.gs-btn-approve:hover:not(:disabled) {
+  background-color: #14532d !important;
+}
+
+.gs-btn-approve:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Opening welcome film plate */
+.welcome-kenburns {
+  animation: welcome-drift 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.welcome-breeze {
+  background:
+    radial-gradient(ellipse 40% 30% at 20% 40%, rgba(245, 235, 210, 0.12), transparent 60%),
+    radial-gradient(ellipse 35% 25% at 80% 60%, rgba(232, 228, 210, 0.1), transparent 55%);
+  animation: welcome-breeze 12s ease-in-out infinite alternate;
+}
+
+.welcome-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+@keyframes welcome-drift {
+  from {
+    transform: scale(1.05) translate3d(-1.2%, 0.6%, 0);
+  }
+  to {
+    transform: scale(1.14) translate3d(1.4%, -0.8%, 0);
+  }
+}
+
+@keyframes welcome-breeze {
+  from {
+    transform: translate3d(-1%, 0, 0);
+    opacity: 0.22;
+  }
+  to {
+    transform: translate3d(1.5%, -0.5%, 0);
+    opacity: 0.38;
+  }
+}
+
+@keyframes gs-nav-progress {
+  from {
+    transform: scaleX(0.15);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.gs-nav-progress {
+  animation: gs-nav-progress 0.45s ease-out forwards;
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-nav-progress {
+    animation: none;
+    transform: scaleX(1);
+  }
+
+  .welcome-kenburns,
+  .welcome-breeze {
+    animation: none;
+  }
+}
+

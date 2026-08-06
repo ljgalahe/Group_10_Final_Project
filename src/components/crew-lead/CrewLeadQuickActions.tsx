@@ -79,6 +79,7 @@ export function CrewLeadQuickActions({
   const [jobLocation, setJobLocation] = useState("");
   const [description, setDescription] = useState("");
   const [estimatedHours, setEstimatedHours] = useState("");
+  const [estimatedCost, setEstimatedCost] = useState("");
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberRole, setNewMemberRole] = useState("Crew Member");
   const [submittedMessage, setSubmittedMessage] = useState("");
@@ -121,22 +122,29 @@ export function CrewLeadQuickActions({
   function submitExtraWork(e: FormEvent) {
     e.preventDefault();
     const hours = Number(estimatedHours);
+    const cost =
+      estimatedCost.trim() === "" ? undefined : Number(estimatedCost);
     if (!customerName.trim() || !description.trim() || Number.isNaN(hours)) {
       return;
     }
+    if (cost != null && (Number.isNaN(cost) || cost < 0)) return;
     addManagementExtraRequest({
       customerName: customerName.trim(),
       jobLocation: jobLocation.trim() || "Oxford, MS",
       description: description.trim(),
       estimatedHours: hours,
+      estimatedCost: cost,
     });
     setRequests(loadManagementExtraRequests());
     setCustomerName("");
     setJobLocation("");
     setDescription("");
     setEstimatedHours("");
-    setSubmittedMessage("Extra work request submitted to management.");
-    window.setTimeout(() => setSubmittedMessage(""), 3000);
+    setEstimatedCost("");
+    setSubmittedMessage(
+      "Extra-cost request submitted — awaiting manager approval on Contracts."
+    );
+    window.setTimeout(() => setSubmittedMessage(""), 4000);
   }
 
   function submitEquipmentAlert(e: FormEvent) {
@@ -227,10 +235,11 @@ export function CrewLeadQuickActions({
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-green-800/20 bg-stone-50">
           <h3 className="text-base font-semibold text-green-950">
-            Submit Extra Work for Approval
+            Submit Extra Cost for Approval
           </h3>
           <p className="mt-1 text-sm text-stone-500">
-            Send extra work requests to management for review.
+            Requests go to Extra work approval on Contracts. Do not complete
+            extra work until management approves.
           </p>
           <form onSubmit={submitExtraWork} className="mt-3 space-y-2">
             <input
@@ -264,6 +273,15 @@ export function CrewLeadQuickActions({
               className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
               required
             />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={estimatedCost}
+              onChange={(e) => setEstimatedCost(e.target.value)}
+              placeholder="Estimated Cost ($) — optional"
+              className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+            />
             <button
               type="submit"
               className="rounded-md bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
@@ -295,7 +313,14 @@ export function CrewLeadQuickActions({
                           {request.description}
                         </p>
                         <p className="mt-1 text-xs text-stone-500">
+                          {request.estimatedCost != null &&
+                          request.estimatedCost > 0
+                            ? `$${request.estimatedCost.toFixed(2)} · `
+                            : ""}
                           {request.estimatedHours} hrs · {request.jobLocation}
+                          {request.status === "pending_approval"
+                            ? " · awaiting manager on Contracts"
+                            : ""}
                         </p>
                       </div>
                       <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900">

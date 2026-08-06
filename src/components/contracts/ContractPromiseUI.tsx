@@ -1,4 +1,5 @@
 import {
+  effectivePromiseStatus,
   promiseStatusLabel,
   trackStatusLabel,
   type ContractProgress,
@@ -8,8 +9,10 @@ import {
 } from "@/lib/contract-controls";
 
 function statusTone(status: PromiseRowStatus) {
-  if (status === "complete") return "bg-green-100 text-green-900";
+  if (status === "complete") return "gs-complete-badge border";
   if (status === "missed") return "bg-red-100 text-red-800";
+  if (status === "not_scheduled") return "bg-stone-200 text-stone-800";
+  if (status === "partially_scheduled") return "bg-amber-50 text-amber-950";
   if (status === "unapproved_extra") return "bg-amber-100 text-amber-900";
   if (status === "scheduled") return "bg-sky-100 text-sky-900";
   return "bg-stone-100 text-stone-700";
@@ -52,8 +55,8 @@ export function ContractProgressChart({
           aria-label={`Contract ${percentComplete}% complete`}
         />
         <div className="absolute inset-8 flex flex-col items-center justify-center rounded-full bg-white text-center shadow-sm">
-          <p className="text-2xl font-bold text-green-950">{percentComplete}%</p>
-          <p className="text-xs text-stone-500">complete</p>
+          <p className="gs-metric-value text-2xl text-green-950">{percentComplete}%</p>
+          <p className="text-xs text-stone-500">Completed</p>
         </div>
       </div>
 
@@ -124,15 +127,15 @@ export function PortfolioProgressChart({
           aria-label={`Portfolio ${avgComplete}% complete on average`}
         />
         <div className="absolute inset-8 flex flex-col items-center justify-center rounded-full bg-white text-center shadow-sm">
-          <p className="text-2xl font-bold text-green-950">{avgComplete}%</p>
-          <p className="text-xs text-stone-500">avg complete</p>
+          <p className="gs-metric-value text-2xl text-green-950">{avgComplete}%</p>
+          <p className="text-xs text-stone-500">Avg completed</p>
         </div>
       </div>
 
       <div className="w-full max-w-xs space-y-3 text-sm">
         <div className="flex items-start justify-between gap-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
           <div>
-            <p className="font-medium text-stone-800">On track</p>
+            <p className="font-medium text-stone-800">On Track</p>
             <p className="text-xs text-stone-500">Ahead or on schedule</p>
           </div>
           <p className="font-semibold text-green-900">{onTrack}</p>
@@ -171,22 +174,25 @@ export function PromiseVsActualTable({ rows }: { rows: PromiseRow[] }) {
           </tr>
         </thead>
         <tbody className="bg-white">
-          {rows.map((row) => (
-            <tr key={row.service} className="border-t border-stone-100">
-              <td className="px-4 py-3 font-medium text-stone-900">
-                {row.service}
-              </td>
-              <td className="px-4 py-3 text-stone-600">{row.contractLabel}</td>
-              <td className="px-4 py-3 text-stone-800">{row.completed}</td>
-              <td className="px-4 py-3">
-                <span
-                  className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${statusTone(row.status)}`}
-                >
-                  {promiseStatusLabel(row.status)}
-                </span>
-              </td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const displayStatus = effectivePromiseStatus(row);
+            return (
+              <tr key={row.service} className="border-t border-stone-100">
+                <td className="px-4 py-3 font-medium text-stone-900">
+                  {row.service}
+                </td>
+                <td className="px-4 py-3 text-stone-600">{row.contractLabel}</td>
+                <td className="px-4 py-3 text-stone-800">{row.completed}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${statusTone(displayStatus)}`}
+                  >
+                    {promiseStatusLabel(displayStatus)}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -200,24 +206,52 @@ export function ContractPromiseSummary({
 }) {
   const promised = progress.rows.filter((r) => r.contractedCount != null);
   const skipped = promised.reduce((s, r) => s + r.skipped, 0);
+  const notScheduled = promised.reduce((s, r) => s + (r.notScheduled ?? 0), 0);
   const extras = progress.rows.filter((r) => r.status === "unapproved_extra");
 
   return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 text-sm">
       <SummaryTile label="Promised" value={String(progress.promisedVisits)} />
       <SummaryTile label="Scheduled" value={String(progress.scheduledVisits)} />
       <SummaryTile label="Completed" value={String(progress.completedVisits)} />
       <SummaryTile
-        label="Skipped / extras"
-        value={`${skipped} / ${extras.length}`}
+        label="Not scheduled"
+        value={String(notScheduled)}
+        tone="stone"
+      />
+      <SummaryTile
+        label="Missed after scheduled"
+        value={String(skipped)}
+        tone="red"
+      />
+      <SummaryTile
+        label="Extra work"
+        value={String(extras.length)}
+        tone="amber"
       />
     </div>
   );
 }
 
-function SummaryTile({ label, value }: { label: string; value: string }) {
+function SummaryTile({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "amber" | "red" | "stone";
+}) {
+  const toneClass =
+    tone === "amber"
+      ? "border-amber-200 bg-amber-50"
+      : tone === "red"
+        ? "border-red-200 bg-red-50"
+        : tone === "stone"
+          ? "border-stone-300 bg-stone-100"
+          : "border-stone-200 bg-stone-50";
   return (
-    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
       <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
         {label}
       </p>

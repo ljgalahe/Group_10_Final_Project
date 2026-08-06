@@ -40,7 +40,7 @@ export default async function CustomerSupportPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  if (role !== "manager") {
+  if (role !== "operations") {
     redirect("/dashboard");
   }
 
@@ -51,7 +51,7 @@ export default async function CustomerSupportPage({
     <AppShell>
       <PageHeader
         title="Customer Support"
-        description="Review customer questions, concerns, complaints, billing disputes, and renewal requests. Service quote requests are handled by Operations."
+        description="Review customer questions, concerns, complaints, billing disputes, and renewal requests."
       />
 
       {params.updated === "1" ? (

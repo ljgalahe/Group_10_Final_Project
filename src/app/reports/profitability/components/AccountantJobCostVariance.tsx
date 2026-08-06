@@ -19,7 +19,7 @@ function overrunFlag(variancePct: number) {
   }
   if (variancePct >= 10) {
     return {
-      label: "Over Quote",
+      label: "Over quote",
       className: "bg-amber-100 text-amber-900",
     };
   }
@@ -87,7 +87,7 @@ export function AccountantJobCostVariance({
       <section className="mb-10 space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-green-950">
-            Estimated vs. Actual Job Cost
+            Estimated vs. actual job cost
           </h2>
           <p className="text-sm text-stone-500">
             No visit costs logged yet — variance will appear once jobs are
@@ -102,7 +102,7 @@ export function AccountantJobCostVariance({
     <section className="mb-10 space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-green-950">
-          Estimated vs. Actual Job Cost
+          Estimated vs. actual job cost
         </h2>
         <p className="text-sm text-stone-500">
           Flags contracts that blew past their quote, and by how much — the
@@ -113,7 +113,7 @@ export function AccountantJobCostVariance({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
-          label="Jobs Over Quote"
+          label="Jobs over quote"
           value={`${report.jobsOverQuote} / ${report.jobsWithCosts}`}
           hint="Service visits with actual cost above estimate"
         />
@@ -122,8 +122,8 @@ export function AccountantJobCostVariance({
           onClick={() => setMarginLeakedOpen(true)}
           className="rounded-xl border border-stone-200 bg-stone-50 p-5 text-left shadow-sm transition hover:border-red-400 hover:ring-2 hover:ring-red-700/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700/30"
         >
-          <p className="text-sm font-medium text-stone-500">Margin Leaked</p>
-          <p className="mt-2 text-3xl font-bold text-red-800">
+          <p className="text-sm font-medium text-stone-500">Margin leaked</p>
+          <p className="mt-2 gs-metric-value text-3xl text-red-800">
             {formatCurrency(report.totalOverrun)}
           </p>
           <p className="mt-1 text-xs text-red-800/80">
@@ -228,10 +228,10 @@ export function AccountantJobCostVariance({
                       <tr>
                         <th className="px-4 py-3 font-medium">Contract</th>
                         <th className="px-4 py-3 font-medium">Customer</th>
-                        <th className="px-4 py-3 font-medium">Jobs Over</th>
+                        <th className="px-4 py-3 font-medium">Jobs over</th>
                         <th className="px-4 py-3 font-medium">Estimated</th>
                         <th className="px-4 py-3 font-medium">Actual</th>
-                        <th className="px-4 py-3 font-medium">Over Quote</th>
+                        <th className="px-4 py-3 font-medium">Over quote</th>
                         <th className="px-4 py-3 font-medium">Flag</th>
                       </tr>
                     </thead>
@@ -341,7 +341,7 @@ function MarginLeakedModal({
               id="margin-leaked-title"
               className="mt-1 text-lg font-semibold text-green-950"
             >
-              Margin Leaked
+              Margin leaked
             </h2>
             <p className="mt-1 text-sm text-stone-500">
               Dollars spent above the quoted estimate across costed jobs.
@@ -394,7 +394,7 @@ function MarginLeakedModal({
               note="Sum of estimated job costs for those same visits."
             />
             <LeakDetailItem
-              label="Margin Leaked"
+              label="Margin leaked"
               value={formatCurrency(report.totalOverrun)}
               note="Dollars over quote across jobs that ran hot."
               emphasize
@@ -520,14 +520,14 @@ function OverrunDetailModal({
               value={formatCurrency(contract.totalEstimated)}
             />
             <MiniStat
-              label="Jobs Over Quote"
+              label="Jobs over quote"
               value={`${contract.jobsOverQuote}`}
             />
           </div>
 
           <div>
             <h3 className="text-sm font-semibold text-green-950">
-              Direct Cost Mix (All Costed Jobs)
+              Direct cost mix (all costed jobs)
             </h3>
             <div className="mt-2 grid gap-3 sm:grid-cols-3">
               <CostTypeCard label="Labor" amount={contract.labor} />
@@ -566,7 +566,7 @@ function OverrunDetailModal({
                   value={formatCurrency(focusJob.actualCost)}
                 />
                 <MiniStat
-                  label="Over Quote"
+                  label="Over quote"
                   value={`+${formatCurrency(focusJob.variance)} (${focusJob.variancePct.toFixed(0)}%)`}
                   emphasis
                 />
@@ -604,7 +604,7 @@ function OverrunDetailModal({
 
           <div>
             <h3 className="text-sm font-semibold text-green-950">
-              All Over-Quote Jobs on This Contract
+              All over-quote jobs on this contract
             </h3>
             <div className="mt-2 overflow-hidden rounded-xl border border-stone-200">
               <table className="min-w-full text-sm">

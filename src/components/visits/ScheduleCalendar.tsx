@@ -248,7 +248,7 @@ export function ScheduleCalendar({
 
       <div className="flex flex-wrap items-center gap-4 text-xs text-stone-600">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-green-700" />
+          <span className="gs-complete-dot h-2.5 w-2.5 rounded-full" />
           Completed
         </span>
         <span className="inline-flex items-center gap-1.5">
@@ -305,10 +305,11 @@ export function ScheduleCalendar({
           } else if (isSelected && tone === "pending") {
             dayClass = "border-amber-600 bg-amber-500 text-white";
           } else if (isSelected) {
-            dayClass = "border-green-800 bg-green-800 text-white";
+            dayClass =
+              "border-[var(--complete-deep)] bg-[var(--complete)] text-white";
           } else if (tone === "completed") {
             dayClass =
-              "border-green-200 bg-green-50 text-green-950 hover:border-green-700";
+              "border-[var(--complete)]/35 bg-[var(--complete-soft)] text-[var(--complete-deep)] hover:border-[var(--complete)]";
           } else if (tone === "pending") {
             dayClass =
               "border-amber-200 bg-amber-50 text-amber-950 hover:border-amber-500";
@@ -333,7 +334,9 @@ export function ScheduleCalendar({
                 <>
                   <span
                     className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 ${
-                      isSelected ? "bg-green-800" : "bg-green-100"
+                      isSelected
+                        ? "bg-[var(--complete)]"
+                        : "bg-[var(--complete-soft)]"
                     }`}
                     aria-hidden
                   />
@@ -354,7 +357,7 @@ export function ScheduleCalendar({
                       : tone === "pending"
                         ? "text-amber-800"
                         : tone === "completed"
-                          ? "text-green-800"
+                          ? "gs-complete-text"
                           : "text-stone-700"
                   }`}
                 >
@@ -409,14 +412,16 @@ export function ScheduleCalendar({
                     className={`rounded-md border px-3 py-2 text-sm ${
                       pending
                         ? "border-amber-200 bg-amber-50"
-                        : "border-green-200 bg-green-50"
+                        : "border-[var(--complete)]/30 bg-[var(--complete-soft)]"
                     }`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <p className="font-medium text-stone-900">{row.employee}</p>
                       <span
-                        className={`text-xs font-semibold ${
-                          pending ? "text-amber-700" : "text-green-800"
+                        className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${
+                          pending
+                            ? "border border-amber-200 bg-amber-50 text-amber-800"
+                            : "gs-complete-badge border"
                         }`}
                       >
                         {pending ? "Pending" : "Completed"}

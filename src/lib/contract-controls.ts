@@ -6,9 +6,21 @@ import type {
   ServiceVisit,
 } from "@/lib/types";
 
-export type PromiseRowStatus = "complete" | "missed" | "partial" | "unapproved_extra" | "scheduled";
+export type PromiseRowStatus =
+  | "complete"
+  | "missed"
+  | "not_scheduled"
+  | "partially_scheduled"
+  | "partial"
+  | "unapproved_extra"
+  | "scheduled";
 
-export type PromiseVisitOutcome = "completed" | "scheduled" | "skipped" | "extra";
+export type PromiseVisitOutcome =
+  | "completed"
+  | "scheduled"
+  | "skipped"
+  | "not_scheduled"
+  | "extra";
 
 export interface PromiseVisitDetail {
   date: string;
@@ -23,7 +35,10 @@ export interface PromiseRow {
   contractedCount: number | null;
   completed: number;
   scheduled: number;
+  /** Visits that were on the schedule but not completed. */
   skipped: number;
+  /** Promised visits that were never placed on the schedule. */
+  notScheduled: number;
   status: PromiseRowStatus;
   visits: PromiseVisitDetail[];
 }
@@ -52,6 +67,8 @@ export interface ScopeCreepOccurrence {
 }
 
 export interface ScopeCreepItem {
+  /** Present for DB extra_work_orders awaiting approval. */
+  id?: string;
   title: string;
   amount: number;
   reason: string;
@@ -84,6 +101,7 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       completed: 4,
       scheduled: 0,
       skipped: 0,
+      notScheduled: 0,
       status: "complete",
       visits: [
         { date: "2026-05-12", outcome: "completed", note: "Front lawn + courtyard" },
@@ -98,10 +116,15 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       contractedCount: 1,
       completed: 0,
       scheduled: 0,
-      skipped: 1,
-      status: "missed",
+      skipped: 0,
+      notScheduled: 1,
+      status: "not_scheduled",
       visits: [
-        { date: "2026-06-09", outcome: "skipped", note: "Deferred — no crew time booked" },
+        {
+          date: "not-scheduled-riverside-shrub",
+          outcome: "not_scheduled",
+          note: "Promised in contract but never placed on the crew schedule",
+        },
       ],
     },
     {
@@ -111,6 +134,7 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       completed: 3,
       scheduled: 1,
       skipped: 0,
+      notScheduled: 0,
       status: "partial",
       visits: [
         { date: "2026-05-12", outcome: "completed" },
@@ -119,18 +143,23 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
         { date: "2026-08-05", outcome: "scheduled", note: "Upcoming weekly grounds" },
       ],
     },
-    {
-      service: "Irrigation repair",
-      contractLabel: "Not included",
-      contractedCount: null,
-      completed: 1,
-      scheduled: 0,
-      skipped: 0,
-      status: "unapproved_extra",
-      visits: [
-        { date: "2026-07-03", outcome: "extra", note: "Zone valve repair — not in contract" },
-      ],
-    },
+      {
+        service: "Irrigation repair",
+        contractLabel: "Not included",
+        contractedCount: null,
+        completed: 0,
+        scheduled: 0,
+        skipped: 0,
+        notScheduled: 0,
+        status: "unapproved_extra",
+        visits: [
+          {
+            date: "2026-07-03",
+            outcome: "extra",
+            note: "Crew request — zone valve repair (awaiting manager approval)",
+          },
+        ],
+      },
   ],
   [SEED_CONTRACT.summit]: [
     {
@@ -140,6 +169,7 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       completed: 4,
       scheduled: 2,
       skipped: 0,
+      notScheduled: 0,
       status: "partial",
       visits: [
         { date: "2026-05-06", outcome: "completed" },
@@ -157,6 +187,7 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       completed: 1,
       scheduled: 0,
       skipped: 1,
+      notScheduled: 0,
       status: "partial",
       visits: [
         { date: "2026-05-20", outcome: "completed", note: "Spring application" },
@@ -167,13 +198,22 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       service: "Storm debris removal",
       contractLabel: "Not included",
       contractedCount: null,
-      completed: 2,
+      completed: 0,
       scheduled: 0,
       skipped: 0,
+      notScheduled: 0,
       status: "unapproved_extra",
       visits: [
-        { date: "2026-05-22", outcome: "extra" },
-        { date: "2026-06-19", outcome: "extra" },
+        {
+          date: "2026-05-22",
+          outcome: "extra",
+          note: "Crew request — awaiting manager approval",
+        },
+        {
+          date: "2026-06-19",
+          outcome: "extra",
+          note: "Crew request — awaiting manager approval",
+        },
       ],
     },
   ],
@@ -185,6 +225,7 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       completed: 1,
       scheduled: 1,
       skipped: 0,
+      notScheduled: 0,
       status: "partial",
       visits: [
         { date: "2026-06-10", outcome: "completed" },
@@ -192,12 +233,13 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       ],
     },
     {
-      service: "Bed weeding",
+      service: "Bed Weeding",
       contractLabel: "2 visits",
       contractedCount: 2,
       completed: 0,
       scheduled: 1,
       skipped: 1,
+      notScheduled: 0,
       status: "missed",
       visits: [
         { date: "2026-06-10", outcome: "skipped", note: "Not completed with mow" },
@@ -213,6 +255,7 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       completed: 2,
       scheduled: 1,
       skipped: 1,
+      notScheduled: 0,
       status: "partial",
       visits: [
         { date: "2026-05-14", outcome: "completed" },
@@ -228,24 +271,42 @@ const PROMISE_OVERLAYS: Record<string, PromiseRow[]> = {
       completed: 1,
       scheduled: 0,
       skipped: 1,
+      notScheduled: 0,
       status: "partial",
       visits: [
         { date: "2026-06-04", outcome: "completed", note: "Extra time on pond area" },
-        { date: "2026-07-09", outcome: "skipped" },
+        {
+          date: "2026-07-09",
+          outcome: "skipped",
+          note: "Pond visit skipped — equipment unavailable",
+        },
       ],
     },
     {
       service: "Irrigation repair",
       contractLabel: "Not included",
       contractedCount: null,
-      completed: 3,
+      completed: 0,
       scheduled: 0,
       skipped: 0,
+      notScheduled: 0,
       status: "unapproved_extra",
       visits: [
-        { date: "2026-06-04", outcome: "extra" },
-        { date: "2026-06-25", outcome: "extra" },
-        { date: "2026-07-16", outcome: "extra" },
+        {
+          date: "2026-06-04",
+          outcome: "extra",
+          note: "Crew request — awaiting manager approval",
+        },
+        {
+          date: "2026-06-25",
+          outcome: "extra",
+          note: "Crew request — awaiting manager approval",
+        },
+        {
+          date: "2026-07-16",
+          outcome: "extra",
+          note: "Crew request — awaiting manager approval",
+        },
       ],
     },
   ],
@@ -257,75 +318,70 @@ const SCOPE_OVERLAYS: Record<
 > = {
   [SEED_CONTRACT.riverside]: {
     amount: 1460,
-    windowLabel: "last 60 days",
-    detail: "Uncontracted irrigation and mulch bed work outside the seasonal agreement.",
+    windowLabel: "awaiting manager approval",
+    detail:
+      "Crew lead extra-cost requests outside the seasonal agreement. Do not treat as completed until management approves.",
     items: [
       {
         title: "Irrigation repair",
         amount: 420,
-        reason: "Repeated 3 times without contract coverage",
+        reason: "Crew request — zone valve repair not in contract (pending approval)",
         occurrences: [
-          { label: "Visit 1 · Jun 12", amount: 140 },
-          { label: "Visit 2 · Jul 3", amount: 155 },
-          { label: "Visit 3 · Jul 28", amount: 125 },
+          { label: "Requested · estimated", amount: 420 },
         ],
       },
       {
         title: "Extra bed maintenance",
         amount: 240,
-        reason: "New property section not in scope",
-        occurrences: [{ label: "Visit 1 · Jul 15", amount: 240 }],
+        reason: "Crew request — new property section not in scope (pending approval)",
+        occurrences: [{ label: "Requested · estimated", amount: 240 }],
       },
       {
-        title: "Materials without billing",
+        title: "Materials (mulch/soil)",
         amount: 800,
-        reason: "Mulch/soil used, not invoiced as extra work",
+        reason: "Crew request — materials needed for extra beds (pending approval)",
         occurrences: [
-          { label: "Delivery 1 · Jun 20", amount: 380 },
-          { label: "Delivery 2 · Jul 18", amount: 420 },
+          { label: "Requested · estimated", amount: 800 },
         ],
       },
     ],
   },
   [SEED_CONTRACT.metro]: {
     amount: 980,
-    windowLabel: "last 60 days",
-    detail: "Crew repeatedly spent extra time on pond and irrigation outside contracted scope.",
+    windowLabel: "awaiting manager approval",
+    detail:
+      "Crew lead requested pond and irrigation extras. Approval required before work is completed or billed.",
     items: [
       {
         title: "Irrigation repair",
         amount: 560,
-        reason: "Three uncontracted repair visits",
+        reason: "Crew request — uncontracted repair (pending approval)",
         occurrences: [
-          { label: "Visit 1 · Jun 4", amount: 180 },
-          { label: "Visit 2 · Jun 25", amount: 195 },
-          { label: "Visit 3 · Jul 16", amount: 185 },
+          { label: "Requested · estimated", amount: 560 },
         ],
       },
       {
         title: "Storm debris removal",
         amount: 420,
-        reason: "Monthly cleanup not in contract",
+        reason: "Crew request — cleanup not in contract (pending approval)",
         occurrences: [
-          { label: "Visit 1 · Jun 8", amount: 210 },
-          { label: "Visit 2 · Jul 8", amount: 210 },
+          { label: "Requested · estimated", amount: 420 },
         ],
       },
     ],
   },
   [SEED_CONTRACT.summit]: {
     amount: 640,
-    windowLabel: "last 60 days",
-    detail: "Storm debris and frontage extras performed without change orders.",
+    windowLabel: "awaiting manager approval",
+    detail:
+      "Crew lead requested storm debris removal. Awaiting manager approval before treating as completed work.",
     items: [
       {
         title: "Storm debris removal",
         amount: 640,
-        reason: "Repeated monthly without billing",
+        reason: "Crew request — monthly cleanup not in contract (pending approval)",
         occurrences: [
-          { label: "Visit 1 · May 22", amount: 210 },
-          { label: "Visit 2 · Jun 19", amount: 215 },
-          { label: "Visit 3 · Jul 17", amount: 215 },
+          { label: "Requested · estimated", amount: 640 },
         ],
       },
     ],
@@ -333,17 +389,65 @@ const SCOPE_OVERLAYS: Record<
 };
 
 export function promiseStatusLabel(status: PromiseRowStatus) {
-  if (status === "complete") return "Complete";
+  if (status === "complete") return "Completed";
   if (status === "missed") return "Missed";
-  if (status === "partial") return "In progress";
+  if (status === "not_scheduled") return "Not Scheduled";
+  if (status === "partially_scheduled") return "Partially Scheduled";
+  if (status === "partial") return "In Progress";
   if (status === "scheduled") return "Scheduled";
-  return "Unapproved extra";
+  return "Unapproved Extra";
+}
+
+/** Prefer Partially scheduled when some visits are on the calendar and some are not. */
+export function effectivePromiseStatus(
+  row: Pick<
+    PromiseRow,
+    | "status"
+    | "completed"
+    | "scheduled"
+    | "skipped"
+    | "notScheduled"
+    | "visits"
+  >
+): PromiseRowStatus {
+  if (row.status === "unapproved_extra" || row.status === "complete") {
+    return row.status;
+  }
+
+  const notScheduled =
+    Number(row.notScheduled ?? 0) ||
+    (row.visits ?? []).filter((v) => isNotScheduledVisit(v)).length;
+  const onCalendar =
+    Number(row.completed ?? 0) +
+    Number(row.scheduled ?? 0) +
+    Number(row.skipped ?? 0);
+
+  if (notScheduled > 0 && onCalendar > 0) return "partially_scheduled";
+  if (notScheduled > 0 && onCalendar === 0) return "not_scheduled";
+  return row.status;
+}
+
+export function promiseVisitOutcomeLabel(outcome: PromiseVisitOutcome) {
+  if (outcome === "completed") return "Completed";
+  if (outcome === "scheduled") return "Scheduled";
+  if (outcome === "extra") return "Unapproved Extra";
+  if (outcome === "not_scheduled") return "Not Scheduled";
+  return "Missed After Scheduled";
+}
+
+/** Synthetic / never-calendared visits (not the same as skipped after scheduling). */
+export function isNotScheduledVisit(visit: PromiseVisitDetail) {
+  return (
+    visit.outcome === "not_scheduled" ||
+    visit.date.startsWith("skipped-") ||
+    visit.date.startsWith("not-scheduled-")
+  );
 }
 
 export function trackStatusLabel(status: TrackStatus) {
-  if (status === "on_track") return "On track";
+  if (status === "on_track") return "On Track";
   if (status === "ahead") return "Ahead";
-  if (status === "at_risk") return "At risk";
+  if (status === "at_risk") return "At Risk";
   return "Behind";
 }
 
@@ -389,10 +493,13 @@ function buildRowsFromData(
           ? Math.max(0, completedVisits - promised)
           : 0;
     const scheduled = index === 0 ? scheduledVisits : 0;
-    const skipped = Math.max(0, promised - completed - scheduled);
+    const notScheduled = Math.max(0, promised - completed - scheduled);
     let status: PromiseRowStatus = "partial";
     if (completed >= promised && promised > 0) status = "complete";
-    else if (completed === 0 && scheduled === 0 && promised > 0) status = "missed";
+    else if (notScheduled > 0 && (completed > 0 || scheduled > 0))
+      status = "partially_scheduled";
+    else if (completed === 0 && scheduled === 0 && promised > 0)
+      status = "not_scheduled";
     else if (completed === 0 && scheduled > 0) status = "scheduled";
 
     const visitDetails: PromiseVisitDetail[] = [
@@ -405,10 +512,10 @@ function buildRowsFromData(
         date: v.scheduled_date,
         outcome: "scheduled" as const,
       })),
-      ...Array.from({ length: skipped }, (_, i) => ({
-        date: `skipped-${index}-${i}`,
-        outcome: "skipped" as const,
-        note: "Promised visit not completed",
+      ...Array.from({ length: notScheduled }, (_, i) => ({
+        date: `not-scheduled-${index}-${i}`,
+        outcome: "not_scheduled" as const,
+        note: "Promised in the contract but not yet placed on the schedule",
       })),
     ];
 
@@ -418,32 +525,70 @@ function buildRowsFromData(
       contractedCount: promised,
       completed,
       scheduled,
-      skipped,
+      skipped: 0,
+      notScheduled,
       status,
       visits: visitDetails,
     };
   });
 
   for (const extra of extras) {
-    rows.push({
-      service: extra.title,
-      contractLabel: "Not included",
-      contractedCount: null,
-      completed: extra.status === "completed" || extra.status === "approved" ? 1 : 0,
-      scheduled: extra.status === "quoted" ? 1 : 0,
-      skipped: 0,
-      status: "unapproved_extra",
-      visits: [
-        {
-          date: extra.created_at?.slice(0, 10) ?? "2026-06-01",
-          outcome: "extra",
-          note: extra.description ?? undefined,
-        },
-      ],
-    });
+    rows.push(rowFromExtraWork(extra));
   }
 
   return rows;
+}
+
+function rowFromExtraWork(extra: ExtraWorkOrder): PromiseRow {
+  const approved =
+    extra.status === "completed" || extra.status === "approved";
+  return {
+    service: extra.title,
+    contractLabel: "Not included",
+    contractedCount: null,
+    completed: approved ? 1 : 0,
+    scheduled: extra.status === "quoted" ? 1 : 0,
+    skipped: 0,
+    notScheduled: 0,
+    status: "unapproved_extra",
+    visits: [
+      {
+        date: extra.created_at?.slice(0, 10) ?? "2026-06-01",
+        outcome: "extra",
+        note: extra.description ?? undefined,
+      },
+    ],
+  };
+}
+
+/** Overlay demo rows, with extras taken from real extra_work_orders so names match. */
+function mergeOverlayExtras(
+  overlay: PromiseRow[],
+  extras: ExtraWorkOrder[]
+): PromiseRow[] {
+  const withoutExtras = overlay.filter((r) => r.status !== "unapproved_extra");
+  const overlayExtras = overlay.filter((r) => r.status === "unapproved_extra");
+  const quoted = extras.filter((e) => e.status === "quoted");
+  const decided = extras.filter(
+    (e) => e.status === "approved" || e.status === "completed"
+  );
+
+  // Quoted DB orders are the real pending approvals — show those (+ already decided).
+  if (quoted.length > 0) {
+    return [
+      ...withoutExtras,
+      ...quoted.map(rowFromExtraWork),
+      ...decided.map(rowFromExtraWork),
+    ];
+  }
+
+  // Contract already has DB extras (e.g. approved) — don't invent a second pending set.
+  if (extras.length > 0) {
+    return [...withoutExtras, ...extras.map(rowFromExtraWork)];
+  }
+
+  // No DB extras: keep overlay pending extras so this chart matches Extra work approval.
+  return [...withoutExtras, ...overlayExtras];
 }
 
 export function buildContractProgress(
@@ -457,7 +602,9 @@ export function buildContractProgress(
   const services = contract.contract_services ?? [];
   const extras = contract.extra_work_orders ?? [];
   const overlay = PROMISE_OVERLAYS[contract.id];
-  const rows = overlay ?? buildRowsFromData(services, visits, extras);
+  const rows = overlay
+    ? mergeOverlayExtras(overlay, extras)
+    : buildRowsFromData(services, visits, extras);
 
   const contracted = rows.filter((r) => r.contractedCount != null);
   const promisedVisits = contracted.reduce((s, r) => s + (r.contractedCount ?? 0), 0);
@@ -509,6 +656,36 @@ export function buildScopeCreepAlerts(
   const alerts: ScopeCreepAlert[] = [];
 
   for (const contract of contracts) {
+    const allExtras = contract.extra_work_orders ?? [];
+    const quoted = allExtras.filter((e) => e.status === "quoted");
+
+    // Same source as the contract promise chart: real quoted orders first.
+    if (quoted.length > 0) {
+      const amount = quoted.reduce((s, e) => s + Number(e.quoted_amount), 0);
+      if (amount > 0) {
+        alerts.push({
+          contractId: contract.id,
+          propertyName: contract.customers?.name ?? contract.title,
+          amount,
+          windowLabel: "awaiting manager approval",
+          detail:
+            "Extra-cost requests outside the original agreement. Approve before crew completes or bills this work.",
+          items: quoted.map((e) => ({
+            id: e.id,
+            title: e.title,
+            amount: Number(e.quoted_amount),
+            reason:
+              e.description ?? "Not included in contract — pending approval",
+          })),
+        });
+      }
+      continue;
+    }
+
+    // If the contract already has decided extras, don't re-surface demo pending items.
+    if (allExtras.length > 0) continue;
+
+    // Match promise-chart overlay extras when there is no DB order yet.
     const overlay = SCOPE_OVERLAYS[contract.id];
     if (overlay) {
       alerts.push({
@@ -519,27 +696,7 @@ export function buildScopeCreepAlerts(
         detail: overlay.detail,
         items: overlay.items,
       });
-      continue;
     }
-
-    const extras = (contract.extra_work_orders ?? []).filter(
-      (e) => e.status === "quoted" || e.status === "approved"
-    );
-    if (extras.length === 0) continue;
-    const amount = extras.reduce((s, e) => s + Number(e.quoted_amount), 0);
-    if (amount <= 0) continue;
-    alerts.push({
-      contractId: contract.id,
-      propertyName: contract.customers?.name ?? contract.title,
-      amount,
-      windowLabel: "open extra-work orders",
-      detail: "Extra work outside the original agreement needs a change order or goodwill decision.",
-      items: extras.map((e) => ({
-        title: e.title,
-        amount: Number(e.quoted_amount),
-        reason: e.description ?? "Not included in contract",
-      })),
-    });
   }
 
   return alerts.sort((a, b) => b.amount - a.amount);

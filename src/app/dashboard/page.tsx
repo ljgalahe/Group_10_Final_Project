@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
 import { AppShell } from "@/components/AppShell";
@@ -64,11 +63,6 @@ import {
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
 import { AccountantDashboardPanel } from "@/app/dashboard/components/AccountantDashboardPanel";
 import { fetchAccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
-import {
-  fetchOperationsDashboardData,
-  type OperationsDashboardData,
-} from "@/app/dashboard/operations-dashboard-data";
-import { OperationsDashboardPanel } from "@/app/dashboard/components/OperationsDashboardPanel";
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
@@ -210,10 +204,6 @@ export default async function DashboardPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  // Inquiries is a prospect start page only — never the internal KPI dashboard.
-  if (role === "inquiries") {
-    redirect("/inquiries");
-  }
   const stats = await fetchDashboardStats();
   const accountantDashboard =
     role === "accountant" ? await fetchAccountantDashboardData() : null;
@@ -230,11 +220,6 @@ export default async function DashboardPage({
       title: "Accounting Dashboard",
       description:
         "Track billing, outstanding balances, and contract profitability.",
-    },
-    operations: {
-      title: "Operations Dashboard",
-      description:
-        "Upcoming visits and site surveys, plus quick links — create quotes from Inquiries, track status on Quotes.",
     },
     crew_lead: {
       title: "Crew Lead Dashboard",
@@ -289,7 +274,7 @@ export default async function DashboardPage({
       fetchContracts(),
       fetchVisits(),
       fetchAllVisitCosts(),
-      fetchEquipment().then((data) => data.assets),
+      fetchEquipment(),
       fetchEquipmentUsage(),
       fetchInvoices(),
       fetchPayments(),
@@ -593,11 +578,6 @@ export default async function DashboardPage({
     crewSupportRequests = data;
   }
 
-  let operationsDashboard: OperationsDashboardData | null = null;
-  if (role === "operations") {
-    operationsDashboard = await fetchOperationsDashboardData();
-  }
-
   const customerId =
     role === "customer" ? await getViewCustomerId() : null;
 
@@ -749,7 +729,7 @@ export default async function DashboardPage({
 
           <div className="mt-8 rounded-xl border border-green-800/15 bg-green-50/60 px-5 py-4">
             <p className="text-sm font-semibold text-green-950">
-              Quick Actions
+              Quick actions
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
@@ -795,7 +775,6 @@ export default async function DashboardPage({
 
       {role !== "customer" &&
       role !== "crew_member" &&
-      role !== "operations" &&
       role !== "manager" &&
       role !== "accountant"
         ? staffStatsRow
@@ -811,7 +790,7 @@ export default async function DashboardPage({
             initialCategory={initialPerfCategory}
           />
           <DashboardCollapsibleSection
-            title="Service Hold details"
+            title="Service Hold Details"
             summary={
               serviceHolds.length === 0
                 ? "No customers currently on hold"
@@ -822,17 +801,38 @@ export default async function DashboardPage({
             <ServiceHoldDashboardCard holds={serviceHolds} embedded />
           </DashboardCollapsibleSection>
           <DashboardCollapsibleSection
-            title="Approvals & crew alerts"
+            title="Approvals & Crew Alerts"
             summary="Field concerns, extra-work approvals, and visit comments"
             defaultOpen={false}
           >
             <ManagerApprovalsPanel visitLabels={visitLabels} hideIntro />
           </DashboardCollapsibleSection>
+          <Card className="p-4 sm:p-5">
+            <h2 className="text-base font-semibold text-green-950">
+              Quick Actions
+            </h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href="/reports/ar-aging"
+                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                AR Aging
+              </Link>
+              <Link
+                href="/reports/profitability"
+                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Profitability
+              </Link>
+              <Link
+                href="/payments"
+                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Payments
+              </Link>
+            </div>
+          </Card>
         </div>
-      ) : null}
-
-      {role === "operations" && operationsDashboard ? (
-        <OperationsDashboardPanel data={operationsDashboard} />
       ) : null}
 
       {role === "crew_lead" ? (

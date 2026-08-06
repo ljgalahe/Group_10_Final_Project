@@ -19,7 +19,7 @@ function CopyIconButton({ text }: { text: string }) {
           setCopied(false);
         }
       }}
-      className="absolute right-4 top-4 text-stone-500 hover:text-stone-800"
+      className="absolute right-3 top-3 rounded-md p-1 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -36,58 +36,63 @@ function CopyIconButton({ text }: { text: string }) {
   );
 }
 
-function GlowDot({ color }: { color: "green" | "amber" | "red" }) {
+function StatusDot({ color }: { color: "green" | "amber" | "red" }) {
   const fill = {
-    green: "bg-green-500 shadow-[0_0_10px_2px_rgba(34,197,94,0.85)]",
-    amber: "bg-amber-400 shadow-[0_0_10px_2px_rgba(251,191,36,0.85)]",
-    red: "bg-red-500 shadow-[0_0_10px_2px_rgba(239,68,68,0.85)]",
+    green: "gs-complete-dot",
+    amber: "bg-amber-500",
+    red: "bg-rose-600",
   }[color];
 
-  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${fill}`} />;
+  return (
+    <span
+      className={`inline-block h-2 w-2 shrink-0 rounded-full ${fill}`}
+      aria-hidden
+    />
+  );
 }
 
+const STATUS_META = {
+  billable: { label: "Billable", color: "green" as const },
+  pending_approval: { label: "Pending Approval", color: "amber" as const },
+  missing_labor: { label: "Missing Labor Entry", color: "red" as const },
+};
+
 export function BillableStatusBadge({ status }: { status: BillableStatus }) {
-  const meta = {
-    billable: { label: "Billable", color: "green" as const },
-    pending_approval: { label: "Pending Approval", color: "amber" as const },
-    missing_labor: { label: "Missing Labor Entry", color: "red" as const },
-  }[status];
+  const meta = STATUS_META[status];
 
   return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-xs text-stone-800">
-      <GlowDot color={meta.color} />
+    <span className="inline-flex items-center gap-2 text-sm text-stone-800">
+      <StatusDot color={meta.color} />
       {meta.label}
     </span>
   );
 }
 
 export function BillableStatusCard({ current }: { current?: BillableStatus }) {
-  const items: Array<{
-    key: BillableStatus;
-    label: string;
-    color: "green" | "amber" | "red";
-  }> = [
-    { key: "billable", label: "Billable", color: "green" },
-    { key: "pending_approval", label: "Pending Approval", color: "amber" },
-    { key: "missing_labor", label: "Missing Labor Entry", color: "red" },
-  ];
+  const items = (
+    Object.entries(STATUS_META) as Array<
+      [BillableStatus, (typeof STATUS_META)[BillableStatus]]
+    >
+  ).map(([key, meta]) => ({ key, ...meta }));
 
   return (
-    <section className="relative max-w-xl rounded-2xl bg-stone-200/70 px-6 py-5">
+    <section className="relative max-w-xl rounded-xl border border-stone-200 bg-white px-5 py-4 shadow-sm">
       <CopyIconButton text="Billable Status: Billable or Pending Approval or Missing Labor Entry" />
-      <p className="font-mono text-[15px] font-semibold text-stone-900">
-        Billable Status
-      </p>
-      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2 font-mono text-[15px] text-stone-900">
+      <p className="text-sm font-semibold text-green-950">Billable Status</p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-stone-700">
         {items.map((item, index) => (
           <span key={item.key} className="inline-flex items-center gap-2">
-            {index > 0 ? <span className="text-stone-700">or</span> : null}
+            {index > 0 ? (
+              <span className="text-stone-400">or</span>
+            ) : null}
             <span
               className={`inline-flex items-center gap-2 ${
-                current && current !== item.key ? "opacity-40" : ""
+                current && current !== item.key
+                  ? "text-stone-400"
+                  : "text-stone-800"
               }`}
             >
-              <GlowDot color={item.color} />
+              <StatusDot color={item.color} />
               {item.label}
             </span>
           </span>

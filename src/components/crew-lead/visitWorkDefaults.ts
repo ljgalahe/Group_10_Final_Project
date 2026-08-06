@@ -192,6 +192,4 @@ export function tasksForServices(services: string[]): { id: string; label: strin
   }));
 }
 
-export function formatStatusLabel(status: string): string {
-  return toTitleCase(status.replace(/_/g, " "));
-}
+export { formatStatusLabel } from "@/lib/status-labels";

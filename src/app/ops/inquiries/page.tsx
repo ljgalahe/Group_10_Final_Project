@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { InquiryStatusControl } from "@/app/ops/inquiries/InquiryStatusControl";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
+import { SERVICE_LABELS } from "@/lib/commercial-services";
 import {
   getViewRole,
   roleCanViewInquiriesInbox,
@@ -11,16 +12,10 @@ import {
 const PROPERTY_LABELS: Record<string, string> = {
   office_park: "Office Park",
   retail_center: "Retail Center",
+  hospitality: "Hotel / Hospitality",
+  institutional: "Campus / Science & Cultural",
   industrial: "Industrial",
-  multifamily: "Multifamily",
-  other: "Other",
-};
-
-const SERVICE_LABELS: Record<string, string> = {
-  mowing: "Mowing",
-  irrigation: "Irrigation",
-  seasonal_color: "Seasonal Color",
-  snow_removal: "Snow Removal",
+  multifamily: "Residential Community",
   other: "Other",
 };
 
