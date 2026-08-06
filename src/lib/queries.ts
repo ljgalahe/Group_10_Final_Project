@@ -166,35 +166,61 @@ export async function fetchContract(id: string) {
   return { data, error };
 }
 
+/** PostgREST defaults to max 1000 rows; page past the cap for full datasets. */
+const SUPABASE_PAGE_SIZE = 1000;
+const SUPABASE_IN_CHUNK = 200;
+
+async function fetchAllPaged<T>(
+  fetchPage: (
+    from: number,
+    to: number
+  ) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<{ data: T[]; error: unknown }> {
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await fetchPage(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) return { data: all, error };
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+    from += SUPABASE_PAGE_SIZE;
+  }
+  return { data: all, error: null };
+}
+
 export async function fetchVisits() {
   const supabase = await createDataClient();
   const role = await getViewRole();
   const customerId = await getScopedCustomerId(role);
 
-  let query = supabase
-    .from("service_visits")
-    .select(
-      "*, contracts(title, customer_id, customers(name, property_type, address, customer_notes))"
-    )
-    .order("scheduled_date", { ascending: true });
-
+  let contractIds: string[] | null = null;
   if (customerId) {
     const { data: contracts } = await supabase
       .from("contracts")
       .select("id")
       .eq("customer_id", customerId);
-    const ids = contracts?.map((c) => c.id) ?? [];
-    if (ids.length === 0) return { data: [], error: null };
-    query = query.in("contract_id", ids);
+    contractIds = contracts?.map((c) => c.id) ?? [];
+    if (contractIds.length === 0) return { data: [], error: null };
   }
 
-  const { data, error } = await query;
-  return { data: data ?? [], error };
-}
+  const { data, error } = await fetchAllPaged((from, to) => {
+    let query = supabase
+      .from("service_visits")
+      .select(
+        "*, contracts(title, customer_id, customers(name, property_type, address, customer_notes))"
+      )
+      .order("scheduled_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (contractIds) {
+      query = query.in("contract_id", contractIds);
+    }
+    return query;
+  });
 
-/** PostgREST defaults to max 1000 rows; accountant Visits needs the full set. */
-const SUPABASE_PAGE_SIZE = 1000;
-const SUPABASE_IN_CHUNK = 200;
+  return { data: (data ?? []) as any[], error };
+}
 
 export async function fetchVisitLaborEntries(visitIds: string[]) {
   if (visitIds.length === 0) {
@@ -259,25 +285,6 @@ export async function fetchVisitLaborEntries(visitIds: string[]) {
     }
   }
 
-  return { data: all, error: null };
-}
-
-async function fetchAllPaged<T>(
-  fetchPage: (
-    from: number,
-    to: number
-  ) => Promise<{ data: T[] | null; error: unknown }>
-): Promise<{ data: T[]; error: unknown }> {
-  const all: T[] = [];
-  let from = 0;
-  for (;;) {
-    const { data, error } = await fetchPage(from, from + SUPABASE_PAGE_SIZE - 1);
-    if (error) return { data: all, error };
-    const rows = data ?? [];
-    all.push(...rows);
-    if (rows.length < SUPABASE_PAGE_SIZE) break;
-    from += SUPABASE_PAGE_SIZE;
-  }
   return { data: all, error: null };
 }
 
@@ -401,7 +408,6 @@ export async function fetchAccountantVisits() {
     list.push(invoice);
     invoicesByContract.set(invoice.contract_id, list);
   }
-
   return {
     data: visits.map((visit) => ({
       ...visit,
@@ -496,8 +502,18 @@ export async function fetchVisitCostsByVisitIds(visitIds: string[]) {
 
 export async function fetchAllVisitCosts() {
   const supabase = await createDataClient();
-  const { data, error } = await supabase.from("visit_costs").select("*");
-  return { data: data ?? [], error };
+  const { data, error } = await fetchAllPaged((from, to) =>
+    supabase
+      .from("visit_costs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
+  return {
+    data: (data ?? []) as any[],
+    error,
+  };
 }
 
 export async function fetchInvoices() {
@@ -709,7 +725,10 @@ export async function fetchDashboardStats() {
     if (ids.length > 0) {
       visitsQuery = visitsQuery.in("contract_id", ids);
     } else {
-      visitsQuery = visitsQuery.eq("contract_id", "00000000-0000-0000-0000-000000000000");
+      visitsQuery = visitsQuery.eq(
+        "contract_id",
+        "00000000-0000-0000-0000-000000000000"
+      );
     }
   }
 
@@ -721,7 +740,10 @@ export async function fetchDashboardStats() {
 
   const invoiceList = invoices.data ?? [];
   const totalBilled = invoiceList.reduce((s, i) => s + Number(i.total), 0);
-  const totalCollected = invoiceList.reduce((s, i) => s + Number(i.amount_paid), 0);
+  const totalCollected = invoiceList.reduce(
+    (s, i) => s + Number(i.amount_paid),
+    0
+  );
   const outstanding = totalBilled - totalCollected;
   const overdueCount = invoiceList.filter((i) => {
     const balance = Number(i.amount_paid) < Number(i.total);
@@ -750,38 +772,70 @@ export async function fetchProfitabilityReport() {
     .select("id, title, monthly_fee, customers(name)")
     .eq("status", "active");
 
-  if (!contracts) return [];
+  if (!contracts?.length) return [];
 
-  const results = [];
-  for (const contract of contracts) {
-    const { data: invoices } = await supabase
-      .from("invoices")
-      .select("total")
-      .eq("contract_id", contract.id);
-    const revenue = (invoices ?? []).reduce((s, i) => s + Number(i.total), 0);
+  const contractIds = contracts.map((c) => c.id);
 
-    const { data: visits } = await supabase
-      .from("service_visits")
-      .select("id")
-      .eq("contract_id", contract.id);
-    const visitIds = visits?.map((v) => v.id) ?? [];
+  type InvoiceRow = { contract_id: string; total: number | string };
+  type VisitRow = { id: string; contract_id: string };
 
-    let costs = 0;
-    if (visitIds.length > 0) {
-      const { data: visitCosts } = await supabase
-        .from("visit_costs")
-        .select("amount")
-        .in("visit_id", visitIds);
-      costs = (visitCosts ?? []).reduce((s, c) => s + Number(c.amount), 0);
-    }
+  const invoices: InvoiceRow[] = [];
+  const visits: VisitRow[] = [];
 
+  for (let i = 0; i < contractIds.length; i += SUPABASE_IN_CHUNK) {
+    const chunk = contractIds.slice(i, i + SUPABASE_IN_CHUNK);
+    const [{ data: invoiceRows }, { data: visitRows }] = await Promise.all([
+      supabase.from("invoices").select("contract_id, total").in("contract_id", chunk),
+      supabase.from("service_visits").select("id, contract_id").in("contract_id", chunk),
+    ]);
+    invoices.push(...((invoiceRows ?? []) as InvoiceRow[]));
+    visits.push(...((visitRows ?? []) as VisitRow[]));
+  }
+
+  const revenueByContract = new Map<string, number>();
+  for (const invoice of invoices) {
+    revenueByContract.set(
+      invoice.contract_id,
+      (revenueByContract.get(invoice.contract_id) ?? 0) + Number(invoice.total)
+    );
+  }
+
+  const visitIdsByContract = new Map<string, string[]>();
+  const allVisitIds: string[] = [];
+  for (const visit of visits) {
+    const list = visitIdsByContract.get(visit.contract_id) ?? [];
+    list.push(visit.id);
+    visitIdsByContract.set(visit.contract_id, list);
+    allVisitIds.push(visit.id);
+  }
+
+  const { data: costRows } = await fetchVisitCostsByVisitIds(allVisitIds);
+  const costsByVisit = new Map<string, number>();
+  for (const cost of costRows) {
+    costsByVisit.set(
+      cost.visit_id,
+      (costsByVisit.get(cost.visit_id) ?? 0) + Number(cost.amount)
+    );
+  }
+
+  const results = contracts.map((contract) => {
+    const revenue = revenueByContract.get(contract.id) ?? 0;
+    const visitIds = visitIdsByContract.get(contract.id) ?? [];
+    const costs = visitIds.reduce(
+      (sum, id) => sum + (costsByVisit.get(id) ?? 0),
+      0
+    );
     const margin = revenue - costs;
     const marginPct = revenue > 0 ? (margin / revenue) * 100 : 0;
+    const customer = contract.customers as
+      | { name: string }
+      | { name: string }[]
+      | null;
+    const customerName = Array.isArray(customer)
+      ? customer[0]?.name
+      : customer?.name;
 
-    const customer = contract.customers as { name: string } | { name: string }[] | null;
-    const customerName = Array.isArray(customer) ? customer[0]?.name : customer?.name;
-
-    results.push({
+    return {
       contractId: contract.id,
       title: contract.title,
       customerName: customerName ?? "",
@@ -790,9 +844,8 @@ export async function fetchProfitabilityReport() {
       margin,
       marginPct,
       monthlyFee: Number(contract.monthly_fee ?? 0),
-    });
-  }
-
+    };
+  });
   return results;
 }
 
@@ -935,9 +988,98 @@ export async function fetchProfitLeakInputs() {
 
   if (!contracts?.length) return [];
 
-  const results = [];
+  const contractIds = contracts.map((c) => c.id);
 
-  for (const contract of contracts) {
+  type InvoiceRow = {
+    id: string;
+    contract_id: string;
+    total: number | string;
+    status: string;
+    issue_date: string;
+    invoice_lines: Array<{
+      description: string | null;
+      amount: number | string;
+      line_type: string | null;
+    }> | null;
+  };
+  type VisitRow = {
+    id: string;
+    contract_id: string;
+    scheduled_date: string;
+    status: string;
+    crew_notes: string | null;
+  };
+  type ExtraWorkRow = {
+    id: string;
+    contract_id: string;
+    title: string;
+    quoted_amount: number | string;
+    status: string;
+  };
+
+  const invoices: InvoiceRow[] = [];
+  const visits: VisitRow[] = [];
+  const extraWork: ExtraWorkRow[] = [];
+
+  for (let i = 0; i < contractIds.length; i += SUPABASE_IN_CHUNK) {
+    const chunk = contractIds.slice(i, i + SUPABASE_IN_CHUNK);
+    const [
+      { data: invoiceRows },
+      { data: visitRows },
+      { data: extraRows },
+    ] = await Promise.all([
+      supabase
+        .from("invoices")
+        .select(
+          "id, contract_id, total, status, issue_date, invoice_lines(description, amount, line_type)"
+        )
+        .in("contract_id", chunk),
+      supabase
+        .from("service_visits")
+        .select("id, contract_id, scheduled_date, status, crew_notes")
+        .in("contract_id", chunk),
+      supabase
+        .from("extra_work_orders")
+        .select("id, contract_id, title, quoted_amount, status")
+        .in("contract_id", chunk),
+    ]);
+    invoices.push(...((invoiceRows ?? []) as InvoiceRow[]));
+    visits.push(...((visitRows ?? []) as VisitRow[]));
+    extraWork.push(...((extraRows ?? []) as ExtraWorkRow[]));
+  }
+
+  const invoicesByContract = new Map<string, InvoiceRow[]>();
+  for (const row of invoices) {
+    const list = invoicesByContract.get(row.contract_id) ?? [];
+    list.push(row);
+    invoicesByContract.set(row.contract_id, list);
+  }
+
+  const visitsByContract = new Map<string, VisitRow[]>();
+  const allVisitIds: string[] = [];
+  for (const row of visits) {
+    const list = visitsByContract.get(row.contract_id) ?? [];
+    list.push(row);
+    visitsByContract.set(row.contract_id, list);
+    allVisitIds.push(row.id);
+  }
+
+  const extraByContract = new Map<string, ExtraWorkRow[]>();
+  for (const row of extraWork) {
+    const list = extraByContract.get(row.contract_id) ?? [];
+    list.push(row);
+    extraByContract.set(row.contract_id, list);
+  }
+
+  const { data: costRows } = await fetchVisitCostsByVisitIds(allVisitIds);
+  const costsByVisit = new Map<string, typeof costRows>();
+  for (const cost of costRows) {
+    const list = costsByVisit.get(cost.visit_id) ?? [];
+    list.push(cost);
+    costsByVisit.set(cost.visit_id, list);
+  }
+
+  const results = contracts.map((contract) => {
     const customer = contract.customers as
       | { name: string }
       | { name: string }[]
@@ -945,42 +1087,12 @@ export async function fetchProfitLeakInputs() {
     const customerName = Array.isArray(customer)
       ? customer[0]?.name
       : customer?.name;
+    const contractVisits = visitsByContract.get(contract.id) ?? [];
+    const visitCosts = contractVisits.flatMap(
+      (visit) => costsByVisit.get(visit.id) ?? []
+    );
 
-    const [{ data: invoices }, { data: visits }, { data: extraWork }] =
-      await Promise.all([
-        supabase
-          .from("invoices")
-          .select(
-            "id, total, status, issue_date, invoice_lines(description, amount, line_type)"
-          )
-          .eq("contract_id", contract.id),
-        supabase
-          .from("service_visits")
-          .select("id, scheduled_date, status, crew_notes")
-          .eq("contract_id", contract.id),
-        supabase
-          .from("extra_work_orders")
-          .select("id, title, quoted_amount, status")
-          .eq("contract_id", contract.id),
-      ]);
-
-    const visitIds = (visits ?? []).map((visit) => visit.id);
-    let visitCosts: Array<{
-      visit_id: string;
-      cost_type: string;
-      description: string | null;
-      amount: number;
-    }> = [];
-
-    if (visitIds.length > 0) {
-      const { data } = await supabase
-        .from("visit_costs")
-        .select("visit_id, cost_type, description, amount")
-        .in("visit_id", visitIds);
-      visitCosts = data ?? [];
-    }
-
-    results.push({
+    return {
       contractId: contract.id,
       title: contract.title,
       customerName: customerName ?? "",
@@ -988,13 +1100,37 @@ export async function fetchProfitLeakInputs() {
       visitsPerWeek: Number(contract.visits_per_week ?? 0),
       seasonStart: contract.season_start as string | null,
       seasonEnd: contract.season_end as string | null,
-      invoices: invoices ?? [],
-      visits: visits ?? [],
-      visitCosts,
-      extraWork: extraWork ?? [],
-    });
-  }
-
+      invoices: (invoicesByContract.get(contract.id) ?? []).map((invoice) => ({
+        id: invoice.id,
+        total: Number(invoice.total),
+        status: invoice.status,
+        issue_date: invoice.issue_date,
+        invoice_lines: (invoice.invoice_lines ?? []).map((line) => ({
+          description: line.description,
+          amount: Number(line.amount),
+          line_type: line.line_type,
+        })),
+      })),
+      visits: contractVisits.map((visit) => ({
+        id: visit.id,
+        scheduled_date: visit.scheduled_date,
+        status: visit.status,
+        crew_notes: visit.crew_notes,
+      })),
+      visitCosts: visitCosts.map((cost) => ({
+        visit_id: cost.visit_id,
+        cost_type: cost.cost_type,
+        description: cost.description,
+        amount: Number(cost.amount),
+      })),
+      extraWork: (extraByContract.get(contract.id) ?? []).map((row) => ({
+        id: row.id,
+        title: row.title,
+        quoted_amount: Number(row.quoted_amount),
+        status: row.status,
+      })),
+    };
+  });
   return results;
 }
 

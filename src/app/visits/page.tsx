@@ -1,6 +1,6 @@
 import { completeVisit } from "@/app/actions/business";
 import { ensureCompletedVisitLaborSynced } from "@/app/actions/labor";
-import { AccountantVisitsView, type AccountantVisit } from "@/components/AccountantVisitsView";
+import { AccountantVisitsView } from "@/components/AccountantVisitsView";
 import {
   fetchEquipment,
   fetchEquipmentUsage,
@@ -107,15 +107,22 @@ export default async function VisitsPage({
 
   if (isAccountant) {
     const { data: initialVisits } = await fetchAccountantVisits();
-    await ensureCompletedVisitLaborSynced(initialVisits.map((visit) => visit.id));
-    const { data: visits } = await fetchAccountantVisits();
+    const { synced } = await ensureCompletedVisitLaborSynced(
+      initialVisits.map((visit) => visit.id)
+    );
+    let visits = initialVisits;
+    if (synced > 0) {
+      const refreshed = await fetchAccountantVisits();
+      visits = refreshed.data;
+    }
     const visitJournalStates = Object.fromEntries(
       (await fetchJournalSourceStates()).visit
     );
-    const [equipmentRows, usageRows] = await Promise.all([
+    const [equipmentReport, usageRows] = await Promise.all([
       fetchEquipment(),
       fetchEquipmentUsage(),
     ]);
+    const equipmentRows = equipmentReport.assets;
 
     return (
       <AppShell>
@@ -127,7 +134,7 @@ export default async function VisitsPage({
           <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />
         ) : (
           <AccountantVisitsView
-            visits={visits as AccountantVisit[]}
+            visits={visits as any}
             todayIso={new Date().toISOString().slice(0, 10)}
             visitJournalStates={visitJournalStates}
             equipment={equipmentRows.map((item) => ({
@@ -487,7 +494,12 @@ export default async function VisitsPage({
   const filteredVisits =
     statusFilter === "all"
       ? visits
-      : visits.filter((v) => v.status === statusFilter);
+      : statusFilter === "scheduled"
+        ? // Rescheduled (e.g. weather) still counts as upcoming for demos.
+          visits.filter(
+            (v) => v.status === "scheduled" || v.status === "rescheduled"
+          )
+        : visits.filter((v) => v.status === statusFilter);
 
   const emptyMessage = (() => {
     if (statusFilter === "scheduled") {
@@ -595,6 +607,16 @@ export default async function VisitsPage({
                             </span>
                             {formatVisitDescription(visit.crew_notes)}
                           </p>
+                          {visit.status === "rescheduled" ? (
+                            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                              <p className="font-medium">
+                                Rescheduled for weather
+                              </p>
+                              <p className="mt-0.5 text-amber-900/80">
+                                {formatVisitDescription(visit.crew_notes)}
+                              </p>
+                            </div>
+                          ) : null}
                           {customerNotes.length > 0 ? (
                             <div className="mt-4">
                               <p className="text-sm font-medium text-stone-800">

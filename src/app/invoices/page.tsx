@@ -103,11 +103,19 @@ export default async function InvoicesPage({
   const showAccountantLayout = roleCanManageBilling(role);
   const params = await searchParams;
   const statusFilter = parseStatusFilter(params.status);
-  const { data: invoices } = await fetchInvoices();
-  const invoiceJournalStates = showAccountantLayout
-    ? (await fetchJournalSourceStates()).invoice
-    : new Map<string, JournalStatus | null>();
-  const contracts = isAccountant ? await fetchContractsForInvoice() : [];
+  const [{ data: invoices }, journalStates, contracts] = await Promise.all([
+    fetchInvoices(),
+    showAccountantLayout
+      ? fetchJournalSourceStates()
+      : Promise.resolve(null),
+    isAccountant
+      ? fetchContractsForInvoice()
+      : Promise.resolve(
+          [] as Awaited<ReturnType<typeof fetchContractsForInvoice>>
+        ),
+  ]);
+  const invoiceJournalStates =
+    journalStates?.invoice ?? new Map<string, JournalStatus | null>();
   const customerId = isCustomer ? await getViewCustomerId() : null;
   const paymentMethods =
     customerId != null

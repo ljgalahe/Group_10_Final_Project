@@ -8,6 +8,10 @@ import { loadAccountantArAgingData } from "@/app/reports/ar-aging/load-ar-aging"
 import type { AgingBucketKey } from "@/app/reports/ar-aging/ar-types";
 import { fetchFinancialStatementInputs } from "@/app/reports/profitability/queries";
 import {
+  fetchAccountantCompanyPerformance,
+  type AccountantCompanyPerformance,
+} from "@/app/dashboard/accountant-company-performance";
+import {
   fetchJournalSourceStates,
   fetchPaymentsSummary,
 } from "@/lib/queries";
@@ -40,6 +44,7 @@ export type AccountantDashboardData = {
   financialStatementInputs: Awaited<
     ReturnType<typeof fetchFinancialStatementInputs>
   >;
+  companyPerformance: AccountantCompanyPerformance;
 };
 
 function bucketTotal(
@@ -90,13 +95,19 @@ function queuePriority(status: DisplayInvoiceStatus) {
 
 export async function fetchAccountantDashboardData(): Promise<AccountantDashboardData> {
   const supabase = await createDataClient();
-  const [aging, summary, journalStates, financialStatementInputs] =
-    await Promise.all([
-      loadAccountantArAgingData(),
-      fetchPaymentsSummary(),
-      fetchJournalSourceStates(),
-      fetchFinancialStatementInputs(),
-    ]);
+  const [
+    aging,
+    summary,
+    journalStates,
+    financialStatementInputs,
+    companyPerformance,
+  ] = await Promise.all([
+    loadAccountantArAgingData(),
+    fetchPaymentsSummary(),
+    fetchJournalSourceStates(),
+    fetchFinancialStatementInputs(),
+    fetchAccountantCompanyPerformance(),
+  ]);
 
   const { data: invoiceRows } = await supabase
     .from("invoices")
@@ -200,5 +211,6 @@ export async function fetchAccountantDashboardData(): Promise<AccountantDashboar
     readyToPostCount,
     invoiceQueue: invoiceQueue.slice(0, 6),
     financialStatementInputs,
+    companyPerformance,
   };
 }
