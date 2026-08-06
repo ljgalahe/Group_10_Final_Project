@@ -46,6 +46,7 @@ import {
   fetchExtraWorkByContractIds,
   fetchJournalSourceStates,
   fetchVisitCosts,
+  fetchVisitCostsByVisitIds,
   fetchVisits,
 } from "@/lib/queries";
 import {
@@ -340,49 +341,55 @@ export default async function VisitsPage({
         ? visits.filter((visit) => jobIncludesCrewMember(visit.id))
         : visits;
 
-    const cardData: CrewLeadVisitCardData[] = await Promise.all(
-      scopedVisits.map(async (visit) => {
-        const contract = visit.contracts as {
-          title: string;
-          customer_id?: string;
-          customers: { name: string } | null;
-        } | null;
-        const { data: costs } = await fetchVisitCosts(visit.id);
-        const costRows = costs ?? [];
-        const totalCosts = costRows.reduce(
-          (sum, c) => sum + Number(c.amount),
-          0
-        );
-        const crewJob = crewJobsByVisitId.get(visit.id) ?? null;
-        const customerId =
-          crewJob?.customerId ??
-          contract?.customer_id ??
-          (contract?.customers as { id?: string } | null)?.id;
-        const displayStatus = effectiveVisitDisplayStatus(
-          visit.status,
-          visit.scheduled_date.slice(0, 10),
-          Boolean(customerId && heldIds.has(customerId)),
-          today
-        );
-
-        return {
-          id: visit.id,
-          status: displayStatus,
-          customerName: contract?.customers?.name ?? "Unknown Customer",
-          contractTitle: contract?.title ?? "Contract",
-          scheduledDate: visit.scheduled_date,
-          crewNotes: visit.crew_notes,
-          totalCosts,
-          costs: costRows.map((cost) => ({
-            id: cost.id,
-            cost_type: cost.cost_type,
-            description: cost.description,
-            amount: Number(cost.amount),
-          })),
-          crewJob,
-        };
-      })
+    const { data: allScopedCosts } = await fetchVisitCostsByVisitIds(
+      scopedVisits.map((visit) => visit.id)
     );
+    const costsByVisitId = new Map<string, typeof allScopedCosts>();
+    for (const cost of allScopedCosts) {
+      const list = costsByVisitId.get(cost.visit_id) ?? [];
+      list.push(cost);
+      costsByVisitId.set(cost.visit_id, list);
+    }
+    const cardData: CrewLeadVisitCardData[] = scopedVisits.map((visit) => {
+      const contract = visit.contracts as {
+        title: string;
+        customer_id?: string;
+        customers: { name: string } | null;
+      } | null;
+      const costRows = costsByVisitId.get(visit.id) ?? [];
+      const totalCosts = costRows.reduce(
+        (sum, c) => sum + Number(c.amount),
+        0
+      );
+      const crewJob = crewJobsByVisitId.get(visit.id) ?? null;
+      const customerId =
+        crewJob?.customerId ??
+        contract?.customer_id ??
+        (contract?.customers as { id?: string } | null)?.id;
+      const displayStatus = effectiveVisitDisplayStatus(
+        visit.status,
+        visit.scheduled_date.slice(0, 10),
+        Boolean(customerId && heldIds.has(customerId)),
+        today
+      );
+
+      return {
+        id: visit.id,
+        status: displayStatus,
+        customerName: contract?.customers?.name ?? "Unknown Customer",
+        contractTitle: contract?.title ?? "Contract",
+        scheduledDate: visit.scheduled_date,
+        crewNotes: visit.crew_notes,
+        totalCosts,
+        costs: costRows.map((cost) => ({
+          id: cost.id,
+          cost_type: cost.cost_type,
+          description: cost.description,
+          amount: Number(cost.amount),
+        })),
+        crewJob,
+      };
+    });
 
     return (
       <AppShell>

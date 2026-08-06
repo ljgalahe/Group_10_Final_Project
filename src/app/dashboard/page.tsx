@@ -492,6 +492,16 @@ export default async function DashboardPage({
 
   if (role === "crew_lead" || role === "manager" || role === "crew_member") {
     const supabase = await createDataClient();
+    const windowStart = (() => {
+      const d = new Date(`${today}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() - 14);
+      return d.toISOString().slice(0, 10);
+    })();
+    const windowEnd = (() => {
+      const d = new Date(`${today}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + 90);
+      return d.toISOString().slice(0, 10);
+    })();
     const [{ data: contracts }, { data: visits }, { data: extraWorkRows }] =
       await Promise.all([
         supabase
@@ -505,6 +515,8 @@ export default async function DashboardPage({
           .select(
             "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
           )
+          .gte("scheduled_date", windowStart)
+          .lte("scheduled_date", windowEnd)
           .order("scheduled_date", { ascending: true }),
         role === "crew_member"
           ? supabase
