@@ -10,16 +10,72 @@ import {
 
 export function ServiceHoldDashboardCard({
   holds,
+  embedded = false,
 }: {
   holds: CustomerServiceHold[];
+  /** When true, skip outer chrome (parent already provides a section). */
+  embedded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(embedded);
 
   useEffect(() => {
     syncServiceHoldAudit(holds);
   }, [holds]);
 
   const count = holds.length;
+
+  const list =
+    count === 0 ? (
+      <p className="text-sm text-stone-500">
+        No customers currently meet the automatic credit-hold rule.
+      </p>
+    ) : (
+      <ul className="space-y-3">
+        {holds.map((hold) => (
+          <li
+            key={hold.customerId}
+            className="rounded-lg border border-stone-200 bg-stone-50/70 px-3 py-3"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-green-950">
+                  {hold.customerName}
+                </p>
+                <p className="mt-0.5 text-xs text-stone-600">
+                  Oldest overdue: {hold.oldestInvoiceNumber} · due{" "}
+                  {formatDate(hold.oldestDueDate)} · {hold.daysOverdue} days
+                  overdue
+                </p>
+                <p className="mt-0.5 text-xs text-stone-600">
+                  Overdue balance {formatCurrency(hold.overdueBalance)} ·{" "}
+                  {hold.futureVisitsOnHold === 1
+                    ? "1 future visit On Hold"
+                    : `${hold.futureVisitsOnHold} future visits On Hold`}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/reports/ar-aging?customer=${hold.customerId}`}
+                  className="rounded-md border border-green-800 px-3 py-1.5 text-xs font-medium text-green-900 hover:bg-green-50"
+                >
+                  Open AR Aging
+                </Link>
+                <Link
+                  href="/payments"
+                  className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100"
+                >
+                  Payments
+                </Link>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    );
+
+  if (embedded) {
+    return <div className="space-y-3">{list}</div>;
+  }
 
   return (
     <section className="rounded-xl border border-red-200 bg-white p-4 shadow-sm">
@@ -55,55 +111,7 @@ export function ServiceHoldDashboardCard({
       </button>
 
       {expanded ? (
-        <div className="mt-4 border-t border-red-100 pt-4">
-          {count === 0 ? (
-            <p className="text-sm text-stone-500">
-              No customers currently meet the automatic credit-hold rule.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {holds.map((hold) => (
-                <li
-                  key={hold.customerId}
-                  className="rounded-lg border border-stone-200 bg-stone-50/70 px-3 py-3"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-green-950">
-                        {hold.customerName}
-                      </p>
-                      <p className="mt-0.5 text-xs text-stone-600">
-                        Oldest overdue: {hold.oldestInvoiceNumber} · due{" "}
-                        {formatDate(hold.oldestDueDate)} · {hold.daysOverdue}{" "}
-                        days overdue
-                      </p>
-                      <p className="mt-0.5 text-xs text-stone-600">
-                        Overdue balance {formatCurrency(hold.overdueBalance)} ·{" "}
-                        {hold.futureVisitsOnHold === 1
-                          ? "1 future visit On Hold"
-                          : `${hold.futureVisitsOnHold} future visits On Hold`}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={`/reports/ar-aging?customer=${hold.customerId}`}
-                        className="rounded-md border border-green-800 px-3 py-1.5 text-xs font-medium text-green-900 hover:bg-green-50"
-                      >
-                        Open AR Aging
-                      </Link>
-                      <Link
-                        href="/payments"
-                        className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100"
-                      >
-                        Payments
-                      </Link>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <div className="mt-4 border-t border-red-100 pt-4">{list}</div>
       ) : null}
     </section>
   );

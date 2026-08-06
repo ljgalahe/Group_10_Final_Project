@@ -13,9 +13,14 @@ import { CrewMemberAvailabilityPanel } from "@/components/crew-member/CrewMember
 import { CrewMemberHoursWorked } from "@/components/crew-member/CrewMemberHoursWorked";
 import { CrewMemberTodayJobs } from "@/components/crew-member/CrewMemberTodayJobs";
 import { CompanyPerformanceLeaderboard } from "@/components/CompanyPerformanceLeaderboard";
+import { DashboardCollapsibleSection } from "@/components/DashboardCollapsibleSection";
 import { ManagerAlertsCenter } from "@/components/ManagerAlertsCenter";
+import { ManagerKpiStrip, type ManagerKpi } from "@/components/ManagerKpiStrip";
 import { ManagerApprovalsPanel } from "@/components/manager/ManagerApprovalsPanel";
-import { ServiceHoldDashboardCard } from "@/components/ServiceHoldDashboardCard";
+import {
+  ServiceHoldAuditSync,
+  ServiceHoldDashboardCard,
+} from "@/components/ServiceHoldDashboardCard";
 import { Card, PageHeader, StatCard } from "@/components/ui";
 import {
   buildCustomerServiceHolds,
@@ -205,7 +210,7 @@ export default async function DashboardPage({
     manager: {
       title: "Manager Dashboard",
       description:
-        "Overview of active contracts, scheduled visits, and collections performance.",
+        "Summary hub for collections, holds, alerts, and performance — open a section for detail.",
     },
     accountant: {
       title: "Accounting Dashboard",
@@ -248,6 +253,7 @@ export default async function DashboardPage({
   > = [];
   let serviceHolds: CustomerServiceHold[] = [];
   let managerAlerts: ManagerAlert[] = [];
+  let managerKpis: ManagerKpi[] = [];
 
   if (role === "manager") {
     const [
@@ -417,6 +423,57 @@ export default async function DashboardPage({
         status: row.status,
       })),
     });
+
+    const totalRevenue = profitability.reduce((sum, row) => sum + row.revenue, 0);
+    const totalMargin = profitability.reduce((sum, row) => sum + row.margin, 0);
+    const avgMarginPct =
+      totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
+
+    const visitsRequiringAttention = visits.filter(
+      (visit) =>
+        visit.status === "scheduled" && visit.scheduled_date < today
+    ).length;
+
+    managerKpis = [
+      {
+        id: "collected",
+        label: "Revenue collected",
+        value: formatCurrency(stats.totalCollected),
+        hint: `YTD against ${formatCurrency(stats.totalBilled)} billed`,
+        href: "/payments",
+      },
+      {
+        id: "ar",
+        label: "Outstanding AR",
+        value: formatCurrency(stats.outstanding),
+        hint: `${stats.overdueCount} open invoice(s) need follow-up`,
+        href: "/reports/ar-aging",
+      },
+      {
+        id: "holds",
+        label: "Customers on service hold",
+        value: String(serviceHolds.length),
+        hint:
+          serviceHolds.length === 0
+            ? "No accounts currently blocked"
+            : "Invoices 30+ days overdue",
+        href: "/reports/ar-aging?hold=1",
+      },
+      {
+        id: "margin",
+        label: "Average contract margin",
+        value: `${avgMarginPct.toFixed(1)}%`,
+        hint: "Across active contracts with billed revenue",
+        href: "/reports/profitability",
+      },
+      {
+        id: "visits",
+        label: "Visits requiring attention",
+        value: String(visitsRequiringAttention),
+        hint: "Scheduled visits past their planned date",
+        href: "/visits",
+      },
+    ];
   }
 
   if (role === "crew_lead" || role === "manager" || role === "crew_member") {
@@ -712,39 +769,67 @@ export default async function DashboardPage({
         </>
       ) : null}
 
-      {role !== "customer" && role !== "crew_member" ? staffStatsRow : null}
+      {role !== "customer" &&
+      role !== "crew_member" &&
+      role !== "manager"
+        ? staffStatsRow
+        : null}
 
       {role === "manager" ? (
-        <div className="mt-8 space-y-6">
+        <div className="mt-6 space-y-5">
+          <ServiceHoldAuditSync holds={serviceHolds} />
+          <ManagerKpiStrip kpis={managerKpis} />
           <ManagerAlertsCenter alerts={managerAlerts} />
-          <ServiceHoldDashboardCard holds={serviceHolds} />
           <CompanyPerformanceLeaderboard
             categories={performanceCategories}
             initialCategory={initialPerfCategory}
           />
-          <ManagerApprovalsPanel visitLabels={visitLabels} />
-          <Card>
-            <h2 className="text-lg font-semibold text-green-950">
+          <DashboardCollapsibleSection
+            title="Service Hold details"
+            summary={
+              serviceHolds.length === 0
+                ? "No customers currently on hold"
+                : `${serviceHolds.length} customer${serviceHolds.length === 1 ? "" : "s"} blocked from new service`
+            }
+            defaultOpen={false}
+          >
+            <ServiceHoldDashboardCard holds={serviceHolds} embedded />
+          </DashboardCollapsibleSection>
+          <DashboardCollapsibleSection
+            title="Approvals & crew alerts"
+            summary="Field concerns, extra-work approvals, and visit comments"
+            defaultOpen={false}
+          >
+            <ManagerApprovalsPanel visitLabels={visitLabels} hideIntro />
+          </DashboardCollapsibleSection>
+          <Card className="p-4 sm:p-5">
+            <h2 className="text-base font-semibold text-green-950">
               Quick Actions
             </h2>
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-3 flex flex-wrap gap-2">
               <Link
                 href="/reports/ar-aging"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
               >
-                AR Aging Report
+                AR Aging
               </Link>
               <Link
                 href="/reports/profitability"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
               >
-                Profitability Report
+                Profitability
+              </Link>
+              <Link
+                href="/payments"
+                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
+              >
+                Payments
               </Link>
               <Link
                 href="/support"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
               >
-                Customer Support
+                Support
               </Link>
             </div>
           </Card>

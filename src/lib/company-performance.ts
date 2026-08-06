@@ -37,10 +37,16 @@ export type CategoryLeaderboard = {
   category: PerformanceCategory;
   title: string;
   description: string;
+  /** Short explanation of how scores are calculated for this category. */
+  scoreGuide: string;
   entries: PerformanceEntry[];
   top: PerformanceEntry | null;
   needsAttention: PerformanceEntry | null;
 };
+
+/** Shared badge bands used across categories (score-based rankings). */
+export const PERFORMANCE_BADGE_GUIDE =
+  "Excellent 85+, Strong 70–84, Monitor 50–69, Needs Attention under 50. Customer ratings also use payment-speed thresholds.";
 
 type ContractInput = {
   id: string;
@@ -218,6 +224,7 @@ function wrapCategory(
   category: PerformanceCategory,
   title: string,
   description: string,
+  scoreGuide: string,
   entries: PerformanceEntry[]
 ): CategoryLeaderboard {
   const ranked = sortBestFirst(entries);
@@ -225,6 +232,7 @@ function wrapCategory(
     category,
     title,
     description,
+    scoreGuide,
     entries: ranked,
     top: ranked[0] ?? null,
     needsAttention:
@@ -419,7 +427,8 @@ function buildCrewLeaderboard(
   return wrapCategory(
     "crew",
     "Crew Performance",
-    "On-time completion, labor intensity, and rework signals by assigned crew. Weather and equipment delays noted in visit comments are excluded from the completion penalty.",
+    "Completion rate, labor intensity, and rework signals by assigned crew.",
+    "Score blends visit completion (55%), labor hours per job, material intensity, and possible rework revisits. Weather or equipment delays noted in visit comments are excluded. Some metrics are estimated from available cost data.",
     entries
   );
 }
@@ -545,7 +554,8 @@ function buildEquipmentLeaderboard(
   return wrapCategory(
     "equipment",
     "Equipment Performance",
-    "Usage hours, life remaining, visits supported, and equipment costs logged on visits. Downtime statuses and near end-of-life assets rank lower.",
+    "Usage, remaining life, and downtime across the fleet.",
+    "Score reflects utilization band, visits supported, asset status (active / maintenance / retired), and equipment costs on linked visits. Assets with little usage data are labeled as estimated insights.",
     entries
   );
 }
@@ -660,7 +670,8 @@ function buildCustomerLeaderboard(
   return wrapCategory(
     "customer",
     "Customer Performance",
-    "Rated from Average Days to Pay, overdue invoices, and Service Hold status — faster, current accounts rank higher.",
+    "Payment speed, overdue invoices, and Service Hold status.",
+    "Excellent: 0–15 days to pay, no overdue. Strong: 16–30 days, no overdue. Monitor: 31–45 days or one overdue invoice. Needs Attention: 46+ days, multiple overdue, or Service Hold. Display scores map to those bands.",
     entries
   );
 }
@@ -788,7 +799,8 @@ function buildContractLeaderboard(
   return wrapCategory(
     "contract",
     "Contract / Property Performance",
-    "Margin, visit completion, repeat-service signals, and outstanding AR by active contract.",
+    "Margin, visit completion, and outstanding AR by contract.",
+    "Score weights margin % (~70%) and visit completion (~25%), then reduces for possible rework revisits and high outstanding AR. Sparse visit history may produce estimated insights.",
     entries
   );
 }

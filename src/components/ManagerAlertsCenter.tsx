@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { AlertPriority, ManagerAlert } from "@/lib/manager-alerts";
 
@@ -34,11 +37,14 @@ const PRIORITY_LABEL: Record<AlertPriority, string> = {
   low: "Low",
 };
 
-function AlertIcon({
-  icon,
-}: {
-  icon: ManagerAlert["icon"];
-}) {
+const PRIORITY_RANK: Record<AlertPriority, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+function AlertIcon({ icon }: { icon: ManagerAlert["icon"] }) {
   const common = "h-4 w-4";
   switch (icon) {
     case "hold":
@@ -109,76 +115,129 @@ function AlertIcon({
   }
 }
 
-export function ManagerAlertsCenter({ alerts }: { alerts: ManagerAlert[] }) {
+function AlertRow({ alert }: { alert: ManagerAlert }) {
+  const styles = PRIORITY_STYLES[alert.priority];
   return (
-    <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+    <li>
+      <Link
+        href={alert.href}
+        className={`flex items-center gap-3 rounded-lg border bg-white px-3 py-2.5 transition hover:bg-green-50/40 ${styles.border}`}
+      >
+        <span
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${styles.iconBg}`}
+          aria-hidden
+        >
+          <AlertIcon icon={alert.icon} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-semibold text-green-950">
+              {alert.title}
+            </p>
+            <span
+              className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${styles.badge}`}
+            >
+              {PRIORITY_LABEL[alert.priority]}
+            </span>
+            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-700">
+              {alert.count === 1 ? "1 item" : `${alert.count} items`}
+            </span>
+          </div>
+          <p className="mt-0.5 truncate text-xs text-stone-600">
+            {alert.explanation}
+          </p>
+        </div>
+        <span className="hidden shrink-0 text-xs font-medium text-green-800 sm:inline">
+          Open →
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+export function ManagerAlertsCenter({ alerts }: { alerts: ManagerAlert[] }) {
+  const sorted = useMemo(
+    () =>
+      [...alerts].sort((a, b) => {
+        const rank = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+        if (rank !== 0) return rank;
+        return b.count - a.count;
+      }),
+    [alerts]
+  );
+
+  const [sectionOpen, setSectionOpen] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+
+  const visible = showAll ? sorted : sorted.slice(0, 3);
+  const hiddenCount = Math.max(0, sorted.length - 3);
+
+  return (
+    <section className="rounded-xl border border-stone-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
+        <button
+          type="button"
+          onClick={() => setSectionOpen((open) => !open)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          aria-expanded={sectionOpen}
+        >
           <h2 className="text-lg font-semibold text-green-950">
             Manager Alerts Center
           </h2>
-          <p className="mt-1 text-sm text-stone-500">
-            Prioritized operational and financial issues that need attention.
-          </p>
-        </div>
-        {alerts.length > 0 ? (
-          <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-700">
-            {alerts.length} active
+          {sorted.length > 0 ? (
+            <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-700">
+              {sorted.length} active
+            </span>
+          ) : null}
+          <span className="ml-auto text-xs font-medium text-stone-500 sm:ml-2">
+            {sectionOpen ? "Collapse" : "Expand"}
           </span>
-        ) : null}
+        </button>
       </div>
 
-      {alerts.length === 0 ? (
-        <div className="mt-4 rounded-lg border border-dashed border-stone-200 bg-stone-50 px-4 py-8 text-center">
-          <p className="text-sm font-medium text-green-950">No Active Alerts</p>
-          <p className="mt-1 text-sm text-stone-500">
-            No critical operational or collection issues need attention right
-            now.
-          </p>
-        </div>
-      ) : (
-        <ul className="mt-4 space-y-2">
-          {alerts.map((alert) => {
-            const styles = PRIORITY_STYLES[alert.priority];
-            return (
-              <li key={alert.id}>
-                <Link
-                  href={alert.href}
-                  className={`flex items-start gap-3 rounded-lg border bg-white px-3 py-3 transition hover:bg-green-50/40 ${styles.border}`}
-                >
-                  <span
-                    className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${styles.iconBg}`}
-                    aria-hidden
-                  >
-                    <AlertIcon icon={alert.icon} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-green-950">
-                        {alert.title}
-                      </p>
-                      <span
-                        className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${styles.badge}`}
-                      >
-                        {PRIORITY_LABEL[alert.priority]}
-                      </span>
-                      <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-700">
-                        {alert.count === 1 ? "1 item" : `${alert.count} items`}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm leading-snug text-stone-600">
-                      {alert.explanation}
-                    </p>
-                    <p className="mt-1.5 text-xs font-medium text-green-800">
-                      Open related view →
-                    </p>
+      <div
+        className={`grid transition-all duration-300 ease-out ${
+          sectionOpen
+            ? "grid-rows-[1fr] opacity-100"
+            : "pointer-events-none grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-stone-100 px-4 pb-4 pt-3 sm:px-5">
+            {sorted.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-stone-200 bg-stone-50 px-4 py-6 text-center">
+                <p className="text-sm font-medium text-green-950">
+                  No Active Alerts
+                </p>
+                <p className="mt-1 text-sm text-stone-500">
+                  No critical issues need attention right now.
+                </p>
+              </div>
+            ) : (
+              <>
+                <ul className="space-y-2">
+                  {visible.map((alert) => (
+                    <AlertRow key={alert.id} alert={alert} />
+                  ))}
+                </ul>
+                {hiddenCount > 0 || showAll ? (
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowAll((value) => !value)}
+                      className="text-sm font-medium text-green-800 hover:underline"
+                    >
+                      {showAll
+                        ? "Show top alerts"
+                        : `View all alerts (${sorted.length})`}
+                    </button>
                   </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

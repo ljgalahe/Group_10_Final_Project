@@ -57,9 +57,12 @@ function loadAllVisitExtraWorkNotes(): VisitExtraWorkItem[] {
  */
 export function ManagerApprovalsPanel({
   visitLabels = {},
+  hideIntro = false,
 }: {
   /** Optional map of visit/job id -> label (customer / contract) */
   visitLabels?: Record<string, string>;
+  /** Hide the top summary card when the parent already provides a section title. */
+  hideIntro?: boolean;
 }) {
   const [extraRequests, setExtraRequests] = useState<
     ManagementExtraWorkRequest[]
@@ -144,27 +147,42 @@ export function ManagerApprovalsPanel({
 
   return (
     <div className="space-y-6">
-      <Card className="border-amber-200 bg-amber-50/40">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-green-950">
-              Approvals & Crew Alerts
-            </h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-              {pendingExtraCount} pending approval
-              {pendingExtraCount === 1 ? "" : "s"}
+      {hideIntro ? (
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+            {pendingExtraCount} pending approval
+            {pendingExtraCount === 1 ? "" : "s"}
+          </span>
+          {openConcernCount > 0 ? (
+            <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
+              {openConcernCount} field concern
+              {openConcernCount === 1 ? "" : "s"}
             </span>
-            {openConcernCount > 0 ? (
-              <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
-                {openConcernCount} field concern
-                {openConcernCount === 1 ? "" : "s"}
-              </span>
-            ) : null}
-          </div>
+          ) : null}
         </div>
-      </Card>
+      ) : (
+        <Card className="border-amber-200 bg-amber-50/40">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-green-950">
+                Approvals & Crew Alerts
+              </h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+                {pendingExtraCount} pending approval
+                {pendingExtraCount === 1 ? "" : "s"}
+              </span>
+              {openConcernCount > 0 ? (
+                <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
+                  {openConcernCount} field concern
+                  {openConcernCount === 1 ? "" : "s"}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <h3 className="text-base font-semibold text-green-950">
