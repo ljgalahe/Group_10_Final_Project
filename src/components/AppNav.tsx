@@ -22,11 +22,6 @@ const navItems = [
       "customer",
     ],
   },
-  {
-    href: "/inquiries",
-    label: "Home",
-    roles: ["inquiries"],
-  },
   // Ops primary order: Dashboard → Inquiries → Quotes → Contracts → Schedule → Visits → Chat
   {
     href: "/ops/inquiries",

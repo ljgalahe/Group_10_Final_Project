@@ -41,15 +41,13 @@ const SLIDES = [
 
 const SLIDE_MS = 5500;
 
-const VIEW_ROLES = DEMO_ROLES.filter((r) => r.role !== "inquiries");
-
 export function WelcomeLanding() {
   const [servicesOpen, setServicesOpen] = useState(false);
   const [role, setRole] = useState<UserRole>("manager");
   const [slide, setSlide] = useState(0);
 
   const roleLabel = useMemo(
-    () => VIEW_ROLES.find((item) => item.role === role)?.label ?? "Manager",
+    () => DEMO_ROLES.find((item) => item.role === role)?.label ?? "Manager",
     [role]
   );
 
@@ -198,7 +196,7 @@ export function WelcomeLanding() {
                     onChange={(e) => setRole(e.target.value as UserRole)}
                     className="inline-flex h-11 min-w-[10.5rem] items-center justify-center rounded-full border border-[#c9d2c6] bg-white px-5 font-sans text-sm font-medium text-[#3a4a3c] outline-none focus:border-[#2f4a38]"
                   >
-                    {VIEW_ROLES.map((item) => (
+                    {DEMO_ROLES.map((item) => (
                       <option key={item.role} value={item.role}>
                         {item.label}
                       </option>

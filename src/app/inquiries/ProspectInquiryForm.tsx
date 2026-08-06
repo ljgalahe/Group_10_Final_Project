@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   submitProspectInquiry,
+  type InquiryFormValues,
   type SubmitInquiryResult,
 } from "@/app/inquiries/actions";
 import { COMMERCIAL_SERVICES } from "@/lib/commercial-services";
@@ -31,7 +32,17 @@ export function ProspectInquiryForm({
     SubmitInquiryResult | null,
     FormData
   >(submitProspectInquiry, null);
-  const [otherSelected, setOtherSelected] = useState(false);
+  const draft: InquiryFormValues | undefined =
+    state && !state.ok ? state.values : undefined;
+  const [otherSelected, setOtherSelected] = useState(
+    () => draft?.services_interested.includes("other") ?? false
+  );
+
+  useEffect(() => {
+    if (draft) {
+      setOtherSelected(draft.services_interested.includes("other"));
+    }
+  }, [draft]);
 
   const compact = variant === "overlay";
   const welcome = variant === "welcome";
@@ -87,6 +98,7 @@ export function ProspectInquiryForm({
 
   return (
     <form
+      key={draft ? `restore-${draft.contact_email}-${draft.company_name}` : "new"}
       id="request-service"
       action={formAction}
       className={
@@ -145,7 +157,7 @@ export function ProspectInquiryForm({
             required
             autoComplete="organization"
             className={inputClass}
-            placeholder="Riverside Retail Partners"
+            defaultValue={draft?.company_name}
           />
         </div>
         <div>
@@ -158,6 +170,7 @@ export function ProspectInquiryForm({
             required
             autoComplete="name"
             className={inputClass}
+            defaultValue={draft?.contact_name}
           />
         </div>
         <div>
@@ -171,6 +184,7 @@ export function ProspectInquiryForm({
             required
             autoComplete="email"
             className={inputClass}
+            defaultValue={draft?.contact_email}
           />
         </div>
         <div>
@@ -183,6 +197,7 @@ export function ProspectInquiryForm({
             type="tel"
             autoComplete="tel"
             className={inputClass}
+            defaultValue={draft?.contact_phone}
           />
         </div>
         <div>
@@ -193,7 +208,7 @@ export function ProspectInquiryForm({
             id="property_type"
             name="property_type"
             required
-            defaultValue=""
+            defaultValue={draft?.property_type || ""}
             className={inputClass}
           >
             <option value="" disabled>
@@ -207,16 +222,60 @@ export function ProspectInquiryForm({
           </select>
         </div>
         <div className="sm:col-span-2">
-          <label htmlFor="property_address" className={labelClass}>
-            Property address <span className="text-red-600">*</span>
+          <label htmlFor="property_street" className={labelClass}>
+            Street address <span className="text-red-600">*</span>
           </label>
           <input
-            id="property_address"
-            name="property_address"
+            id="property_street"
+            name="property_street"
             required
             autoComplete="street-address"
             className={inputClass}
+            defaultValue={draft?.property_street}
           />
+        </div>
+        <div className="sm:col-span-2 grid gap-5 sm:grid-cols-6">
+          <div className="sm:col-span-3">
+            <label htmlFor="property_city" className={labelClass}>
+              City <span className="text-red-600">*</span>
+            </label>
+            <input
+              id="property_city"
+              name="property_city"
+              required
+              autoComplete="address-level2"
+              className={inputClass}
+              defaultValue={draft?.property_city}
+            />
+          </div>
+          <div className="sm:col-span-1">
+            <label htmlFor="property_state" className={labelClass}>
+              State <span className="text-red-600">*</span>
+            </label>
+            <input
+              id="property_state"
+              name="property_state"
+              required
+              autoComplete="address-level1"
+              className={inputClass}
+              maxLength={2}
+              defaultValue={draft?.property_state}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="property_zip" className={labelClass}>
+              ZIP <span className="text-red-600">*</span>
+            </label>
+            <input
+              id="property_zip"
+              name="property_zip"
+              required
+              autoComplete="postal-code"
+              className={inputClass}
+              inputMode="numeric"
+              defaultValue={draft?.property_zip}
+            />
+          </div>
         </div>
         <fieldset className="sm:col-span-2">
           <legend className={labelClass}>
@@ -229,36 +288,40 @@ export function ProspectInquiryForm({
                 : "mt-2 grid gap-2 sm:grid-cols-2"
             }
           >
-            {SERVICE_OPTIONS.map((opt) => (
-              <label
-                key={opt.value}
-                className={
-                  welcome
-                    ? "flex cursor-pointer items-center gap-2 border border-[#d5ddd6] bg-[#f6f8f6] px-3 py-2.5 text-sm text-[#1c2a22]"
-                    : compact
-                      ? "flex cursor-pointer items-center gap-2 text-xs text-stone-700"
-                      : "flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 hover:border-green-700/40"
-                }
-              >
-                <input
-                  type="checkbox"
-                  name="services_interested"
-                  value={opt.value}
-                  checked={opt.value === "other" ? otherSelected : undefined}
-                  onChange={
-                    opt.value === "other"
-                      ? (e) => setOtherSelected(e.target.checked)
-                      : undefined
-                  }
+            {SERVICE_OPTIONS.map((opt) => {
+              const restored = draft?.services_interested.includes(opt.value);
+              return (
+                <label
+                  key={opt.value}
                   className={
                     welcome
-                      ? "h-3.5 w-3.5 rounded border-[#c5d0c6] text-[#2f4a38] focus:ring-[#3d5346]"
-                      : "h-3.5 w-3.5 rounded border-stone-300 text-green-800 focus:ring-green-700"
+                      ? "flex cursor-pointer items-center gap-2 border border-[#d5ddd6] bg-[#f6f8f6] px-3 py-2.5 text-sm text-[#1c2a22]"
+                      : compact
+                        ? "flex cursor-pointer items-center gap-2 text-xs text-stone-700"
+                        : "flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 hover:border-green-700/40"
                   }
-                />
-                {opt.label}
-              </label>
-            ))}
+                >
+                  <input
+                    type="checkbox"
+                    name="services_interested"
+                    value={opt.value}
+                    defaultChecked={restored}
+                    checked={opt.value === "other" ? otherSelected : undefined}
+                    onChange={
+                      opt.value === "other"
+                        ? (e) => setOtherSelected(e.target.checked)
+                        : undefined
+                    }
+                    className={
+                      welcome
+                        ? "h-3.5 w-3.5 rounded border-[#c5d0c6] text-[#2f4a38] focus:ring-[#3d5346]"
+                        : "h-3.5 w-3.5 rounded border-stone-300 text-green-800 focus:ring-green-700"
+                    }
+                  />
+                  {opt.label}
+                </label>
+              );
+            })}
           </div>
           {otherSelected ? (
             <div className="mt-3">
@@ -270,7 +333,7 @@ export function ProspectInquiryForm({
                 name="other_service"
                 required
                 className={inputClass}
-                placeholder="e.g. playground mulch, holiday lighting, detention pond care…"
+                defaultValue={draft?.other_service}
               />
             </div>
           ) : null}
@@ -284,11 +347,7 @@ export function ProspectInquiryForm({
             name="message"
             rows={compact ? 3 : 4}
             className={inputClass}
-            placeholder={
-              welcome
-                ? "Season timing, acreage, access constraints, or priority areas…"
-                : "Season timing, acreage, or other details…"
-            }
+            defaultValue={draft?.message}
           />
         </div>
       </div>

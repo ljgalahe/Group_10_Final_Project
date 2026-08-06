@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { ProspectInquiryForm } from "@/app/inquiries/ProspectInquiryForm";
-import { ensureDemoSession } from "@/lib/auth-access";
 
-export default async function QuotePage() {
-  await ensureDemoSession("inquiries");
-
+export default function QuotePage() {
   return (
     <div className="welcome-root relative min-h-screen overflow-hidden text-[#1c2a22]">
       <div className="pointer-events-none absolute inset-0" aria-hidden>

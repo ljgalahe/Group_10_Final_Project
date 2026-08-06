@@ -32,9 +32,6 @@ export async function switchDemoRole(formData: FormData) {
     cookieStore.delete(VIEW_CUSTOMER_COOKIE);
   }
   revalidatePath("/", "layout");
-  if (role === "inquiries") {
-    redirect("/inquiries");
-  }
   redirect("/dashboard");
 }
 
@@ -53,9 +50,6 @@ export async function enterDemoWithRole(formData: FormData) {
     cookieStore.delete(VIEW_CUSTOMER_COOKIE);
   }
   revalidatePath("/", "layout");
-  if (role === "inquiries") {
-    redirect("/inquiries");
-  }
   if (role === "operations") {
     redirect("/ops/inquiries");
   }
