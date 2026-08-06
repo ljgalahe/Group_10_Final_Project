@@ -26,7 +26,9 @@ import {
 } from "@/lib/queries";
 import { getOutstandingBalance } from "@/app/invoices/lib/accounting";
 import { AddInvoiceButton } from "@/app/invoices/components/AddInvoiceButton";
+import { AccountantPaymentsSection } from "@/app/invoices/components/AccountantPaymentsSection";
 import { fetchContractsForInvoice } from "@/app/invoices/queries";
+import { fetchPaymentsForAccountant } from "@/app/payments/queries";
 
 async function CustomerReceiptCell({
   invoiceId,
@@ -103,19 +105,28 @@ export default async function InvoicesPage({
   const showAccountantLayout = roleCanManageBilling(role);
   const params = await searchParams;
   const statusFilter = parseStatusFilter(params.status);
-  const [{ data: invoices }, journalStates, contracts] = await Promise.all([
-    fetchInvoices(),
-    showAccountantLayout
-      ? fetchJournalSourceStates()
-      : Promise.resolve(null),
-    isAccountant
-      ? fetchContractsForInvoice()
-      : Promise.resolve(
-          [] as Awaited<ReturnType<typeof fetchContractsForInvoice>>
-        ),
-  ]);
+  const [{ data: invoices }, journalStates, contracts, accountantPaymentsResult] =
+    await Promise.all([
+      fetchInvoices(),
+      showAccountantLayout
+        ? fetchJournalSourceStates()
+        : Promise.resolve(null),
+      isAccountant
+        ? fetchContractsForInvoice()
+        : Promise.resolve(
+            [] as Awaited<ReturnType<typeof fetchContractsForInvoice>>
+          ),
+      isAccountant
+        ? fetchPaymentsForAccountant()
+        : Promise.resolve({ data: [] as Awaited<
+            ReturnType<typeof fetchPaymentsForAccountant>
+          >["data"] }),
+    ]);
   const invoiceJournalStates =
     journalStates?.invoice ?? new Map<string, JournalStatus | null>();
+  const paymentJournalStates =
+    journalStates?.payment ?? new Map<string, JournalStatus | null>();
+  const accountantPayments = accountantPaymentsResult.data;
   const customerId = isCustomer ? await getViewCustomerId() : null;
   const paymentMethods =
     customerId != null
@@ -187,6 +198,13 @@ export default async function InvoicesPage({
             isAccountant={isAccountant}
           />
         )}
+
+        {isAccountant ? (
+          <AccountantPaymentsSection
+            payments={accountantPayments}
+            paymentJournalStates={paymentJournalStates}
+          />
+        ) : null}
       </AppShell>
     );
   }
