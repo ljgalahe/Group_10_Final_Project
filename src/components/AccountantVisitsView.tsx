@@ -10,7 +10,7 @@ import {
 } from "@/components/VisitEquipmentUsed";
 import { EmptyState, StatCard, StatusBadge } from "@/components/ui";
 import { visitJournalReadyReason, type JournalStatus } from "@/lib/journal";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate as formatDateLocal } from "@/lib/format";
 import {
   allocatedVisitRevenue,
   crewDetailsForVisit,
@@ -19,6 +19,18 @@ import {
   sumCostsByType,
   visitPriority,
 } from "@/lib/visit-accounting";
+
+/** Stable calendar-day label for accountant Visits SSR/client hydration. */
+function formatDate(dateStr: string) {
+  const [year, month, day] = dateStr.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return formatDateLocal(dateStr);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 type AccountantVisit = {
   id: string;
@@ -88,14 +100,37 @@ export function AccountantVisitsView({
   const [statusFilter, setStatusFilter] = useState<
     "all" | "scheduled" | "completed"
   >("all");
-  const [activeTab, setActiveTab] = useState<"visits" | "wip">("visits");
+  const [journalFilter, setJournalFilter] = useState<"all" | "ready">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const today = todayIso;
   const todayVisits = visits.filter((visit) => visit.scheduled_date === today);
+
+  const journalReadyIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const visit of visits) {
+      if (visitJournalStates[visit.id]) continue;
+      if (visitJournalReadyReason(visit.status, visit.visit_costs.length) == null) {
+        ids.add(visit.id);
+      }
+    }
+    return ids;
+  }, [visits, visitJournalStates]);
+
+  const journalReadyVisits = useMemo(
+    () => visits.filter((visit) => journalReadyIds.has(visit.id)),
+    [visits, journalReadyIds]
+  );
+
   const filteredVisits = useMemo(() => {
-    if (statusFilter === "all") return visits;
-    return visits.filter((visit) => visit.status === statusFilter);
-  }, [visits, statusFilter]);
+    let next = visits;
+    if (statusFilter !== "all") {
+      next = next.filter((visit) => visit.status === statusFilter);
+    }
+    if (journalFilter === "ready") {
+      next = next.filter((visit) => journalReadyIds.has(visit.id));
+    }
+    return next;
+  }, [visits, statusFilter, journalFilter, journalReadyIds]);
 
   const metrics = visits.reduce(
     (acc, visit) => {
@@ -127,146 +162,9 @@ export function AccountantVisitsView({
   ).length;
   const profit = metrics.revenue - (metrics.labor + metrics.materials + metrics.equipment);
   const summaryVisits = todayVisits.length || visits.length;
-  const scheduledCount = visits.filter((visit) => visit.status !== "cancelled").length;
-  const completedCount = visits.filter((visit) => visit.status === "completed").length;
-  const remainingCount = visits.filter((visit) => visit.status === "scheduled").length;
-  const progressPct =
-    scheduledCount > 0 ? Math.round((completedCount / scheduledCount) * 100) : 0;
-  const remainingVisits = [...visits]
-    .filter((visit) => visit.status === "scheduled")
-    .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
-  const scheduleByDate = remainingVisits.reduce<Record<string, AccountantVisit[]>>(
-    (groups, visit) => {
-      const key = visit.scheduled_date;
-      groups[key] = [...(groups[key] ?? []), visit];
-      return groups;
-    },
-    {}
-  );
-  const scheduleDates = Object.keys(scheduleByDate).sort();
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-2 border-b border-stone-200 pb-1">
-        <button
-          type="button"
-          onClick={() => setActiveTab("visits")}
-          className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
-            activeTab === "visits"
-              ? "bg-green-800 text-white"
-              : "text-stone-600 hover:bg-stone-100"
-          }`}
-        >
-          Visits
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("wip")}
-          className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
-            activeTab === "wip"
-              ? "bg-green-800 text-white"
-              : "text-stone-600 hover:bg-stone-100"
-          }`}
-        >
-          WIP
-        </button>
-      </div>
-
-      {activeTab === "wip" ? (
-        <div className="space-y-4">
-          <div className="max-w-md rounded-xl bg-stone-100 p-5 shadow-sm">
-            <p className="font-mono text-sm font-semibold text-stone-800">
-              Work Progress
-            </p>
-            <div className="mt-3 space-y-1 font-mono text-sm text-stone-800">
-              <p>Scheduled Visits: {scheduledCount}</p>
-              <p>Completed: {completedCount}</p>
-              <p>Remaining: {remainingCount}</p>
-            </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-200">
-              <div
-                className="h-full rounded-full bg-green-800"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <p className="mt-2 text-xs text-stone-500">
-              {progressPct}% of scheduled visit work is complete.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-green-950">
-              Completion Schedule
-            </h3>
-            <p className="mt-1 text-xs text-stone-500">
-              Dates remaining visits are scheduled to be completed.
-            </p>
-            {scheduleDates.length === 0 ? (
-              <p className="mt-3 text-sm text-stone-500">
-                No remaining scheduled visits.
-              </p>
-            ) : (
-              <div className="mt-4 space-y-4">
-                {scheduleDates.map((date) => {
-                  const dayVisits = scheduleByDate[date];
-                  const weekday = [
-                    "Sunday",
-                    "Monday",
-                    "Tuesday",
-                    "Wednesday",
-                    "Thursday",
-                    "Friday",
-                    "Saturday",
-                  ][new Date(`${date}T12:00:00Z`).getUTCDay()];
-                  return (
-                    <section
-                      key={date}
-                      className="rounded-lg border border-stone-200 bg-stone-50 p-4"
-                    >
-                      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                        <h4 className="font-semibold text-green-950">
-                          {weekday}, {formatDate(date)}
-                        </h4>
-                        <span className="text-xs text-stone-500">
-                          {dayVisits.length} visit
-                          {dayVisits.length === 1 ? "" : "s"} to complete
-                        </span>
-                      </div>
-                      <ul className="space-y-2">
-                        {dayVisits.map((visit) => {
-                          const crew = crewDetailsForVisit(
-                            visit.id,
-                            visit.contracts?.assigned_crew,
-                            null,
-                            null
-                          );
-                          return (
-                            <li
-                              key={visit.id}
-                              className="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm"
-                            >
-                              <p className="font-medium text-stone-800">
-                                {visit.contracts?.title ?? "Contract"}
-                              </p>
-                              <p className="text-xs text-stone-500">
-                                {visit.contracts?.customers?.name ?? "Customer"} ·
-                                Crew: {crew.leader} · Due {formatDate(date)}
-                              </p>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </section>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {activeTab === "visits" ? (
-      <>
+    <div className="space-y-6" suppressHydrationWarning>
       <div className="rounded-xl border border-stone-200 bg-stone-100 p-4 shadow-sm">
         <p className="mb-3 text-sm font-semibold text-green-950">
           Accounting Metrics
@@ -279,7 +177,10 @@ export function AccountantVisitsView({
           />
           <StatCard
             label="Crew Hours"
-            value={metrics.hours.toFixed(1)}
+            value={metrics.hours.toLocaleString("en-US", {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}
             hint="Synced from crew labor"
           />
           <StatCard label="Labor Cost" value={formatCurrency(metrics.labor)} />
@@ -302,29 +203,57 @@ export function AccountantVisitsView({
       </div>
 
       <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-        <label className="block max-w-xs text-sm">
-          <span className="mb-1.5 block font-medium text-stone-600">
-            Visit Status
-          </span>
-          <select
-            value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(
-                event.target.value as "all" | "scheduled" | "completed"
-              )
-            }
-            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-green-700 focus:outline-none focus:ring-1 focus:ring-green-700"
-          >
-            <option value="all">All visits</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="completed">Completed</option>
-          </select>
-        </label>
+        <div className="flex flex-wrap gap-4">
+          <label className="block min-w-[12rem] max-w-xs flex-1 text-sm">
+            <span className="mb-1.5 block font-medium text-stone-600">
+              Visit Status
+            </span>
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(
+                  event.target.value as "all" | "scheduled" | "completed"
+                )
+              }
+              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-green-700 focus:outline-none focus:ring-1 focus:ring-green-700"
+            >
+              <option value="all">All visits</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+            </select>
+          </label>
+          <label className="block min-w-[12rem] max-w-xs flex-1 text-sm">
+            <span className="mb-1.5 block font-medium text-stone-600">
+              Journal entries
+            </span>
+            <select
+              value={journalFilter}
+              onChange={(event) =>
+                setJournalFilter(event.target.value as "all" | "ready")
+              }
+              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-green-700 focus:outline-none focus:ring-1 focus:ring-green-700"
+            >
+              <option value="all">All visits</option>
+              <option value="ready">
+                Ready to create
+                {journalReadyVisits.length > 0
+                  ? ` (${journalReadyVisits.length.toLocaleString("en-US")})`
+                  : ""}
+              </option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div className="space-y-5">
         {filteredVisits.length === 0 ? (
-          <EmptyState message="No visits match the selected status filter." />
+          <EmptyState
+            message={
+              journalFilter === "ready"
+                ? "No visits match these filters for journal-ready work."
+                : "No visits match the selected status filter."
+            }
+          />
         ) : null}
         {filteredVisits.map((visit) => {
           const totals = sumCostsByType(visit.visit_costs);
@@ -401,11 +330,16 @@ export function AccountantVisitsView({
           ];
 
           const isExpanded = expandedId === visit.id;
+          const journalReady = journalReadyIds.has(visit.id);
 
           return (
             <article
               key={visit.id}
-              className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm"
+              className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
+                journalReady
+                  ? "border-amber-300 ring-1 ring-amber-200"
+                  : "border-stone-200"
+              }`}
             >
               <button
                 type="button"
@@ -424,6 +358,11 @@ export function AccountantVisitsView({
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {journalReady ? (
+                    <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">
+                      Journal ready
+                    </span>
+                  ) : null}
                   <StatusBadge status={visit.status} />
                   <StatusBadge status={priority.toLowerCase()} />
                   <svg
@@ -660,22 +599,7 @@ export function AccountantVisitsView({
                 />
               </div>
 
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <section className="rounded-lg border border-stone-200 p-4">
-                  <h3 className="text-sm font-semibold text-green-950">Photos</h3>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4 text-center text-xs text-stone-500">
-                      Before
-                    </div>
-                    <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4 text-center text-xs text-stone-500">
-                      After
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs text-stone-500">
-                    Good for proving work completed.
-                  </p>
-                </section>
-
+              <div className="mt-4">
                 <section className="rounded-lg border border-stone-200 p-4">
                   <VisitAuditLog entries={auditEntries} />
                   <p className="mt-2 text-xs text-stone-500">Shows accountability.</p>
@@ -687,8 +611,6 @@ export function AccountantVisitsView({
           );
         })}
       </div>
-      </>
-      ) : null}
     </div>
   );
 }

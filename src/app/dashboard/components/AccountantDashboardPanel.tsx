@@ -1,7 +1,23 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, StatCard } from "@/components/ui";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import type { AccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
+import { AccountantCompanyPerformanceSection } from "@/app/dashboard/components/AccountantCompanyPerformance";
+
+/** UTC calendar day — keeps accountant dashboard SSR/client date labels identical. */
+function formatDashboardDate(dateStr: string) {
+  const [year, month, day] = dateStr.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return dateStr;
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 const AGING_TILES = [
   { key: "current" as const, label: "Current", accent: "border-green-200 bg-green-50/60", amountClass: "text-green-900" },
@@ -16,13 +32,34 @@ export function AccountantDashboardPanel({
 }: {
   data: AccountantDashboardData;
 }) {
+  // Defer rich markup until after hydrate so Cursor/browser DOM attrs
+  // (e.g. data-cursor-ref) cannot mismatch SSR HTML.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div
+        className="mt-8 space-y-6"
+        aria-busy="true"
+        suppressHydrationWarning
+      >
+        <div className="h-28 animate-pulse rounded-xl bg-stone-100" />
+        <div className="h-72 animate-pulse rounded-xl bg-stone-100" />
+        <div className="h-48 animate-pulse rounded-xl bg-stone-100" />
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-8 space-y-6">
+    <div className="mt-8 space-y-6" suppressHydrationWarning>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Past Due AR"
           value={formatCurrency(data.pastDueTotal)}
-          hint={`As of ${formatDate(data.asOf)}`}
+          hint={`As of ${formatDashboardDate(data.asOf)}`}
         />
         <StatCard
           label="Collected This Month"
@@ -49,6 +86,8 @@ export function AccountantDashboardPanel({
         />
       </div>
 
+      <AccountantCompanyPerformanceSection data={data.companyPerformance} />
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -57,7 +96,8 @@ export function AccountantDashboardPanel({
                 AR Aging Snapshot
               </h2>
               <p className="mt-1 text-sm text-stone-500">
-                Open receivables by bucket — as of {formatDate(data.asOf)}.
+                Open receivables by bucket — as of{" "}
+                {formatDashboardDate(data.asOf)}.
               </p>
             </div>
             <Link
@@ -73,8 +113,16 @@ export function AccountantDashboardPanel({
                 key={tile.key}
                 className={`rounded-xl border p-3 ${tile.accent}`}
               >
-                <p className="text-xs font-medium text-stone-600">{tile.label}</p>
-                <p className={`mt-1 text-lg font-semibold ${tile.amountClass}`}>
+                <p
+                  className="text-xs font-medium text-stone-600"
+                  suppressHydrationWarning
+                >
+                  {tile.label}
+                </p>
+                <p
+                  className={`mt-1 text-lg font-semibold ${tile.amountClass}`}
+                  suppressHydrationWarning
+                >
                   {formatCurrency(data.agingBuckets[tile.key])}
                 </p>
               </div>
@@ -101,7 +149,7 @@ export function AccountantDashboardPanel({
           ) : (
             <ul className="mt-4 divide-y divide-stone-100 border-t border-stone-100">
               {data.invoiceQueue.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} suppressHydrationWarning>
                   <Link
                     href={item.href}
                     className="group flex items-center gap-3 py-3 transition hover:bg-stone-50"
@@ -123,7 +171,7 @@ export function AccountantDashboardPanel({
                       <p className="mt-0.5 text-sm text-stone-500">
                         {item.statusLabel}
                         {item.balance > 0
-                          ? ` · ${formatCurrency(item.balance)} due ${formatDate(item.dueDate)}`
+                          ? ` · ${formatCurrency(item.balance)} due ${formatDashboardDate(item.dueDate)}`
                           : ""}
                       </p>
                     </div>
