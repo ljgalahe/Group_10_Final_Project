@@ -50,11 +50,11 @@ export function ProspectInquiryForm({
         }
       >
         <p className="text-lg font-semibold text-green-950">
-          Thank you — we received your request.
+          Thanks for reaching out — we received your note.
         </p>
         <p className="mt-2 text-sm text-stone-600">
-          Our operations team will review your property details and follow up
-          with next steps for quoting and service.
+          A real person on our team will review your property details and get
+          back to you with next steps for quoting and service.
         </p>
       </div>
     );
@@ -77,17 +77,17 @@ export function ProspectInquiryForm({
             : "text-xl font-semibold text-green-950"
         }
       >
-        {compact ? "Have a Question?" : "Request a commercial proposal"}
+        {compact ? "We’d love to hear from you" : "Request a commercial proposal"}
       </h2>
       <p
         className={
           compact
-            ? "mt-1 text-center text-sm text-stone-500"
+            ? "mt-1.5 text-center text-sm leading-relaxed text-stone-500"
             : "mt-1 text-sm text-stone-500"
         }
       >
         {compact
-          ? "Tell us about your commercial property and we will help."
+          ? "Share a little about your property—our local team reads every message and will help you figure out next steps."
           : "New to GreenScape? Tell us about your property and the services you need."}
       </p>
 
@@ -208,15 +208,25 @@ export function ProspectInquiryForm({
         </fieldset>
         <div className="sm:col-span-2">
           <label htmlFor="message" className={labelClass}>
-            Your question / message
+            Tell us your story
           </label>
           <textarea
             id="message"
             name="message"
-            rows={compact ? 3 : 4}
+            rows={compact ? 4 : 5}
             className={inputClass}
-            placeholder="Season timing, acreage, or other details…"
+            placeholder={
+              compact
+                ? "What’s going on with the property? Season timing, acreage, a remodel, or what made you reach out today…"
+                : "Season timing, acreage, or other details…"
+            }
           />
+          {compact ? (
+            <p className="mt-1.5 text-xs leading-relaxed text-stone-400">
+              No perfect pitch needed—notes from busy property managers are
+              welcome.
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -235,7 +245,7 @@ export function ProspectInquiryForm({
             : "mt-6 w-full rounded-lg bg-green-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
         }
       >
-        {pending ? "Submitting…" : "Submit inquiry"}
+        {pending ? "Sending…" : "Send us a note"}
       </button>
     </form>
   );
