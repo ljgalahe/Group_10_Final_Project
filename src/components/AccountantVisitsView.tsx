@@ -397,6 +397,10 @@ export function AccountantVisitsView({
   ).length;
   const profit = metrics.revenue - (metrics.labor + metrics.materials + metrics.equipment);
   const summaryVisits = todayVisits.length || visits.length;
+  const visitCount = visits.length;
+  const laborPerVisit = visitCount > 0 ? metrics.labor / visitCount : 0;
+  const materialsPerVisit = visitCount > 0 ? metrics.materials / visitCount : 0;
+  const equipmentPerVisit = visitCount > 0 ? metrics.equipment / visitCount : 0;
 
   return (
     <div className="space-y-6" suppressHydrationWarning>
@@ -426,6 +430,21 @@ export function AccountantVisitsView({
           <StatCard
             label="Equipment Cost"
             value={formatCurrency(metrics.equipment)}
+          />
+          <StatCard
+            label="Labor / Visit"
+            value={formatCurrency(laborPerVisit)}
+            hint="Average labor cost per visit"
+          />
+          <StatCard
+            label="Material / Visit"
+            value={formatCurrency(materialsPerVisit)}
+            hint="Average material cost per visit"
+          />
+          <StatCard
+            label="Equipment / Visit"
+            value={formatCurrency(equipmentPerVisit)}
+            hint="Average equipment cost per visit"
           />
           <StatCard label="Revenue" value={formatCurrency(metrics.revenue)} />
           <StatCard label="Profit" value={formatCurrency(profit)} />
