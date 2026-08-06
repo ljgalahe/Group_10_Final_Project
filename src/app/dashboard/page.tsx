@@ -866,9 +866,6 @@ export default async function DashboardPage({
           <CrewLeadTomorrowPreview jobs={scheduleJobs} today={today} />
           <CrewLeadCustomerRequests requests={crewSupportRequests} />
           <Card>
-            <h2 className="mb-4 text-lg font-semibold text-green-950">
-              Crew Lead Quick Actions
-            </h2>
             <CrewLeadQuickActions
               todaysJobs={scheduleJobs.filter(
                 (job) =>

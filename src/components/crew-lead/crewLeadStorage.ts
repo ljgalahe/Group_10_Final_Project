@@ -4,12 +4,18 @@ import type {
   FieldExceptionReport,
   VisitWorkState,
 } from "@/components/crew-lead/schedule-types";
-import { DEMO_EMPLOYEES } from "@/lib/demo-org";
+import {
+  CREW_LEADS,
+  DEMO_EMPLOYEES,
+  type DemoCrewId,
+} from "@/lib/demo-org";
 
 export type CrewMember = {
   id: string;
   name: string;
   role: string;
+  /** Demo crew letter when known (A–H). */
+  crew?: DemoCrewId;
 };
 
 export type ManagementExtraWorkRequest = {
@@ -26,11 +32,23 @@ const VISIT_WORK_PREFIX = "greenscape-crew-visit-work:";
 const ROSTER_KEY = "greenscape-crew-daily-roster";
 const EXTRA_REQUESTS_KEY = "greenscape-crew-extra-approvals";
 
+function crewForEmployeeId(id: string): DemoCrewId | undefined {
+  return DEMO_EMPLOYEES.find((e) => e.id === id)?.crew;
+}
+
+/** Attach crew from demo org when localStorage roster omits it. */
+export function enrichRosterMember(member: CrewMember): CrewMember {
+  if (member.crew) return member;
+  const crew = crewForEmployeeId(member.id);
+  return crew ? { ...member, crew } : member;
+}
+
 /** Full-season multi-crew roster (Mar–Nov). Winter UIs still list year-round leads. */
 export const DEFAULT_DAILY_ROSTER: CrewMember[] = DEMO_EMPLOYEES.map((e) => ({
   id: e.id,
   name: e.name,
   role: e.role,
+  crew: e.crew,
 }));
 
 export const WINTER_DAILY_ROSTER: CrewMember[] = DEMO_EMPLOYEES.filter(
@@ -39,8 +57,57 @@ export const WINTER_DAILY_ROSTER: CrewMember[] = DEMO_EMPLOYEES.filter(
   id: e.id,
   name: e.name,
   role: e.role,
+  crew: e.crew,
 }));
 
+export function rosterGroupedByCrew(roster: CrewMember[]): {
+  crew: DemoCrewId | null;
+  label: string;
+  members: CrewMember[];
+}[] {
+  const enriched = roster.map(enrichRosterMember);
+  const byCrew = new Map<DemoCrewId | "other", CrewMember[]>();
+  for (const member of enriched) {
+    const key = member.crew ?? "other";
+    const list = byCrew.get(key) ?? [];
+    list.push(member);
+    byCrew.set(key, list);
+  }
+
+  const ordered: DemoCrewId[] = ["A", "B", "C", "D", "E", "F", "G", "H"];
+  const groups: {
+    crew: DemoCrewId | null;
+    label: string;
+    members: CrewMember[];
+  }[] = [];
+
+  for (const crew of ordered) {
+    const members = byCrew.get(crew);
+    if (!members?.length) continue;
+    const leadName = CREW_LEADS[crew];
+    groups.push({
+      crew,
+      label: `Crew ${crew} — ${leadName}`,
+      members: [...members].sort((a, b) => {
+        const leadFirst =
+          Number(b.role === "Crew lead") - Number(a.role === "Crew lead");
+        if (leadFirst !== 0) return leadFirst;
+        return a.name.localeCompare(b.name);
+      }),
+    });
+  }
+
+  const other = byCrew.get("other");
+  if (other?.length) {
+    groups.push({
+      crew: null,
+      label: "Other / unassigned",
+      members: [...other].sort((a, b) => a.name.localeCompare(b.name)),
+    });
+  }
+
+  return groups;
+}
 
 export function emptyVisitWorkState(): VisitWorkState {
   return {
@@ -85,7 +152,8 @@ export function loadDailyRoster(): CrewMember[] {
     const raw = window.localStorage.getItem(ROSTER_KEY);
     if (!raw) return DEFAULT_DAILY_ROSTER;
     const parsed = JSON.parse(raw) as CrewMember[];
-    return parsed.length > 0 ? parsed : DEFAULT_DAILY_ROSTER;
+    if (parsed.length === 0) return DEFAULT_DAILY_ROSTER;
+    return parsed.map(enrichRosterMember);
   } catch {
     return DEFAULT_DAILY_ROSTER;
   }

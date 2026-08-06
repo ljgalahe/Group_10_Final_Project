@@ -255,7 +255,7 @@ export default async function SchedulePage({
         description={
           role === "crew_member"
             ? "Monthly schedule calendar with company, employee, job, and status filters - visits assigned to you (read-only)."
-            : "Your assigned visits for execution - Operations owns company-wide scheduling and Crew Lead assignment."
+            : undefined
         }
       />
       <ServiceHoldAuditSync holds={holds} />

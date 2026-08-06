@@ -391,7 +391,7 @@ export default async function VisitsPage({
           description={
             role === "crew_member"
               ? "Upcoming and completed visits assigned to you (read-only)."
-              : "Scheduled and completed crew visits with hours, materials, and equipment."
+              : undefined
           }
         />
         {cardData.length === 0 ? (
