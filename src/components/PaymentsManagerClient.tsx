@@ -709,7 +709,7 @@ function CollectionRiskSection({
                   <td className="px-4 py-3 text-stone-700">
                     {!row.hasPaymentHistory || row.averageDaysToPay == null
                       ? "No Payment History"
-                      : `${row.averageDaysToPay} days`}
+                      : `Average Days to Pay: ${row.averageDaysToPay} Days`}
                   </td>
                   <td className="px-4 py-3">
                     <PaymentBehaviorBadge behavior={row.paymentBehavior} />

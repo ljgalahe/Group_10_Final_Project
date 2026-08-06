@@ -114,42 +114,62 @@ insert into extra_work_orders (id, contract_id, title, description, quoted_amoun
   ('44444444-4444-4444-4444-444444444402', '22222222-2222-2222-2222-222222222203', 'Storm Damage Cleanup', 'Quoted for fallen branch removal after May storm.', 950.00, 'quoted', null);
 
 -- ─── INVOICES & LINE ITEMS ───────────────────────────────────────────────────
--- Story: Riverside has open June invoice w/ extra work | Metro is 90+ days overdue
-
+-- Service Hold / Customer Performance demo (as of ~2026-08-06):
+--   Metro INV-0004 unpaid 30+ days past due → Service Hold
+--   Harbor View INV-0005 unpaid ~15 days past due → Monitor, not Service Hold
+--   Summit paid / current approved invoice → Active (not on hold)
 -- Stories:
---   INV-0001 fully paid (ACH)
---   INV-0003 fully paid (check)
---   INV-0005 partially paid with multiple payments (check + card)
---   INV-0006 canceled (cannot receive payments)
+--   INV-0001 / INV-0010 fully paid (ACH)
+--   INV-0003 / INV-0011 fully paid (check)
+--   INV-0005 partially paid (balance remaining)
+--   INV-0004 Metro past_due 30+ days → Service Hold
 insert into invoices (id, contract_id, customer_id, invoice_number, issue_date, due_date, status, subtotal, total, amount_paid) values
-  ('55555555-5555-5555-5555-555555555501', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0001', '2026-05-01', '2026-05-31', 'paid', 2400.00, 2400.00, 2400.00),
+  -- Riverside: slow payer (~55 days avg) — paid history + open AR
+  ('55555555-5555-5555-5555-555555555501', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0001', '2026-03-01', '2026-03-31', 'paid', 2400.00, 2400.00, 2400.00),
+  ('55555555-5555-5555-5555-555555555510', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0010', '2026-04-01', '2026-04-30', 'paid', 2400.00, 2400.00, 2400.00),
   ('55555555-5555-5555-5555-555555555502', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0002', '2026-06-01', '2026-07-01', 'sent', 4250.00, 4250.00, 0.00),
   ('55555555-5555-5555-5555-555555555506', '22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111101', 'INV-0006', '2026-06-01', '2026-07-01', 'sent', 650.00, 650.00, 0.00),
   ('55555555-5555-5555-5555-555555555507', '22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111101', 'INV-0007', '2026-06-01', '2026-07-01', 'sent', 900.00, 900.00, 0.00),
-  ('55555555-5555-5555-5555-555555555503', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0003', '2026-06-01', '2026-07-01', 'paid', 3200.00, 3200.00, 3200.00),
-  ('55555555-5555-5555-5555-555555555504', '22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'INV-0004', '2026-04-01', '2026-05-01', 'past_due', 4500.00, 4500.00, 0.00),
-  ('55555555-5555-5555-5555-555555555505', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0005', '2026-07-01', '2026-07-15', 'partially_paid', 1800.00, 1800.00, 900.00),
+  -- Summit: fast payer (~14 days)
+  ('55555555-5555-5555-5555-555555555503', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0003', '2026-05-01', '2026-05-31', 'paid', 3200.00, 3200.00, 3200.00),
+  ('55555555-5555-5555-5555-555555555511', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0011', '2026-06-01', '2026-06-30', 'paid', 3200.00, 3200.00, 3200.00),
+  -- Harbor View: moderate (~27 days ADTP) + one ~15-day overdue partial (Monitor, not Hold)
+  ('55555555-5555-5555-5555-555555555512', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0012', '2026-05-01', '2026-05-31', 'paid', 1800.00, 1800.00, 1800.00),
+  ('55555555-5555-5555-5555-555555555505', '22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'INV-0005', '2026-07-01', '2026-07-22', 'partially_paid', 1800.00, 1800.00, 900.00),
+  -- Metro: slow (~43 days ADTP) + unpaid invoice 30+ days past due → Service Hold
+  ('55555555-5555-5555-5555-555555555513', '22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'INV-0013', '2026-02-01', '2026-03-01', 'paid', 4500.00, 4500.00, 4500.00),
+  ('55555555-5555-5555-5555-555555555504', '22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'INV-0004', '2026-06-01', '2026-07-05', 'past_due', 4500.00, 4500.00, 0.00),
   ('55555555-5555-5555-5555-555555555508', '22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', 'INV-0008', '2026-08-01', '2026-08-31', 'draft', 1200.00, 1200.00, 0.00),
   ('55555555-5555-5555-5555-555555555509', '22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'INV-0009', '2026-08-01', '2026-08-31', 'approved', 3200.00, 3200.00, 0.00);
 
 insert into invoice_lines (invoice_id, description, amount, line_type) values
-  ('55555555-5555-5555-5555-555555555501', 'Monthly maintenance — Riverside (May 2026)', 2400.00, 'recurring'),
+  ('55555555-5555-5555-5555-555555555501', 'Monthly maintenance — Riverside (March 2026)', 2400.00, 'recurring'),
+  ('55555555-5555-5555-5555-555555555510', 'Monthly maintenance — Riverside (April 2026)', 2400.00, 'recurring'),
   ('55555555-5555-5555-5555-555555555502', 'Monthly maintenance — Riverside (June 2026)', 2400.00, 'recurring'),
   ('55555555-5555-5555-5555-555555555502', 'Extra work: Mulch Installation — Entrance Beds', 1850.00, 'extra_work'),
   ('55555555-5555-5555-5555-555555555506', 'Irrigation monitoring — Riverside (June 2026)', 650.00, 'recurring'),
   ('55555555-5555-5555-5555-555555555507', 'Parking lot islands — Riverside (June 2026)', 900.00, 'recurring'),
-  ('55555555-5555-5555-5555-555555555503', 'Monthly maintenance — Summit Retail (June 2026)', 3200.00, 'recurring'),
-  ('55555555-5555-5555-5555-555555555504', 'Monthly maintenance — Metro Industrial (April 2026)', 4500.00, 'recurring'),
+  ('55555555-5555-5555-5555-555555555503', 'Monthly maintenance — Summit Retail (May 2026)', 3200.00, 'recurring'),
+  ('55555555-5555-5555-5555-555555555511', 'Monthly maintenance — Summit Retail (June 2026)', 3200.00, 'recurring'),
+  ('55555555-5555-5555-5555-555555555512', 'Monthly maintenance — Harbor View HOA (May 2026)', 1800.00, 'recurring'),
   ('55555555-5555-5555-5555-555555555505', 'Monthly maintenance — Harbor View HOA (July 2026)', 1800.00, 'recurring'),
+  ('55555555-5555-5555-5555-555555555513', 'Monthly maintenance — Metro Industrial (February 2026)', 4500.00, 'recurring'),
+  ('55555555-5555-5555-5555-555555555504', 'Monthly maintenance — Metro Industrial (April 2026)', 4500.00, 'recurring'),
   ('55555555-5555-5555-5555-555555555508', 'Seasonal bed prep — Riverside (August 2026)', 1200.00, 'extra_work'),
   ('55555555-5555-5555-5555-555555555509', 'Monthly maintenance — Summit Retail (August 2026)', 3200.00, 'recurring');
 
 -- ─── PAYMENTS (simulated) ────────────────────────────────────────────────────
--- Demonstrates: full ACH, full check, multi-payment partial (check + card)
+-- Varied payment lags so each customer has a distinct Average Days to Pay:
+--   Riverside ~55d | Summit ~14d | Harbor View ~27d | Metro ~43d
+-- Partial payment on Harbor View INV-0005 is excluded from ADTP (not fully paid).
 insert into payments (payment_number, invoice_id, customer_id, amount, applied_amount, unapplied_amount, payment_date, payment_method, notes) values
-  ('CR-0001', '55555555-5555-5555-5555-555555555501', '11111111-1111-1111-1111-111111111101', 2400.00, 2400.00, 0, '2026-05-28', 'simulated_ach', 'On-time payment'),
-  ('CR-0002', '55555555-5555-5555-5555-555555555503', '11111111-1111-1111-1111-111111111102', 3200.00, 3200.00, 0, '2026-06-15', 'simulated_check', 'Received by mail'),
-  ('CR-0003', '55555555-5555-5555-5555-555555555505', '11111111-1111-1111-1111-111111111103', 900.00, 900.00, 0, '2026-07-10', 'simulated_check', 'Partial payment — balance remaining');
+  ('CR-0001', '55555555-5555-5555-5555-555555555501', '11111111-1111-1111-1111-111111111101', 2400.00, 2400.00, 0, '2026-04-25', 'simulated_ach', 'Paid 55 days after invoice'),
+  ('CR-0004', '55555555-5555-5555-5555-555555555510', '11111111-1111-1111-1111-111111111101', 2400.00, 2400.00, 0, '2026-05-26', 'simulated_ach', 'Paid 55 days after invoice'),
+  ('CR-0002', '55555555-5555-5555-5555-555555555503', '11111111-1111-1111-1111-111111111102', 3200.00, 3200.00, 0, '2026-05-14', 'simulated_check', 'Paid 13 days after invoice'),
+  ('CR-0005', '55555555-5555-5555-5555-555555555511', '11111111-1111-1111-1111-111111111102', 3200.00, 3200.00, 0, '2026-06-16', 'simulated_check', 'Paid 15 days after invoice'),
+  ('CR-0006', '55555555-5555-5555-5555-555555555512', '11111111-1111-1111-1111-111111111103', 1800.00, 1800.00, 0, '2026-05-28', 'simulated_ach', 'Paid 27 days after invoice'),
+  ('CR-0003', '55555555-5555-5555-5555-555555555505', '11111111-1111-1111-1111-111111111103', 900.00, 900.00, 0, '2026-07-10', 'simulated_check', 'Partial payment — balance remaining'),
+  ('CR-0007', '55555555-5555-5555-5555-555555555513', '11111111-1111-1111-1111-111111111104', 4500.00, 4500.00, 0, '2026-03-16', 'simulated_check', 'Paid 43 days after invoice');
 
 -- ─── SUPPORT REQUESTS (Riverside customer portal demo) ─────────────────────
 

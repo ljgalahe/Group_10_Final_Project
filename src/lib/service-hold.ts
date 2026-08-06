@@ -3,8 +3,6 @@
  * Derived from open invoices that are 30+ days past due — no hard-coded customer list.
  */
 
-import { isOpenInvoiceStatus } from "@/lib/payment-utils";
-
 export const SERVICE_HOLD_THRESHOLD_DAYS = 30;
 
 export type HoldInvoice = {
@@ -51,8 +49,14 @@ export type ServiceHoldAuditEntry = {
 const AUDIT_KEY = "greenscape-service-hold-audit";
 const STATE_KEY = "greenscape-service-hold-active-ids";
 
+function dateOnly(value: string | undefined | null): string {
+  if (!value) return "";
+  // Accept plain YYYY-MM-DD or ISO timestamps from Supabase.
+  return value.slice(0, 10);
+}
+
 function todayIso(today?: string) {
-  return today ?? new Date().toISOString().slice(0, 10);
+  return dateOnly(today) || new Date().toISOString().slice(0, 10);
 }
 
 export function invoiceOpenBalance(invoice: HoldInvoice): number {
@@ -64,14 +68,20 @@ export function invoiceOpenBalance(invoice: HoldInvoice): number {
 
 export function daysPastDue(dueDate: string, today?: string): number {
   const end = todayIso(today);
-  const start = new Date(dueDate + "T00:00:00");
-  const finish = new Date(end + "T00:00:00");
-  return Math.floor(
-    (finish.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  const startDate = dateOnly(dueDate);
+  if (!startDate || !end) return 0;
+  const start = new Date(`${startDate}T12:00:00Z`);
+  const finish = new Date(`${end}T12:00:00Z`);
+  const ms = finish.getTime() - start.getTime();
+  if (!Number.isFinite(ms)) return 0;
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
 }
 
-/** Open invoice with balance that is 30+ days past due. */
+/**
+ * Unpaid invoice that is 30+ days past due.
+ * Average Days to Pay never triggers a hold by itself — only an unpaid
+ * invoice whose due date is at least 30 days before today.
+ */
 export function isInvoiceTriggeringServiceHold(
   invoice: HoldInvoice,
   today?: string
@@ -84,12 +94,10 @@ export function isInvoiceTriggeringServiceHold(
   ) {
     return false;
   }
-  if (!isOpenInvoiceStatus(invoice.status) && invoice.status !== "overdue") {
-    // still allow past_due / overdue / sent with balance
-    if (invoiceOpenBalance(invoice) <= 0) return false;
-  }
+
   const balance = invoiceOpenBalance(invoice);
   if (balance <= 0) return false;
+
   return daysPastDue(invoice.due_date, today) >= SERVICE_HOLD_THRESHOLD_DAYS;
 }
 

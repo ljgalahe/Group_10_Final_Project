@@ -151,6 +151,7 @@ function rateCustomerPerformance(options: {
   const { averageDaysToPay, overdueInvoiceCount, onServiceHold } = options;
   const days = averageDaysToPay;
 
+  // Needs Attention: 46+ ADTP, multiple overdue, or Service Hold.
   if (
     onServiceHold ||
     overdueInvoiceCount >= 2 ||
@@ -158,36 +159,38 @@ function rateCustomerPerformance(options: {
   ) {
     return {
       badge: "Needs Attention",
-      why: "Repeated late payments or overdue invoices require follow-up.",
+      why: "Late payment behavior or overdue invoices require follow-up.",
     };
   }
 
+  // Monitor: 31–45 ADTP or exactly one overdue (and not on Service Hold).
+  // ADTP above 30 never rates Strong/Excellent.
   if (overdueInvoiceCount === 1 || (days != null && days >= 31 && days <= 45)) {
     return {
       badge: "Monitor",
-      why: "Payment time exceeds company goal.",
+      why: "Average payment time exceeds the 30-day company target.",
     };
   }
 
-  // No overdue invoices from here down.
+  // Excellent / Strong require no overdue invoices and not on Service Hold.
   if (days != null && days <= 15) {
     return {
       badge: "Excellent",
-      why: "Pays invoices quickly and has no overdue balance.",
+      why: "Pays quickly and has no overdue balance.",
     };
   }
 
   if (days != null && days >= 16 && days <= 30) {
     return {
       badge: "Strong",
-      why: "Pays on time with healthy account status.",
+      why: "Pays within the company target and has a healthy account.",
     };
   }
 
   // Limited payment-speed history, but account is current.
   return {
     badge: "Strong",
-    why: "Pays on time with healthy account status.",
+    why: "Pays within the company target and has a healthy account.",
   };
 }
 
@@ -592,11 +595,9 @@ function buildCustomerLeaderboard(
       badge,
       headlineMetric:
         row.averageDaysToPay == null
-          ? `$${row.outstandingBalance.toFixed(0)} outstanding`
-          : `${row.averageDaysToPay}d avg to pay`,
-      why: onServiceHold
-        ? "Account is on Service Hold for invoices 30 or more days overdue."
-        : why,
+          ? "No Payment History"
+          : `Average Days to Pay: ${row.averageDaysToPay} Days`,
+      why,
       estimated: row.averageDaysToPay == null,
       metrics: [
         {
@@ -612,11 +613,11 @@ function buildCustomerLeaderboard(
           value: String(row.overdueInvoiceCount),
         },
         {
-          label: "Avg days to pay",
+          label: "Average Days to Pay",
           value:
             row.averageDaysToPay == null
-              ? "Limited data"
-              : `${row.averageDaysToPay} days`,
+              ? "No Payment History"
+              : `${row.averageDaysToPay} Days`,
           estimated: row.averageDaysToPay == null,
         },
         {
@@ -652,15 +653,19 @@ function buildCustomerLeaderboard(
       name: names.get(customerId) ?? "Customer",
       score: CUSTOMER_BADGE_SCORE[badge],
       badge,
-      headlineMetric: `$${revenue.toFixed(0)} billed`,
-      why: onServiceHold
-        ? "Account is on Service Hold for invoices 30 or more days overdue."
-        : why,
+      headlineMetric:
+        "No Payment History",
+      why,
       estimated: true,
       metrics: [
         { label: "Billed revenue", value: `$${revenue.toFixed(0)}` },
         { label: "Outstanding balance", value: "$0" },
         { label: "Overdue invoices", value: "0" },
+        {
+          label: "Average Days to Pay",
+          value: "No Payment History",
+          estimated: true,
+        },
         { label: "Service Hold", value: onServiceHold ? "Yes" : "No" },
         { label: "Collection risk", value: "low" },
       ],
@@ -671,7 +676,7 @@ function buildCustomerLeaderboard(
     "customer",
     "Customer Performance",
     "Payment speed, overdue invoices, and Service Hold status.",
-    "Excellent: 0–15 days to pay, no overdue. Strong: 16–30 days, no overdue. Monitor: 31–45 days or one overdue invoice. Needs Attention: 46+ days, multiple overdue, or Service Hold. Display scores map to those bands.",
+    "Excellent: 0–15 average days to pay, no overdue, not on Service Hold. Strong: 16–30 days, no overdue, not on Service Hold. Monitor: 31–45 days or one overdue invoice. Needs Attention: 46+ days, multiple overdue, or Service Hold. Each customer's Average Days to Pay uses that customer's paid invoices only.",
     entries
   );
 }
