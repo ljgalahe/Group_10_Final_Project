@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { AccountantJournalEntriesView } from "@/components/AccountantJournalEntriesView";
+import { AccountantGeneralLedgerView } from "@/components/AccountantGeneralLedgerView";
 import { AppShell } from "@/components/AppShell";
 import { PageHeader } from "@/components/ui";
 import { loadAccountingReportData } from "@/app/reports/accounting-data";
 import { requireAppAccess } from "@/lib/auth-access";
 import { getViewRole, roleCanEditContractDetails } from "@/lib/demo-role";
 
-export default async function JournalEntriesPage() {
+export default async function GeneralLedgerPage() {
   await requireAppAccess();
 
   const role = await getViewRole();
@@ -17,13 +17,12 @@ export default async function JournalEntriesPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Journal Entries"
-        description="Create journal entries when a source is ready to post. Edit or delete any entry if something needs to change."
+        title="General Ledger"
+        description="Trial balance and account registers rolled up from posted journal entries."
       />
-      <AccountantJournalEntriesView
+      <AccountantGeneralLedgerView
         entries={entries}
         chartAccounts={chartAccounts}
-        todayIso={new Date().toISOString().slice(0, 10)}
       />
     </AppShell>
   );

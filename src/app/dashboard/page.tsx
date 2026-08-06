@@ -33,6 +33,8 @@ import {
   fetchVisitLaborEntries,
 } from "@/lib/queries";
 import type { ExtraWorkItem } from "@/components/crew-lead/schedule-types";
+import { AccountantDashboardPanel } from "@/app/dashboard/components/AccountantDashboardPanel";
+import { fetchAccountantDashboardData } from "@/app/dashboard/accountant-dashboard-data";
 
 function attentionActionLabel(kind: string) {
   switch (kind) {
@@ -174,6 +176,8 @@ export default async function DashboardPage({
 
   const role = await getViewRole();
   const stats = await fetchDashboardStats();
+  const accountantDashboard =
+    role === "accountant" ? await fetchAccountantDashboardData() : null;
   const params = await searchParams;
 
   const roleTitles: Record<string, { title: string; description: string }> = {
@@ -517,7 +521,9 @@ export default async function DashboardPage({
         </>
       ) : null}
 
-      {role !== "customer" && role !== "crew_member" ? staffStatsRow : null}
+      {role !== "customer" && role !== "crew_member" && role !== "accountant"
+        ? staffStatsRow
+        : null}
 
       {role === "manager" ? (
         <div className="mt-8 space-y-6">
@@ -670,34 +676,8 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
-      {role === "accountant" ? (
-        <div className="mt-8">
-          <Card>
-            <h2 className="text-lg font-semibold text-green-950">
-              Quick Actions
-            </h2>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/reports/ar-aging"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                AR Aging Report
-              </Link>
-              <Link
-                href="/reports/profitability"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Profitability Report
-              </Link>
-              <Link
-                href="/reports/journal-entries"
-                className="rounded-lg border border-green-800 px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Journal Entries
-              </Link>
-            </div>
-          </Card>
-        </div>
+      {role === "accountant" && accountantDashboard ? (
+        <AccountantDashboardPanel data={accountantDashboard} />
       ) : null}
     </AppShell>
   );
