@@ -109,10 +109,9 @@ export function VisitWorkPanel({
     );
     setState(next);
     setRoster(loadDailyRoster());
-    // Completed visits auto-fill hours locally; sync so accountant sees labor costs.
-    if (!readOnly && job.status === "completed" && next.employees.length > 0) {
-      persistLaborToBilling(job, next, true);
-    }
+    // Do NOT auto-sync labor on mount for completed visits — that floods
+    // server actions when many panels hydrate and stalls tab navigation.
+    // Labor syncs on explicit crew edits via update().
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync on visit identity/status only
   }, [job.id, job.status, job.source, tasks, contractExtraWork.length, readOnly]);
 

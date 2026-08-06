@@ -431,6 +431,54 @@ export async function fetchVisitCosts(visitId: string) {
   return { data: data ?? [], error };
 }
 
+/** Batch load visit_costs for many visits (avoids N+1). Chunks + pages past PostgREST limits. */
+export async function fetchVisitCostsByVisitIds(visitIds: string[]) {
+  const ids = [...new Set(visitIds.filter(Boolean))];
+  if (ids.length === 0) {
+    return { data: [] as Array<Record<string, unknown> & {
+      id: string;
+      visit_id: string;
+      cost_type: string;
+      description: string | null;
+      amount: number | string;
+    }>, error: null };
+  }
+
+  type CostRow = {
+    id: string;
+    visit_id: string;
+    cost_type: string;
+    description: string | null;
+    amount: number | string;
+  };
+
+  const supabase = await createDataClient();
+  const all: CostRow[] = [];
+
+  for (let i = 0; i < ids.length; i += SUPABASE_IN_CHUNK) {
+    const chunk = ids.slice(i, i + SUPABASE_IN_CHUNK);
+    let from = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("visit_costs")
+        .select("*")
+        .in("visit_id", chunk)
+        .order("created_at", { ascending: false })
+        .range(from, from + SUPABASE_PAGE_SIZE - 1);
+
+      if (error) {
+        return { data: all, error };
+      }
+      const rows = (data ?? []) as CostRow[];
+      all.push(...rows);
+      if (rows.length < SUPABASE_PAGE_SIZE) break;
+      from += SUPABASE_PAGE_SIZE;
+    }
+  }
+
+  return { data: all, error: null };
+}
+
 export async function fetchAllVisitCosts() {
   const supabase = await createDataClient();
   const { data, error } = await supabase.from("visit_costs").select("*");
