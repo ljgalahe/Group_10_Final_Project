@@ -13,6 +13,7 @@ const FILTERS: Array<{ value: "all" | JournalSource; label: string }> = [
   { value: "invoice", label: "Invoices" },
   { value: "payment", label: "Payments" },
   { value: "visit", label: "Visit costs" },
+  { value: "depreciation", label: "Depreciation" },
   { value: "manual", label: "Manual" },
 ];
 
@@ -20,6 +21,7 @@ const sourceBadge: Record<JournalSource, string> = {
   invoice: "bg-blue-100 text-blue-800",
   payment: "bg-green-100 text-green-800",
   visit: "bg-amber-100 text-amber-900",
+  depreciation: "bg-purple-100 text-purple-800",
   manual: "bg-stone-200 text-stone-800",
 };
 
@@ -311,6 +313,9 @@ export function AccountantJournalEntriesView({
           </li>
           <li>Every journal entry can be edited or deleted if something needs to change.</li>
           <li>Invoices, payments, and visits show Ready to post only when a journal entry can be created.</li>
+          <li>
+            Mower, truck, trailer, and irrigation hours automatically create depreciation entries.
+          </li>
         </ul>
       </Card>
 

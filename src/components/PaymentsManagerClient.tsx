@@ -323,7 +323,6 @@ export function PaymentsManagerClient({
             >
               <option value="">All statuses</option>
               <option value="applied">Applied</option>
-              <option value="unapplied">Unapplied</option>
               <option value="void">Void</option>
             </select>
           </label>

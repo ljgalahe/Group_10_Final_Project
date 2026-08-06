@@ -1,11 +1,24 @@
 export type UserRole =
   | "manager"
   | "accountant"
+  | "operations"
   | "crew_lead"
   | "crew_member"
   | "customer";
 
 export type ContractStatus = "draft" | "active" | "completed" | "cancelled";
+export type ContractApprovalState =
+  | "draft"
+  | "pending_approvals"
+  | "approved"
+  | "changes_requested";
+export type QuoteStatus =
+  | "new"
+  | "survey_scheduled"
+  | "budgeted"
+  | "contract_drafted"
+  | "closed";
+export type VisitKind = "service" | "survey";
 export type BillingMethod = "monthly" | "per_visit" | "seasonal";
 export type VisitStatus = "scheduled" | "completed" | "cancelled";
 export type InvoiceStatus =
@@ -22,7 +35,7 @@ export type InvoiceStatus =
 export type ExtraWorkStatus = "quoted" | "approved" | "completed" | "declined";
 export type CostType = "labor" | "materials" | "equipment";
 export type PaymentMethod = "check" | "ach" | "card" | "bank_transfer";
-export type PaymentStatus = "applied" | "unapplied" | "void";
+export type PaymentStatus = "applied" | "void";
 export type SupportCategory =
   | "question"
   | "concern"
@@ -75,6 +88,28 @@ export interface Contract {
   account_manager: string | null;
   renewal_date: string | null;
   created_at: string;
+  approval_state?: ContractApprovalState | string | null;
+  manager_approved_at?: string | null;
+  accountant_approved_at?: string | null;
+  quote_id?: string | null;
+  drafted_by_role?: string | null;
+  customers?: Customer;
+}
+
+export interface QuoteRequest {
+  id: string;
+  customer_id: string;
+  service_description: string;
+  notes: string | null;
+  related_contract_id: string | null;
+  status: QuoteStatus;
+  property_address: string | null;
+  budget_hours: number | null;
+  budget_supplies: string | null;
+  survey_visit_id: string | null;
+  draft_contract_id: string | null;
+  created_at: string;
+  updated_at?: string;
   customers?: Customer;
 }
 
@@ -151,7 +186,6 @@ export interface Payment {
   payment_number?: string | null;
   customer_id?: string | null;
   applied_amount?: number | null;
-  unapplied_amount?: number | null;
   reference_number?: string | null;
   recorded_by?: string | null;
   recorded_by_name?: string | null;
@@ -177,8 +211,6 @@ export interface PaymentsSummary {
   outstandingInvoiceIds: string[];
   collectionRate: number | null;
   averageDaysToPay: number | null;
-  /** Kept for compatibility with existing payment tooling */
-  unappliedPayments: number;
   partialPaymentsCount: number;
 }
 
@@ -236,7 +268,12 @@ export const CREW_APPLICABLE_SUPPORT_CATEGORIES = SUPPORT_CATEGORIES.filter(
 export const DEMO_ROLES: { role: UserRole; label: string; description: string }[] = [
   { role: "manager", label: "Manager", description: "Oversee contracts and profitability" },
   { role: "accountant", label: "Accountant", description: "Billing, payments, and AR" },
-  { role: "crew_lead", label: "Crew Lead", description: "Schedule and complete visits" },
+  {
+    role: "operations",
+    label: "Operations",
+    description: "Quotes, scheduling, and crew availability",
+  },
+  { role: "crew_lead", label: "Crew Lead", description: "Execute assigned visits" },
   {
     role: "crew_member",
     label: "Crew Member",
@@ -244,6 +281,12 @@ export const DEMO_ROLES: { role: UserRole; label: string; description: string }[
   },
   { role: "customer", label: "Customer", description: "View contracts and pay invoices" },
 ];
+
+export const DEMO_CREW_LEADS = [
+  "Morgan Hale",
+  "Alex Rivera",
+  "Sam Ortiz",
+] as const;
 
 export const DEMO_CUSTOMER_ID = "11111111-1111-1111-1111-111111111101";
 

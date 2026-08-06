@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createDataClient } from "@/lib/auth-access";
 import { getViewRole } from "@/lib/demo-role";
 import { EQUIPMENT_CATEGORIES } from "./equipment-types";
+import type { EquipmentCategory } from "./equipment-types";
 
 async function requireAccountant() {
   const role = await getViewRole();
@@ -13,10 +14,16 @@ async function requireAccountant() {
 }
 
 function parseCategory(raw: string) {
-  if ((EQUIPMENT_CATEGORIES as readonly string[]).includes(raw)) {
-    return raw;
+  const normalized =
+    raw === "Trucks/Trailers"
+      ? "Trucks"
+      : raw === "Tractors/skid steers"
+        ? "Tractors"
+        : raw;
+  if ((EQUIPMENT_CATEGORIES as readonly string[]).includes(normalized)) {
+    return normalized as EquipmentCategory;
   }
-  return "Other";
+  return "Other" as EquipmentCategory;
 }
 
 export async function createEquipment(formData: FormData): Promise<void> {
@@ -27,15 +34,22 @@ export async function createEquipment(formData: FormData): Promise<void> {
   const category = parseCategory(String(formData.get("category") ?? "Other"));
   const purchaseDate = String(formData.get("purchase_date") ?? "");
   const cost = Number(formData.get("cost"));
-  const salvage = Number(formData.get("salvage_value") ?? 0);
-  const years = Number(formData.get("useful_life_years") ?? 0);
-  const months = Number(formData.get("useful_life_months") ?? 0);
-  const estimatedHours = Number(formData.get("estimated_total_hours"));
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  if (!name || !purchaseDate || !(cost >= 0) || !(estimatedHours > 0)) return;
+  const isHandTool = category === "Hand/power tools";
+  const salvage = isHandTool
+    ? 0
+    : Number(formData.get("salvage_value") ?? 0);
+  // DB requires estimated_total_hours > 0; hand tools ignore useful life in the UI.
+  const estimatedHours = isHandTool
+    ? 1
+    : Number(formData.get("estimated_total_hours"));
+  const usefulLifeYears = isHandTool ? 0 : 5;
+  const usefulLifeMonths = isHandTool ? 1 : 0; // satisfy useful_life_positive when years=0
+
+  if (!name || !purchaseDate || !(cost >= 0)) return;
+  if (!isHandTool && !(estimatedHours > 0)) return;
   if (salvage > cost) return;
-  if (years <= 0 && months <= 0) return;
 
   await supabase.from("equipment").insert({
     name,
@@ -43,8 +57,8 @@ export async function createEquipment(formData: FormData): Promise<void> {
     purchase_date: purchaseDate,
     cost,
     salvage_value: salvage,
-    useful_life_years: years,
-    useful_life_months: months,
+    useful_life_years: usefulLifeYears,
+    useful_life_months: usefulLifeMonths,
     estimated_total_hours: estimatedHours,
     status: "active",
     notes,
@@ -62,17 +76,23 @@ export async function updateEquipment(formData: FormData): Promise<void> {
   const category = parseCategory(String(formData.get("category") ?? "Other"));
   const purchaseDate = String(formData.get("purchase_date") ?? "");
   const cost = Number(formData.get("cost"));
-  const salvage = Number(formData.get("salvage_value") ?? 0);
-  const years = Number(formData.get("useful_life_years") ?? 0);
-  const months = Number(formData.get("useful_life_months") ?? 0);
-  const estimatedHours = Number(formData.get("estimated_total_hours"));
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  if (!id || !name || !purchaseDate || !(cost >= 0) || !(estimatedHours > 0)) {
+  const isHandTool = category === "Hand/power tools";
+  const salvage = isHandTool
+    ? 0
+    : Number(formData.get("salvage_value") ?? 0);
+  const estimatedHours = isHandTool
+    ? 1
+    : Number(formData.get("estimated_total_hours"));
+  const usefulLifeYears = isHandTool ? 0 : 5;
+  const usefulLifeMonths = isHandTool ? 1 : 0;
+
+  if (!id || !name || !purchaseDate || !(cost >= 0)) {
     return;
   }
+  if (!isHandTool && !(estimatedHours > 0)) return;
   if (salvage > cost) return;
-  if (years <= 0 && months <= 0) return;
 
   await supabase
     .from("equipment")
@@ -82,8 +102,8 @@ export async function updateEquipment(formData: FormData): Promise<void> {
       purchase_date: purchaseDate,
       cost,
       salvage_value: salvage,
-      useful_life_years: years,
-      useful_life_months: months,
+      useful_life_years: usefulLifeYears,
+      useful_life_months: usefulLifeMonths,
       estimated_total_hours: estimatedHours,
       notes,
     })

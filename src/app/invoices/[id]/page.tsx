@@ -26,8 +26,7 @@ import {
 } from "@/app/invoices/components/InvoiceActivityButton";
 import { InvoiceWorkflowActions } from "@/app/invoices/components/InvoiceWorkflowActions";
 import { SendReminderButton } from "@/app/invoices/components/SendReminderButton";
-import { ApplyUnappliedCashButton } from "@/app/invoices/components/ApplyUnappliedCashButton";
-import { fetchInvoiceActivity, fetchUnappliedCashForCustomer } from "@/app/invoices/queries";
+import { fetchInvoiceActivity } from "@/app/invoices/queries";
 import { RecordPaymentButton } from "@/app/payments/components/RecordPaymentButton";
 
 /** Prefer stored customer method labels; map legacy simulated_* values only. */
@@ -74,9 +73,6 @@ export default async function InvoiceDetailPage({
       ? (await fetchCustomerPaymentMethods(customerId)).data
       : [];
   const activities = isAccountant ? await fetchInvoiceActivity(id) : [];
-  const unappliedCash = isAccountant
-    ? await fetchUnappliedCashForCustomer(invoice.customer_id as string)
-    : [];
   const invoiceJournalStatus = isAccountant
     ? ((await fetchJournalSourceStates()).invoice.get(id) ?? null)
     : null;
@@ -93,7 +89,6 @@ export default async function InvoiceDetailPage({
     amount: number;
     payment_date: string;
     payment_method: string;
-    unapplied_amount?: number;
   }[];
   const balance = getOutstandingBalance(
     Number(invoice.total),
@@ -274,12 +269,6 @@ export default async function InvoiceDetailPage({
                     {role === "customer"
                       ? formatCustomerPaymentMethod(payment.payment_method)
                       : payment.payment_method.replace(/_/g, " ")}
-                    {isAccountant && Number(payment.unapplied_amount) > 0 ? (
-                      <span className="text-amber-700">
-                        {" "}
-                        ({formatCurrency(Number(payment.unapplied_amount))} unapplied)
-                      </span>
-                    ) : null}
                   </span>
                   <span className="font-medium">
                     {formatCurrency(Number(payment.amount))}
@@ -304,7 +293,7 @@ export default async function InvoiceDetailPage({
         <Card className="mt-6">
           <h2 className="text-lg font-semibold text-green-950">Payments</h2>
           <p className="mt-1 text-sm text-stone-500">
-            Record a new payment or apply existing unapplied cash to this invoice.
+            Record a payment against this invoice.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <RecordPaymentButton
@@ -313,15 +302,6 @@ export default async function InvoiceDetailPage({
               invoiceOnly
               redirectTo={`/invoices/${invoice.id}`}
             />
-            {unappliedCash.length > 0 && (
-              <ApplyUnappliedCashButton
-                invoiceId={invoice.id}
-                invoiceNumber={invoice.invoice_number as string}
-                balanceDue={balance}
-                unappliedPayments={unappliedCash}
-                redirectTo={`/invoices/${invoice.id}`}
-              />
-            )}
           </div>
         </Card>
       )}

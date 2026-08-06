@@ -70,6 +70,7 @@ export function VisitWorkPanel({
   contractExtraWork,
   variant = "full",
   readOnly = false,
+  showCustomerNotes = true,
 }: {
   job: ScheduleJob;
   contractExtraWork: ExtraWorkItem[];
@@ -77,6 +78,8 @@ export function VisitWorkPanel({
   variant?: "full" | "planning";
   /** When true, hide all edit/save/status-change controls (crew member portal). */
   readOnly?: boolean;
+  /** When false, skip the customer-notes block (e.g. already shown on a summary card). */
+  showCustomerNotes?: boolean;
 }) {
   const materials = useMemo(
     () => materialsForServices(job.services),
@@ -290,7 +293,7 @@ export function VisitWorkPanel({
 
   const crewSection = (
     <Section
-      title="Crew & hours"
+      title="Crew & Hours"
       hint={
         totalHours > 0
           ? `${state.assignedEmployees.length} assigned · ${totalHours.toFixed(1)} hrs logged`
@@ -439,13 +442,16 @@ export function VisitWorkPanel({
         <p className="text-xs text-stone-500">Completed visit — view only.</p>
       ) : null}
 
-      <CrewSiteNotes
-        notes={job.customerNotes}
-        status={job.status}
-        showAdditionalNotes={false}
-      />
+      {showCustomerNotes ? (
+        <CrewSiteNotes
+          notes={job.customerNotes}
+          status={job.status}
+          showAdditionalNotes={false}
+          readOnly={readOnly}
+        />
+      ) : null}
 
-      <Section title="1. Time clock" hint={`Planned ${plannedHours.toFixed(1)} hrs`}>
+      <Section title="Time Clock" hint={`Planned ${plannedHours.toFixed(1)} hrs`}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
@@ -497,7 +503,7 @@ export function VisitWorkPanel({
       {crewSection}
 
       <Section
-        title="3. Tasks"
+        title="Tasks"
         hint={`${tasksDone} of ${tasks.length} done`}
       >
         <ul className="space-y-2">
@@ -523,7 +529,7 @@ export function VisitWorkPanel({
         </ul>
       </Section>
 
-      <Section title="4. Supplies">
+      <Section title="Supplies">
         <div className="grid gap-3 sm:grid-cols-2 text-sm">
           <div>
             <p className="text-xs font-medium text-stone-500">Materials</p>
@@ -536,7 +542,7 @@ export function VisitWorkPanel({
         </div>
       </Section>
 
-      <Section title="5. Extra work">
+      <Section title="Extra Work">
         {contractExtraWork.length > 0 ? (
           <ul className="space-y-2">
             {contractExtraWork.map((item) => (
@@ -628,7 +634,7 @@ export function VisitWorkPanel({
         ) : null}
       </Section>
 
-      <Section title="6. Report a problem">
+      <Section title="Report a Problem">
         {canEditCrew ? (
           <form onSubmit={submitException} className="space-y-2">
             <select
@@ -663,7 +669,9 @@ export function VisitWorkPanel({
           </form>
         ) : (
           <p className="text-sm text-stone-500">
-            Available on scheduled visits.
+            {readOnly
+              ? "View only — problems are reported by the crew lead."
+              : "Available on scheduled visits."}
           </p>
         )}
       </Section>
@@ -673,6 +681,7 @@ export function VisitWorkPanel({
         status={job.status}
         showCustomerNotes={false}
         showAdditionalNotes
+        readOnly={readOnly}
       />
     </div>
   );
