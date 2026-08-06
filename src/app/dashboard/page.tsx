@@ -213,10 +213,6 @@ export default async function DashboardPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  // Inquiries is a prospect start page only — never the internal KPI dashboard.
-  if (role === "inquiries") {
-    redirect("/inquiries");
-  }
   // Managers load invoices/visits below for KPIs — skip the duplicate
   // fetchDashboardStats() pass (full invoices + scheduled visits again).
   const [stats, accountantDashboard] = await Promise.all([
@@ -696,7 +692,7 @@ export default async function DashboardPage({
   const nextVisit = upcomingVisits[0] ?? null;
 
   const staffStatsRow = (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="gs-kpi-grid">
       <StatCard label="Active Contracts" value={stats.activeContracts} />
       <StatCard label="Scheduled Visits" value={stats.scheduledVisits} />
       <StatCard

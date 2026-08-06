@@ -55,7 +55,7 @@ export function AccountantDashboardPanel({
 
   return (
     <div className="mt-8 space-y-6" suppressHydrationWarning>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="gs-kpi-grid">
         <StatCard
           label="Past Due AR"
           value={formatCurrency(data.pastDueTotal)}
@@ -91,7 +91,7 @@ export function AccountantDashboardPanel({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold text-green-950">
                 AR Aging Snapshot
               </h2>
@@ -102,25 +102,26 @@ export function AccountantDashboardPanel({
             </div>
             <Link
               href="/reports/ar-aging"
-              className="text-sm font-medium text-green-800 hover:underline"
+              className="shrink-0 text-sm font-medium text-green-800 hover:underline"
             >
               Full report →
             </Link>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-4 gs-kpi-grid !gap-3 [grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr))]">
             {AGING_TILES.map((tile) => (
               <div
                 key={tile.key}
-                className={`rounded-xl border p-3 ${tile.accent}`}
+                className={`min-w-0 overflow-hidden rounded-xl border p-3 ${tile.accent}`}
               >
                 <p
-                  className="text-xs font-medium text-stone-600"
+                  className="truncate text-xs font-medium text-stone-600"
                   suppressHydrationWarning
                 >
                   {tile.label}
                 </p>
                 <p
-                  className={`mt-1 text-lg font-semibold ${tile.amountClass}`}
+                  className={`gs-metric-value gs-kpi-value mt-1 font-semibold ${tile.amountClass}`}
+                  title={formatCurrency(data.agingBuckets[tile.key])}
                   suppressHydrationWarning
                 >
                   {formatCurrency(data.agingBuckets[tile.key])}
@@ -137,7 +138,7 @@ export function AccountantDashboardPanel({
             </h2>
             <Link
               href="/invoices"
-              className="text-sm font-medium text-green-800 hover:underline"
+              className="shrink-0 text-sm font-medium text-green-800 hover:underline"
             >
               All Invoices →
             </Link>

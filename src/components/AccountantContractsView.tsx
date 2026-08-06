@@ -353,7 +353,7 @@ export function AccountantContractsView({
   return (
     <div className="space-y-6">
       {/* 1. KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+      <div className="gs-kpi-grid">
         <StatCard label="Active Contracts" value={kpis.activeCount} />
         <StatCard
           label="Monthly Value"

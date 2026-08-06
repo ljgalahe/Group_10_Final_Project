@@ -123,7 +123,7 @@ export default async function ProfitabilityPage({
         </div>
       ) : null}
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 gs-kpi-grid">
         {isAccountant ? (
           <AccountantTotalRevenueButton
             amount={totalRevenue}

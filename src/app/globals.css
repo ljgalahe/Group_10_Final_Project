@@ -80,13 +80,107 @@ h3,
   font-feature-settings: "tnum" 1, "lnum" 1;
   letter-spacing: -0.03em;
   font-weight: 600;
+  max-width: 100%;
+}
+
+/* Responsive KPI grids — never force too many columns for long currency */
+.gs-kpi-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+}
+
+.gs-kpi-tile {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e7e2d9;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  padding: 1.15rem 1.2rem;
+  box-shadow: 0 1px 2px rgba(28, 26, 22, 0.04);
+  text-align: left;
+}
+
+.gs-kpi-tile--interactive {
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.gs-kpi-tile--interactive:hover {
+  border-color: #166534;
+  background: #f7faf7;
+  box-shadow: 0 0 0 2px rgba(22, 101, 52, 0.12);
+}
+
+.gs-kpi-tile--interactive:focus {
+  outline: none;
+}
+
+.gs-kpi-tile--interactive:focus-visible {
+  box-shadow: 0 0 0 2px rgba(22, 101, 52, 0.28);
+}
+
+.gs-kpi-tile--danger.gs-kpi-tile--interactive:hover {
+  border-color: #f87171;
+  background: #fff7f7;
+  box-shadow: 0 0 0 2px rgba(185, 28, 28, 0.12);
+}
+
+.gs-kpi-tile--danger.gs-kpi-tile--interactive:focus-visible {
+  box-shadow: 0 0 0 2px rgba(185, 28, 28, 0.28);
+}
+
+.gs-kpi-label {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: #78716c;
+}
+
+.gs-kpi-value {
+  display: block;
+  margin-top: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.15;
+  font-size: clamp(1.15rem, 0.85rem + 1vw, 1.55rem);
+}
+
+.gs-kpi-hint {
+  margin: 0.4rem 0 0;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #57534e;
+}
+
+.gs-kpi-hint--action {
+  color: #166534;
 }
 
 input,
 select,
-textarea,
-button {
+textarea {
   font: inherit;
+}
+
+/* Don't use `font: inherit` on buttons — the shorthand wipes
+   utility font-family / italic (e.g. welcome CTAs). */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 table {
@@ -146,6 +240,53 @@ table {
 .gs-sidebar {
   background: linear-gradient(180deg, #32382d 0%, #2a2f26 55%, #242920 100%);
   color: #f3f0ea;
+}
+
+/* Thin, blended sidebar scrollbar */
+.gs-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(243, 240, 234, 0.22) transparent;
+}
+
+.gs-sidebar-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.gs-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gs-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(243, 240, 234, 0.18);
+  border-radius: 999px;
+}
+
+.gs-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(243, 240, 234, 0.32);
+}
+
+.gs-sidebar-scroll::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.welcome-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 235, 227, 0.28) transparent;
+}
+
+.welcome-sidebar-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.welcome-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.welcome-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(245, 235, 227, 0.28);
+  border-radius: 999px;
 }
 
 .gs-mark {
@@ -558,6 +699,16 @@ table {
 .welcome-grain {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
   background-size: 180px 180px;
+}
+
+/* Magazine editorial CTAs — shared by Services + Quote (button + link) */
+.welcome-cta {
+  font-family: var(--font-cormorant), "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.2rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
 }
 
 @keyframes welcome-drift {
