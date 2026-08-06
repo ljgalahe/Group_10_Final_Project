@@ -23,7 +23,7 @@ export default async function ProfitabilityPage() {
   const isAccountant = role === "accountant";
 
   const [report, leakInputs, financialStatementInputs] = await Promise.all([
-    fetchProfitabilityReport(),
+    fetchProfitabilityReport({ useAccountantVisitCosts: isAccountant }),
     fetchProfitLeakInputs(),
     isAccountant ? fetchFinancialStatementInputs() : Promise.resolve(null),
   ]);
@@ -44,7 +44,11 @@ export default async function ProfitabilityPage() {
     <AppShell>
       <PageHeader
         title="Contract Profitability"
-        description="Revenue billed minus direct visit costs, by active contract."
+        description={
+          isAccountant
+            ? "Revenue billed minus visit costs — scheduled visits use estimated cost; completed visits use actual cost."
+            : "Revenue billed minus direct visit costs, by active contract."
+        }
         action={
           isAccountant && financialStatementInputs ? (
             <CreateFinancialStatementButton inputs={financialStatementInputs} />
@@ -54,7 +58,10 @@ export default async function ProfitabilityPage() {
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Revenue" value={formatCurrency(totalRevenue)} />
-        <StatCard label="Total Direct Costs" value={formatCurrency(totalCosts)} />
+        <StatCard
+          label={isAccountant ? "Total Visit Costs" : "Total Direct Costs"}
+          value={formatCurrency(totalCosts)}
+        />
         <StatCard label="Total Margin" value={formatCurrency(totalMargin)} />
         <StatCard
           label="Average Margin %"
@@ -78,8 +85,9 @@ export default async function ProfitabilityPage() {
                 All contracts
               </h2>
               <p className="text-sm text-stone-500">
-                Reference table of billed revenue, direct costs, and margin for
-                every active contract.
+                {isAccountant
+                  ? "Billed revenue and visit costs aligned with the accountant Visits tab (estimate while scheduled, actual when completed)."
+                  : "Reference table of billed revenue, direct costs, and margin for every active contract."}
               </p>
             </div>
             <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
@@ -90,7 +98,9 @@ export default async function ProfitabilityPage() {
                     <th className="px-4 py-3 font-medium">Customer</th>
                     <th className="px-4 py-3 font-medium">Monthly Fee</th>
                     <th className="px-4 py-3 font-medium">Revenue Billed</th>
-                    <th className="px-4 py-3 font-medium">Direct Costs</th>
+                    <th className="px-4 py-3 font-medium">
+                      {isAccountant ? "Visit Costs" : "Direct Costs"}
+                    </th>
                     <th className="px-4 py-3 font-medium">Margin</th>
                     <th className="px-4 py-3 font-medium">Margin %</th>
                   </tr>
@@ -142,10 +152,23 @@ export default async function ProfitabilityPage() {
         </h2>
         <p className="mt-2 text-sm text-stone-600">
           <strong>Revenue</strong> comes from invoices billed on each contract.
-          <strong> Direct costs</strong> are labor, materials, and equipment
-          logged on service visits. Use Contract Performance Analysis to select
-          a contract, review estimated profit leaks, and act on manager
-          recommendations before renewal.
+          {isAccountant ? (
+            <>
+              {" "}
+              <strong> Visit costs</strong> match the Visits tab: scheduled
+              visits use estimated cost; completed visits use actual labor,
+              materials, and equipment.
+            </>
+          ) : (
+            <>
+              {" "}
+              <strong> Direct costs</strong> are labor, materials, and equipment
+              logged on service visits.
+            </>
+          )}{" "}
+          Use Contract Performance Analysis to select a contract, review
+          estimated profit leaks, and act on manager recommendations before
+          renewal.
         </p>
       </Card>
     </AppShell>
