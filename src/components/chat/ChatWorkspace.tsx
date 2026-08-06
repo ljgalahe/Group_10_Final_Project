@@ -9,6 +9,7 @@ import {
   categoryEmoji,
   categoryLabel,
   createAnnouncement,
+  createGroupThread,
   loadChatThreads,
   personById,
   postChatMessage,
@@ -17,7 +18,13 @@ import {
   type ChatThread,
 } from "@/lib/chat-demo";
 
-type TabFilter = "all" | "announcement" | "direct" | "fyi" | "question";
+type TabFilter =
+  | "all"
+  | "announcement"
+  | "direct"
+  | "group"
+  | "fyi"
+  | "question";
 
 /** Must match VIEW_ROLE_COOKIE in demo-role.ts (avoid importing that server module here). */
 const VIEW_ROLE_COOKIE = "greenscape_view_role";
@@ -97,9 +104,7 @@ export function ChatWorkspace({
   initialJob,
   initialCompany,
   initialConcern,
-  initialComposeTitle,
-  initialComposeBody,
-  initialComposeCategory,
+  initialThread,
 }: {
   initialWith?: string;
   initialFrom?: string;
@@ -107,9 +112,7 @@ export function ChatWorkspace({
   initialJob?: string;
   initialCompany?: string;
   initialConcern?: string;
-  initialComposeTitle?: string;
-  initialComposeBody?: string;
-  initialComposeCategory?: string;
+  initialThread?: string;
 }) {
   const router = useRouter();
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -121,9 +124,13 @@ export function ChatWorkspace({
   const [composeTitle, setComposeTitle] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [composeCategory, setComposeCategory] =
-    useState<Exclude<ChatCategory, "direct">>("announcement");
+    useState<Exclude<ChatCategory, "direct" | "group">>("announcement");
   const [dmOpen, setDmOpen] = useState(false);
   const [dmPersonId, setDmPersonId] = useState("alex-rivera");
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [groupTitle, setGroupTitle] = useState("");
+  const [groupMemberIds, setGroupMemberIds] = useState<string[]>([]);
+  const [groupError, setGroupError] = useState("");
   const [selfId, setSelfId] = useState("manager");
 
   function refresh() {
@@ -180,38 +187,23 @@ export function ChatWorkspace({
     router,
   ]);
 
-  // Deep-link from Equipment replacement alert → open prefilled board compose
+  // Deep-link → open an existing thread (e.g. Ops reschedule notify)
   useEffect(() => {
-    if (!initialComposeBody) return;
-    const allowed: Array<Exclude<ChatCategory, "direct">> = [
-      "announcement",
-      "fyi",
-      "question",
-    ];
-    const category =
-      initialComposeCategory &&
-      allowed.includes(
-        initialComposeCategory as Exclude<ChatCategory, "direct">
-      )
-        ? (initialComposeCategory as Exclude<ChatCategory, "direct">)
-        : "announcement";
-    setComposeCategory(category);
-    setComposeTitle(initialComposeTitle ?? "");
-    setComposeBody(initialComposeBody);
-    setComposeOpen(true);
+    if (!initialThread || initialWith) return;
+    refresh();
+    const exists = loadChatThreads().some((t) => t.id === initialThread);
+    if (!exists) return;
+    setFilter("group");
+    setSelectedId(initialThread);
     router.replace("/chat");
-  }, [
-    initialComposeBody,
-    initialComposeTitle,
-    initialComposeCategory,
-    router,
-  ]);
+  }, [initialThread, initialWith, router]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return threads.filter((t) => {
       if (filter === "announcement" && t.category !== "announcement") return false;
       if (filter === "direct" && t.category !== "direct") return false;
+      if (filter === "group" && t.category !== "group") return false;
       if (filter === "fyi" && t.category !== "fyi") return false;
       if (filter === "question" && t.category !== "question") return false;
       if (!q) return true;
@@ -270,31 +262,96 @@ export function ChatWorkspace({
     setSelectedId(thread.id);
   }
 
-  const boardThreads = filtered.filter((t) => t.category !== "direct");
+  function toggleGroupMember(id: string) {
+    setGroupMemberIds((current) =>
+      current.includes(id)
+        ? current.filter((x) => x !== id)
+        : [...current, id]
+    );
+    setGroupError("");
+  }
+
+  function startGroup() {
+    if (groupMemberIds.length < 1) {
+      setGroupError("Select at least one other person.");
+      return;
+    }
+    try {
+      const thread = createGroupThread({
+        title: groupTitle,
+        memberIds: groupMemberIds,
+        fromPersonId: selfId,
+      });
+      setGroupOpen(false);
+      setGroupTitle("");
+      setGroupMemberIds([]);
+      setGroupError("");
+      refresh();
+      setFilter("group");
+      setSelectedId(thread.id);
+    } catch (err) {
+      setGroupError(
+        err instanceof Error ? err.message : "Could not create group chat."
+      );
+    }
+  }
+
+  const boardThreads = filtered.filter(
+    (t) => t.category !== "direct" && t.category !== "group"
+  );
   const directThreads = filtered.filter((t) => t.category === "direct");
+  const groupThreads = filtered.filter((t) => t.category === "group");
+
+  const listThreads =
+    filter === "direct"
+      ? directThreads
+      : filter === "group"
+        ? groupThreads
+        : boardThreads;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => setComposeOpen(true)}
+          onClick={() => {
+            setComposeOpen(true);
+            setDmOpen(false);
+            setGroupOpen(false);
+          }}
           className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
         >
           + New message
         </button>
         <button
           type="button"
-          onClick={() => setDmOpen(true)}
+          onClick={() => {
+            setDmOpen(true);
+            setGroupOpen(false);
+            setComposeOpen(false);
+          }}
           className="rounded-md border border-green-800 px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
         >
           Direct chat
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setGroupOpen(true);
+            setDmOpen(false);
+            setComposeOpen(false);
+            setGroupError("");
+          }}
+          className="rounded-md border border-green-800 px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-50"
+        >
+          Group chat
         </button>
         {(
           [
             ["all", "All messages"],
             ["announcement", "Announcements"],
             ["direct", "Direct"],
+            ["group", "Groups"],
             ["fyi", "FYI"],
             ["question", "Questions"],
           ] as const
@@ -334,7 +391,7 @@ export function ChatWorkspace({
                 value={composeCategory}
                 onChange={(e) =>
                   setComposeCategory(
-                    e.target.value as Exclude<ChatCategory, "direct">
+                    e.target.value as Exclude<ChatCategory, "direct" | "group">
                   )
                 }
                 className="w-full rounded-md border border-stone-300 px-3 py-2"
@@ -427,27 +484,113 @@ export function ChatWorkspace({
         </Card>
       ) : null}
 
+      {groupOpen ? (
+        <Card className="border-green-200">
+          <h3 className="text-base font-semibold text-green-950">
+            Start a group chat
+          </h3>
+          <p className="mt-1 text-sm text-stone-600">
+            Name the group and pick who should be in it.
+          </p>
+          <label className="mt-3 block text-sm">
+            <span className="mb-1 block font-medium text-stone-700">
+              Group name
+            </span>
+            <input
+              value={groupTitle}
+              onChange={(e) => setGroupTitle(e.target.value)}
+              className="w-full rounded-md border border-stone-300 px-3 py-2"
+              placeholder="e.g. Ops · Crew leads"
+            />
+          </label>
+          <fieldset className="mt-3">
+            <legend className="mb-2 text-sm font-medium text-stone-700">
+              Members
+            </legend>
+            <ul className="max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-stone-200 p-3">
+              {CHAT_PEOPLE.filter((p) => p.id !== selfId).map((p) => {
+                const checked = groupMemberIds.includes(p.id);
+                return (
+                  <li key={p.id}>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-800">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleGroupMember(p.id)}
+                        className="h-4 w-4 accent-green-800"
+                      />
+                      <span>
+                        {p.name}
+                        <span className="text-stone-500"> · {p.role}</span>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </fieldset>
+          {groupError ? (
+            <p className="mt-2 text-sm text-red-700">{groupError}</p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={startGroup}
+              className="rounded-md bg-green-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Create group
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setGroupOpen(false);
+                setGroupError("");
+              }}
+              className="rounded-md border border-stone-300 px-3 py-1.5 text-sm text-stone-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_1fr]">
         <Card className="min-h-[28rem] !p-0 overflow-hidden">
           <div className="border-b border-stone-100 px-4 py-3">
             <h2 className="font-serif text-lg font-semibold text-green-950">
-              Message board
+              {filter === "direct"
+                ? "Direct chats"
+                : filter === "group"
+                  ? "Group chats"
+                  : "Message board"}
             </h2>
             <p className="text-xs text-stone-500">
-              Announcements and team updates
+              {filter === "direct"
+                ? "One-to-one conversations"
+                : filter === "group"
+                  ? "Named chats with multiple people"
+                  : "Announcements and team updates"}
             </p>
           </div>
           <ul className="max-h-[32rem] divide-y divide-stone-100 overflow-y-auto">
-            {(filter === "direct" ? directThreads : boardThreads).length ===
-            0 ? (
+            {listThreads.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-stone-500">
                 No messages in this view.
               </li>
             ) : (
-              (filter === "direct" ? directThreads : boardThreads).map(
-                (thread) => {
+              listThreads.map((thread) => {
                   const author = personById(thread.authorId);
                   const active = selected?.id === thread.id;
+                  const isGroup = thread.category === "group";
+                  const isDirect = thread.category === "direct";
+                  const otherId =
+                    thread.participantIds.find((id) => id !== selfId) ??
+                    thread.authorId;
+                  const avatarInitials = isDirect
+                    ? personById(otherId)?.initials ?? "?"
+                    : isGroup
+                      ? "G"
+                      : author?.initials ?? "?";
                   return (
                     <li key={thread.id}>
                       <button
@@ -457,21 +600,11 @@ export function ChatWorkspace({
                           active ? "bg-green-50" : "hover:bg-stone-50"
                         }`}
                       >
-                        <Avatar
-                          initials={
-                            thread.category === "direct"
-                              ? personById(
-                                  thread.participantIds.find(
-                                    (id) => id !== selfId
-                                  ) ?? thread.authorId
-                                )?.initials ?? "?"
-                              : author?.initials ?? "?"
-                          }
-                        />
+                        <Avatar initials={avatarInitials} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <p className="truncate text-sm font-semibold text-green-950">
-                              {thread.category !== "direct"
+                              {!isDirect
                                 ? `${categoryEmoji(thread.category)} `
                                 : ""}
                               {thread.title}
@@ -483,8 +616,10 @@ export function ChatWorkspace({
                             ) : null}
                           </div>
                           <p className="mt-0.5 text-xs text-stone-500">
-                            {author?.name ?? "Unknown"} ·{" "}
-                            {formatWhen(thread.updatedAt)}
+                            {isGroup
+                              ? `${thread.participantIds.length} members`
+                              : author?.name ?? "Unknown"}{" "}
+                            · {formatWhen(thread.updatedAt)}
                           </p>
                           <p className="mt-1 line-clamp-2 text-sm text-stone-600">
                             {thread.preview}
@@ -493,13 +628,54 @@ export function ChatWorkspace({
                       </button>
                     </li>
                   );
-                }
-              )
+                })
             )}
           </ul>
 
-          {filter !== "direct" ? (
+          {filter !== "direct" && filter !== "group" ? (
             <>
+              <div className="border-t border-stone-100 px-4 py-3">
+                <h3 className="text-sm font-semibold text-green-950">
+                  Group chats
+                </h3>
+              </div>
+              <ul className="max-h-40 divide-y divide-stone-100 overflow-y-auto border-t border-stone-50">
+                {groupThreads.length === 0 ? (
+                  <li className="px-4 py-4 text-sm text-stone-500">
+                    No group chats yet. Use Group chat to start one.
+                  </li>
+                ) : (
+                  groupThreads.map((thread) => {
+                    const active = selected?.id === thread.id;
+                    return (
+                      <li key={thread.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFilter("group");
+                            setSelectedId(thread.id);
+                          }}
+                          className={`flex w-full items-center gap-3 px-4 py-2.5 text-left ${
+                            active ? "bg-green-50" : "hover:bg-stone-50"
+                          }`}
+                        >
+                          <Avatar initials="G" size="sm" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-green-950">
+                              {thread.title}
+                            </p>
+                            <p className="truncate text-xs text-stone-500">
+                              {thread.participantIds.length} members ·{" "}
+                              {thread.preview}
+                            </p>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+
               <div className="border-t border-stone-100 px-4 py-3">
                 <h3 className="text-sm font-semibold text-green-950">
                   Direct chats
@@ -558,6 +734,13 @@ export function ChatWorkspace({
                 <h3 className="mt-1 text-xl font-semibold text-green-950">
                   {selected.title}
                 </h3>
+                {selected.category === "group" ? (
+                  <p className="mt-1 text-sm text-stone-600">
+                    {selected.participantIds
+                      .map((id) => personById(id)?.name ?? id)
+                      .join(" · ")}
+                  </p>
+                ) : null}
                 {selected.companyName || selected.jobLabel ? (
                   <p className="mt-1 text-sm text-stone-500">
                     {[selected.companyName, selected.jobLabel]
@@ -620,7 +803,8 @@ export function ChatWorkspace({
                     }
                   }}
                   placeholder={
-                    selected.category === "direct"
+                    selected.category === "direct" ||
+                    selected.category === "group"
                       ? "Write a reply…"
                       : "Add a follow-up…"
                   }
@@ -637,7 +821,7 @@ export function ChatWorkspace({
             </>
           ) : (
             <p className="m-auto text-sm text-stone-500">
-              Select a message or start a direct chat.
+              Select a message, start a direct chat, or create a group.
             </p>
           )}
         </Card>

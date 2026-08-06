@@ -41,13 +41,6 @@ function persistLaborToBilling(
   });
 }
 
-const EXTRA_STATUSES = [
-  { value: "needed", label: "Needed" },
-  { value: "pending_approval", label: "Pending Approval" },
-  { value: "approved", label: "Approved" },
-  { value: "declined", label: "Declined" },
-] as const;
-
 function Section({
   title,
   hint,
@@ -71,7 +64,6 @@ export function VisitWorkPanel({
   contractExtraWork,
   variant = "full",
   readOnly = false,
-  showCustomerNotes = true,
 }: {
   job: ScheduleJob;
   contractExtraWork: ExtraWorkItem[];
@@ -79,8 +71,6 @@ export function VisitWorkPanel({
   variant?: "full" | "planning";
   /** When true, hide all edit/save/status-change controls (crew member portal). */
   readOnly?: boolean;
-  /** When false, hide customer notes (caller already shows them outside the panel). */
-  showCustomerNotes?: boolean;
 }) {
   const materials = useMemo(
     () => materialsForServices(job.services),
@@ -104,8 +94,6 @@ export function VisitWorkPanel({
   const [laborEmployeeId, setLaborEmployeeId] = useState("");
   const [employeeHours, setEmployeeHours] = useState("");
   const [extraDescription, setExtraDescription] = useState("");
-  const [extraStatus, setExtraStatus] =
-    useState<(typeof EXTRA_STATUSES)[number]["value"]>("pending_approval");
   const [assignId, setAssignId] = useState("");
   const [exceptionType, setExceptionType] =
     useState<FieldExceptionType>("could_not_access");
@@ -121,10 +109,9 @@ export function VisitWorkPanel({
     );
     setState(next);
     setRoster(loadDailyRoster());
-    // Completed visits auto-fill hours locally; sync so accountant sees labor costs.
-    if (!readOnly && job.status === "completed" && next.employees.length > 0) {
-      persistLaborToBilling(job, next, true);
-    }
+    // Do NOT auto-sync labor on mount for completed visits — that floods
+    // server actions when many panels hydrate and stalls tab navigation.
+    // Labor syncs on explicit crew edits via update().
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync on visit identity/status only
   }, [job.id, job.status, job.source, tasks, contractExtraWork.length, readOnly]);
 
@@ -189,25 +176,12 @@ export function VisitWorkPanel({
         {
           id: crypto.randomUUID(),
           description,
-          status: extraStatus,
+          // Always pending — only management can approve.
+          status: "pending_approval",
         },
       ],
     });
     setExtraDescription("");
-    setExtraStatus("pending_approval");
-  }
-
-  function updateExtraStatus(
-    id: string,
-    status: (typeof EXTRA_STATUSES)[number]["value"]
-  ) {
-    if (!canEditCrew) return;
-    update({
-      ...state,
-      extraWorkNotes: state.extraWorkNotes.map((note) =>
-        note.id === id ? { ...note, status } : note
-      ),
-    });
   }
 
   function assignEmployee(e: FormEvent) {
@@ -297,7 +271,7 @@ export function VisitWorkPanel({
 
   const crewSection = (
     <Section
-      title="Crew & Hours"
+      title="Crew & hours"
       hint={
         totalHours > 0
           ? `${state.assignedEmployees.length} assigned · ${totalHours.toFixed(1)} hrs logged`
@@ -442,7 +416,7 @@ export function VisitWorkPanel({
           <ServiceHoldBanner customerName={job.customerName} />
         ) : null}
         {crewSection}
-        <Section title="Supplies Needed">
+        <Section title="Supplies needed">
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             <div>
               <p className="text-xs font-medium text-stone-500">Materials</p>
@@ -470,11 +444,10 @@ export function VisitWorkPanel({
       <CrewSiteNotes
         notes={job.customerNotes}
         status={job.status}
-        showCustomerNotes={showCustomerNotes}
         showAdditionalNotes={false}
       />
 
-      <Section title="1. Time Clock" hint={`Planned ${plannedHours.toFixed(1)} hrs`}>
+      <Section title="1. Time clock" hint={`Planned ${plannedHours.toFixed(1)} hrs`}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
@@ -565,7 +538,7 @@ export function VisitWorkPanel({
         </div>
       </Section>
 
-      <Section title="5. Extra Work">
+      <Section title="5. Extra work">
         {contractExtraWork.length > 0 ? (
           <ul className="space-y-2">
             {contractExtraWork.map((item) => (
@@ -576,10 +549,7 @@ export function VisitWorkPanel({
                 <span className="font-medium">{item.title}</span>
                 <span className="text-stone-500">
                   {" "}
-                  ·{" "}
-                  {isCompleted
-                    ? "Approved"
-                    : formatStatusLabel(item.status)}
+                  · {formatStatusLabel(item.status)}
                 </span>
               </li>
             ))}
@@ -594,29 +564,12 @@ export function VisitWorkPanel({
             className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
           >
             <p>{note.description}</p>
-            {canEditCrew ? (
-              <select
-                value={note.status}
-                onChange={(e) =>
-                  updateExtraStatus(
-                    note.id,
-                    e.target
-                      .value as (typeof EXTRA_STATUSES)[number]["value"]
-                  )
-                }
-                className="mt-2 rounded border border-stone-300 bg-white px-2 py-1 text-xs"
-              >
-                {EXTRA_STATUSES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="mt-1 text-xs text-stone-500">
-                {formatStatusLabel(note.status)}
-              </p>
-            )}
+            <p className="mt-1 text-xs font-medium text-amber-900">
+              {formatStatusLabel(note.status)}
+              {note.status === "pending_approval" || note.status === "needed"
+                ? " — awaiting manager approval on Contracts"
+                : null}
+            </p>
           </div>
         ))}
 
@@ -625,39 +578,25 @@ export function VisitWorkPanel({
             <textarea
               value={extraDescription}
               onChange={(e) => setExtraDescription(e.target.value)}
-              placeholder="Describe extra work…"
+              placeholder="Describe extra cost / work needing approval…"
               rows={2}
               className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
             />
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={extraStatus}
-                onChange={(e) =>
-                  setExtraStatus(
-                    e.target
-                      .value as (typeof EXTRA_STATUSES)[number]["value"]
-                  )
-                }
-                className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
-              >
-                {EXTRA_STATUSES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
-              >
-                Add
-              </button>
-            </div>
+            <p className="text-xs text-stone-500">
+              Submits as pending approval. Management must approve before this
+              work is treated as complete.
+            </p>
+            <button
+              type="submit"
+              className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+            >
+              Request approval
+            </button>
           </form>
         ) : null}
       </Section>
 
-      <Section title="6. Report a Problem">
+      <Section title="6. Report a problem">
         {canEditCrew ? (
           <form onSubmit={submitException} className="space-y-2">
             <select

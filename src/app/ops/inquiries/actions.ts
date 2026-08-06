@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
+import { SERVICE_LABELS } from "@/lib/commercial-services";
 import {
   getViewRole,
   roleCanViewInquiriesInbox,
@@ -19,17 +20,11 @@ const INQUIRY_STATUSES = new Set([
 const PROPERTY_LABELS: Record<string, string> = {
   office_park: "Office Park",
   retail_center: "Retail Center",
+  hospitality: "Hotel / Hospitality",
+  institutional: "Campus / Science & Cultural",
   industrial: "Industrial",
-  multifamily: "Multifamily",
+  multifamily: "Residential Community",
   other: "Other",
-};
-
-const SERVICE_LABELS: Record<string, string> = {
-  mowing: "Mowing & Grounds Care",
-  irrigation: "Irrigation",
-  seasonal_color: "Seasonal Color",
-  snow_removal: "Snow Removal",
-  other: "Other Services",
 };
 
 const RELATED_CONTRACT_RE =

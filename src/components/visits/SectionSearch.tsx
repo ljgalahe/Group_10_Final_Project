@@ -12,14 +12,14 @@ export function SectionSearch({
   label?: string;
 }) {
   return (
-    <label className="mt-3 block text-sm text-stone-600">
+    <label className="gs-index-field mt-0 block min-w-0 flex-1">
       <span className="sr-only">{label}</span>
       <input
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="block w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:border-green-700 focus:outline-none focus:ring-1 focus:ring-green-700"
+        aria-label={label}
       />
     </label>
   );

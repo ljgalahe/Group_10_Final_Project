@@ -38,6 +38,30 @@ export async function switchDemoRole(formData: FormData) {
   redirect("/dashboard");
 }
 
+export async function enterDemoWithRole(formData: FormData) {
+  const role = (formData.get("role") as UserRole) || "manager";
+  await startDemoSession(role);
+  const cookieStore = await cookies();
+  if (role === "customer") {
+    cookieStore.set(VIEW_CUSTOMER_COOKIE, DEMO_CUSTOMER_ID, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  } else {
+    cookieStore.delete(VIEW_CUSTOMER_COOKIE);
+  }
+  revalidatePath("/", "layout");
+  if (role === "inquiries") {
+    redirect("/inquiries");
+  }
+  if (role === "operations") {
+    redirect("/ops/inquiries");
+  }
+  redirect("/dashboard");
+}
+
 export async function signInDemo(): Promise<void> {
   const supabase = await createClient();
   const email = "demo@greenscape.com";
@@ -61,7 +85,7 @@ export async function signInDemo(): Promise<void> {
   }
 
   await startDemoSession("manager");
-  redirect("/dashboard");
+  redirect("/");
 }
 
 export async function signOut() {
@@ -69,5 +93,5 @@ export async function signOut() {
   await supabase.auth.signOut();
   const cookieStore = await cookies();
   cookieStore.delete("greenscape_demo_session");
-  redirect("/login");
+  redirect("/");
 }

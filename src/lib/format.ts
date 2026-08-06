@@ -7,11 +7,18 @@ export function formatCurrency(amount: number) {
 }
 
 export function formatDate(dateStr: string) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  // Parse as UTC noon so SSR and client locales agree on the calendar day.
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!year || !month || !day) return dateStr;
+  return new Date(Date.UTC(year, month - 1, day, 12)).toLocaleDateString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    }
+  );
 }
 
 export function daysBetween(start: string, end: Date = new Date()) {
@@ -36,7 +43,8 @@ export function getDisplayInvoiceStatus(
   status: string,
   dueDate: string,
   balance: number,
-  amountPaid = 0
+  amountPaid = 0,
+  forCustomer = false
 ) {
   if (status === "paid" || balance <= 0) {
     return "paid";
@@ -57,6 +65,19 @@ export function getDisplayInvoiceStatus(
     return "partial";
   }
 
+  // Customers shouldn't see internal "draft" / "sent" workflow labels.
+  if (forCustomer && status === "draft") {
+    return "upcoming";
+  }
+  if (forCustomer && status === "sent") {
+    // Due date is today (past due already handled above).
+    if (due.getTime() === today.getTime()) {
+      return "due_now";
+    }
+    // Issued but not yet due.
+    return "open";
+  }
+
   return status;
 }
 
@@ -64,7 +85,10 @@ export function statusColor(status: string) {
   const colors: Record<string, string> = {
     active: "bg-green-100 text-green-800",
     draft: "bg-gray-100 text-gray-800",
+    upcoming: "bg-sky-100 text-sky-900",
     sent: "bg-blue-100 text-blue-800",
+    due_now: "bg-amber-100 text-amber-900",
+    open: "bg-blue-100 text-blue-800",
     paid: "bg-green-100 text-green-800",
     overdue: "bg-red-100 text-red-800",
     past_due: "bg-red-100 text-red-800",

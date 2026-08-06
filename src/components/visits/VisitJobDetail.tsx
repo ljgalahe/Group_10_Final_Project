@@ -96,12 +96,12 @@ export function VisitJobDetail({ job }: { job: JobRow }) {
           <StatusBadge status={job.status} />
           {hasConcern ? (
             <span
-              className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+              className={`rounded-md border px-2.5 py-0.5 text-[10px] font-semibold ${
                 concernDecision === "approved"
-                  ? "bg-green-100 text-green-800"
+                  ? "gs-complete-badge"
                   : concernDecision === "on_hold"
-                    ? "bg-amber-100 text-amber-900"
-                    : "bg-rose-100 text-rose-900"
+                    ? "border-amber-200 bg-amber-100 text-amber-900"
+                    : "border-rose-200 bg-rose-100 text-rose-900"
               }`}
             >
               {decisionLabel(concernDecision)}
@@ -276,7 +276,7 @@ export function VisitJobDetail({ job }: { job: JobRow }) {
                   <button
                     type="button"
                     onClick={() => setDecision("approved")}
-                    className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                    className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
                   >
                     Approve & clear
                   </button>

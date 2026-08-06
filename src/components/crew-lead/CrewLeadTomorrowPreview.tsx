@@ -33,7 +33,7 @@ export function CrewLeadTomorrowPreview({
       <p className="mt-1 text-sm text-stone-500">
         Prep for {formatShort(tomorrow)}
       </p>
-      <p className="mt-3 text-3xl font-bold text-green-900">
+      <p className="mt-3 gs-metric-value text-3xl text-green-900">
         {stops.length} stop{stops.length === 1 ? "" : "s"}
       </p>
       {stops.length === 0 ? (

@@ -4,8 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createDataClient } from "@/lib/auth-access";
 import { logInvoiceActivity } from "@/app/invoices/lib/activity";
+import { getViewRole } from "@/lib/demo-role";
 
 export async function createInvoice(formData: FormData): Promise<void> {
+  const role = await getViewRole();
+  if (role !== "accountant") {
+    return;
+  }
+
   const supabase = await createDataClient();
   const contractId = formData.get("contract_id") as string;
   const description = (formData.get("description") as string) || "Manual invoice line";

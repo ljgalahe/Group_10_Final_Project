@@ -184,6 +184,22 @@ export default async function SchedulePage({
       .select(
         "id, scheduled_date, status, contract_id, contracts(id, title, customer_id, customers(id, name, address, customer_notes), contract_services(service_name, included))"
       )
+      .gte(
+        "scheduled_date",
+        (() => {
+          const d = new Date(`${todayDateOnly()}T00:00:00.000Z`);
+          d.setUTCDate(d.getUTCDate() - 14);
+          return d.toISOString().slice(0, 10);
+        })()
+      )
+      .lte(
+        "scheduled_date",
+        (() => {
+          const d = new Date(`${todayDateOnly()}T00:00:00.000Z`);
+          d.setUTCDate(d.getUTCDate() + 90);
+          return d.toISOString().slice(0, 10);
+        })()
+      )
       .order("scheduled_date", { ascending: true }),
     supabase
       .from("extra_work_orders")
@@ -255,7 +271,7 @@ export default async function SchedulePage({
         description={
           role === "crew_member"
             ? "Monthly schedule calendar with company, employee, job, and status filters - visits assigned to you (read-only)."
-            : "Your assigned visits for execution - Operations owns company-wide scheduling and Crew Lead assignment."
+            : undefined
         }
       />
       <ServiceHoldAuditSync holds={holds} />
