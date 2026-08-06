@@ -987,7 +987,7 @@ export async function fetchRevenueSeasonality(
 }
 
 export async function fetchFinancialStatementInputs(): Promise<FinancialStatementInputs> {
-  const [report, summary, equipment] = await Promise.all([
+  const [report, summary, equipmentReport] = await Promise.all([
     fetchProfitabilityReport(),
     fetchPaymentsSummary(),
     fetchEquipment(),
@@ -995,7 +995,7 @@ export async function fetchFinancialStatementInputs(): Promise<FinancialStatemen
 
   const totalRevenue = report.reduce((sum, row) => sum + row.revenue, 0);
   const totalCosts = report.reduce((sum, row) => sum + row.costs, 0);
-  const equipmentAssetValue = equipment
+  const equipmentAssetValue = equipmentReport.assets
     .filter((item) => item.status === "active")
     .reduce((sum, item) => sum + item.cost, 0);
 
