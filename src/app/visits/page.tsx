@@ -107,15 +107,22 @@ export default async function VisitsPage({
 
   if (isAccountant) {
     const { data: initialVisits } = await fetchAccountantVisits();
-    await ensureCompletedVisitLaborSynced(initialVisits.map((visit) => visit.id));
-    const { data: visits } = await fetchAccountantVisits();
+    const { synced } = await ensureCompletedVisitLaborSynced(
+      initialVisits.map((visit) => visit.id)
+    );
+    let visits = initialVisits;
+    if (synced > 0) {
+      const refreshed = await fetchAccountantVisits();
+      visits = refreshed.data;
+    }
     const visitJournalStates = Object.fromEntries(
       (await fetchJournalSourceStates()).visit
     );
-    const [equipmentRows, usageRows] = await Promise.all([
+    const [equipmentReport, usageRows] = await Promise.all([
       fetchEquipment(),
       fetchEquipmentUsage(),
     ]);
+    const equipmentRows = equipmentReport.assets;
 
     return (
       <AppShell>
@@ -127,7 +134,7 @@ export default async function VisitsPage({
           <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />
         ) : (
           <AccountantVisitsView
-            visits={visits}
+            visits={visits as any}
             todayIso={new Date().toISOString().slice(0, 10)}
             visitJournalStates={visitJournalStates}
             equipment={equipmentRows.map((item) => ({

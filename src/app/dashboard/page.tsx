@@ -204,9 +204,16 @@ export default async function DashboardPage({
   await requireAppAccess();
 
   const role = await getViewRole();
-  const stats = await fetchDashboardStats();
-  const accountantDashboard =
-    role === "accountant" ? await fetchAccountantDashboardData() : null;
+  // Inquiries is a prospect start page only — never the internal KPI dashboard.
+  if (role === "inquiries") {
+    redirect("/inquiries");
+  }
+  const [stats, accountantDashboard] = await Promise.all([
+    fetchDashboardStats(),
+    role === "accountant"
+      ? fetchAccountantDashboardData()
+      : Promise.resolve(null),
+  ]);
   const params = await searchParams;
   const initialPerfCategory = parsePerfCategory(params.perf);
 
