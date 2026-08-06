@@ -1,3 +1,4 @@
+import { buildInvoiceListItem } from "@/app/invoices/lib/build-invoice-list-item";
 import Link from "next/link";
 import { requestContractRenewal } from "@/app/actions/support";
 import { requireAppAccess, createDataClient } from "@/lib/auth-access";
@@ -26,6 +27,7 @@ import {
   buildCustomerServiceHolds,
   type CustomerServiceHold,
 } from "@/lib/service-hold";
+import type { InvoiceListItem } from "@/lib/invoice-list";
 import {
   fetchEquipment,
   fetchEquipmentUsage,
@@ -58,6 +60,7 @@ import {
   fetchPayments,
   fetchPendingContractChangeRequests,
   fetchProfitabilityReport,
+  fetchQuotesPendingApproval,
   fetchVisitLaborEntries,
   fetchVisits,
 } from "@/lib/queries";
@@ -284,6 +287,21 @@ export default async function DashboardPage({
   let serviceHolds: CustomerServiceHold[] = [];
   let managerAlerts: ManagerAlert[] = [];
   let managerKpis: ManagerKpi[] = [];
+  let managerPaymentInvoices: InvoiceListItem[] = [];
+  let pendingQuotesForApprovals: {
+    id: string;
+    service_description: string;
+    status: string;
+    monthly_fee?: number | null;
+    submitted_for_approval_at?: string | null;
+    created_at: string;
+    season_start?: string | null;
+    season_end?: string | null;
+    notes?: string | null;
+    customers?: { name?: string | null } | null;
+    companyName?: string;
+    quoteTitle?: string;
+  }[] = [];
   let operationsDashboard: OperationsDashboardData | null = null;
 
   if (role === "operations") {
@@ -302,6 +320,7 @@ export default async function DashboardPage({
       { data: payments },
       profitability,
       { data: pendingChangeRequests },
+      { data: pendingQuotes },
     ] = await Promise.all([
       fetchContracts(),
       fetchVisits(),
@@ -313,7 +332,36 @@ export default async function DashboardPage({
       fetchPayments(),
       fetchProfitabilityReport(),
       fetchPendingContractChangeRequests(),
+      fetchQuotesPendingApproval(),
     ]);
+
+    pendingQuotesForApprovals = (
+      (pendingQuotes ?? []) as {
+        id: string;
+        service_description: string;
+        status: string;
+        monthly_fee?: number | null;
+        submitted_for_approval_at?: string | null;
+        created_at: string;
+        season_start?: string | null;
+        season_end?: string | null;
+        notes?: string | null;
+        customers?: { name?: string | null } | null;
+      }[]
+    ).map((quote) => ({
+      id: quote.id,
+      service_description: quote.service_description,
+      status: quote.status,
+      monthly_fee: quote.monthly_fee,
+      submitted_for_approval_at: quote.submitted_for_approval_at,
+      created_at: quote.created_at,
+      season_start: quote.season_start,
+      season_end: quote.season_end,
+      notes: quote.notes,
+      customers: quote.customers,
+      companyName: quote.customers?.name ?? "Customer",
+      quoteTitle: quote.service_description.slice(0, 80),
+    }));
 
     const contractCustomerById = new Map(
       contracts.map((contract) => [
@@ -415,6 +463,23 @@ export default async function DashboardPage({
       heldCustomerIds: serviceHolds.map((hold) => hold.customerId),
     });
 
+    managerPaymentInvoices = invoices.map((invoice) =>
+      buildInvoiceListItem(
+        {
+          id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          issue_date: invoice.issue_date,
+          due_date: invoice.due_date,
+          total: invoice.total,
+          amount_paid: invoice.amount_paid,
+          status: invoice.status,
+          customers: invoice.customers as { name?: string } | null,
+          contracts: invoice.contracts as { title?: string } | null,
+        },
+        today
+      )
+    );
+
     managerAlerts = buildManagerAlerts({
       today,
       serviceHolds,
@@ -466,6 +531,7 @@ export default async function DashboardPage({
         contract_id: row.contract_id,
         status: row.status,
       })),
+      paymentConcernInvoices: managerPaymentInvoices,
     });
 
     // Approvals panel labels — reuse visits already loaded above instead of
@@ -901,7 +967,11 @@ export default async function DashboardPage({
         <div className="mt-6 space-y-5">
           <ServiceHoldAuditSync holds={serviceHolds} />
           <ManagerKpiStrip kpis={managerKpis} />
-          <ManagerAlertsCenter alerts={managerAlerts} />
+          <ManagerAlertsCenter
+            alerts={managerAlerts}
+            paymentConcernInvoices={managerPaymentInvoices}
+            asOfDate={today}
+          />
           <CompanyPerformanceLeaderboard
             categories={performanceCategories}
             initialCategory={initialPerfCategory}
@@ -919,10 +989,14 @@ export default async function DashboardPage({
           </DashboardCollapsibleSection>
           <DashboardCollapsibleSection
             title="Approvals & Crew Alerts"
-            summary="Field concerns, extra-work approvals, and visit comments"
+            summary="Quote approvals, field concerns, extra-work, and visit comments"
             defaultOpen={false}
           >
-            <ManagerApprovalsPanel visitLabels={visitLabels} hideIntro />
+            <ManagerApprovalsPanel
+              visitLabels={visitLabels}
+              hideIntro
+              pendingQuotes={pendingQuotesForApprovals}
+            />
           </DashboardCollapsibleSection>
         </div>
       ) : null}

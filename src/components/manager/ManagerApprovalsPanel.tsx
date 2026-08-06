@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Card } from "@/components/ui";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   loadFieldExceptions,
   loadManagementExtraRequests,
@@ -15,6 +14,10 @@ import type {
   FieldExceptionReport,
 } from "@/components/crew-lead/schedule-types";
 import { formatStatusLabel } from "@/components/crew-lead/visitWorkDefaults";
+import {
+  QuoteApprovalsInbox,
+  type QuoteApprovalItem,
+} from "@/components/quotes/QuoteApprovalsInbox";
 import {
   decisionLabel,
   loadConcernDecisions,
@@ -51,17 +54,68 @@ function loadAllVisitExtraWorkNotes(): VisitExtraWorkItem[] {
   return items.sort((a, b) => a.jobId.localeCompare(b.jobId));
 }
 
+function ApprovalDropdown({
+  title,
+  count,
+  hint,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  count: number;
+  hint?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-stone-50"
+        aria-expanded={open}
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-green-950">{title}</p>
+          {hint ? (
+            <p className="mt-0.5 truncate text-xs text-stone-500">{hint}</p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[10px] font-semibold text-stone-700">
+            {count}
+          </span>
+          <span
+            className={`text-stone-500 transition-transform ${open ? "rotate-180" : ""}`}
+            aria-hidden
+          >
+            ▾
+          </span>
+        </div>
+      </button>
+      {open ? (
+        <div className="border-t border-stone-100 px-4 py-3">{children}</div>
+      ) : null}
+    </div>
+  );
+}
+
 /**
- * Manager inbox for crew-lead extra-work approvals and field exceptions.
+ * Manager inbox for quote approvals, crew-lead extra-work, and field exceptions.
  * Crew member time-off / availability is reviewed by Operations.
  */
 export function ManagerApprovalsPanel({
   visitLabels = {},
   hideIntro = false,
+  pendingQuotes = [],
 }: {
   visitLabels?: Record<string, string>;
   /** Hide the top summary card when the parent already provides a section title. */
   hideIntro?: boolean;
+  /** Same pending quotes shown on Contracts → Quote Approvals. */
+  pendingQuotes?: QuoteApprovalItem[];
 }) {
   const [extraRequests, setExtraRequests] = useState<
     ManagementExtraWorkRequest[]
@@ -94,15 +148,19 @@ export function ManagerApprovalsPanel({
     };
   }, []);
 
-  const pendingExtraCount = useMemo(() => {
-    const fromDashboard = extraRequests.filter(
-      (r) => r.status === "pending_approval"
-    ).length;
-    const fromVisits = visitNotes.filter(
-      (n) => n.status === "pending_approval" || n.status === "needed"
-    ).length;
-    return fromDashboard + fromVisits;
-  }, [extraRequests, visitNotes]);
+  const pendingExtraCount = useMemo(
+    () =>
+      extraRequests.filter((r) => r.status === "pending_approval").length,
+    [extraRequests]
+  );
+
+  const pendingVisitExtraCount = useMemo(
+    () =>
+      visitNotes.filter(
+        (n) => n.status === "pending_approval" || n.status === "needed"
+      ).length,
+    [visitNotes]
+  );
 
   const openConcernCount = useMemo(
     () =>
@@ -111,6 +169,8 @@ export function ManagerApprovalsPanel({
       ).length,
     [fieldConcerns, concernDecisions]
   );
+
+  const quoteCount = pendingQuotes.length;
 
   function setExtraRequestStatus(
     id: string,
@@ -145,12 +205,16 @@ export function ManagerApprovalsPanel({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {hideIntro ? (
         <div className="flex flex-wrap gap-2">
+          {quoteCount > 0 ? (
+            <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-900">
+              {quoteCount} quote approval{quoteCount === 1 ? "" : "s"}
+            </span>
+          ) : null}
           <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-            {pendingExtraCount} pending approval
-            {pendingExtraCount === 1 ? "" : "s"}
+            {pendingExtraCount + pendingVisitExtraCount} pending extra work
           </span>
           {openConcernCount > 0 ? (
             <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
@@ -160,49 +224,48 @@ export function ManagerApprovalsPanel({
           ) : null}
         </div>
       ) : (
-        <Card className="border-amber-200 bg-amber-50/40">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-green-950">
-                Approvals & Crew Alerts
-              </h2>
-              <p className="mt-1 text-sm text-stone-600">
-                Extra-work and field exceptions. Crew member time-off is handled
-                by Operations.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-                {pendingExtraCount} pending approval
-                {pendingExtraCount === 1 ? "" : "s"}
-              </span>
-              {openConcernCount > 0 ? (
-                <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-900">
-                  {openConcernCount} field concern
-                  {openConcernCount === 1 ? "" : "s"}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </Card>
+        <div className="rounded-xl border border-amber-200 bg-amber-50/40 px-4 py-3">
+          <h2 className="text-lg font-semibold text-green-950">
+            Approvals & Crew Alerts
+          </h2>
+          <p className="mt-1 text-sm text-stone-600">
+            Quotes, extra-work, and field exceptions. Expand a section to
+            review.
+          </p>
+        </div>
       )}
 
-      <Card>
-        <h3 className="text-base font-semibold text-green-950">
-          Field Concerns
-        </h3>
-        <p className="mt-1 text-sm text-stone-500">
-          Photo concerns from Visits work directory. Approve & clear to proceed,
-          or place the job on hold.
+      <ApprovalDropdown
+        title="Quote Approvals"
+        count={quoteCount}
+        hint="Same queue as Contracts → Quote Approvals"
+        defaultOpen={quoteCount > 0}
+      >
+        <QuoteApprovalsInbox
+          pendingQuotes={pendingQuotes}
+          emptyHint="No quote approvals waiting. Syncs with Contracts → Quote Approvals."
+        />
+        <p className="mt-3 text-xs text-stone-500">
+          <a href="/contracts" className="text-green-800 hover:underline">
+            Open Contracts
+          </a>{" "}
+          for the full Quote Approvals + portfolio view.
         </p>
+      </ApprovalDropdown>
 
+      <ApprovalDropdown
+        title="Field Concerns"
+        count={openConcernCount}
+        hint="Photo concerns from Visits work directory"
+        defaultOpen={false}
+      >
         {fieldConcerns.length === 0 ? (
-          <p className="mt-3 text-sm text-stone-500">
+          <p className="text-sm text-stone-500">
             No field concerns synced yet. Open Visits → Work directory once to
             load them.
           </p>
         ) : (
-          <ul className="mt-3 max-h-96 space-y-3 overflow-y-auto">
+          <ul className="max-h-80 space-y-3 overflow-y-auto">
             {fieldConcerns.map((concern) => {
               const decision = concernDecisions[concern.visitId] ?? "open";
               return (
@@ -299,158 +362,157 @@ export function ManagerApprovalsPanel({
             })}
           </ul>
         )}
-      </Card>
+      </ApprovalDropdown>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <h3 className="text-base font-semibold text-green-950">
-            Extra Work Approvals
-          </h3>
-
-          {extraRequests.length === 0 ? (
-            <p className="mt-3 text-sm text-stone-500">
-              No extra-work approval requests yet.
-            </p>
-          ) : (
-            <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto">
-              {extraRequests.map((request) => (
-                <li
-                  key={request.id}
-                  className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-green-950">
-                        {request.customerName}
-                      </p>
-                      <p className="mt-1 text-stone-700">
-                        {request.description}
-                      </p>
-                      <p className="mt-1 text-xs text-stone-500">
-                        {request.estimatedHours} hrs · {request.jobLocation} ·{" "}
-                        {new Date(request.submittedAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-                        request.status === "approved"
-                          ? "gs-complete-badge"
-                          : request.status === "declined"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-amber-100 text-amber-900"
-                      }`}
-                    >
-                      {formatStatusLabel(request.status)}
-                    </span>
+      <ApprovalDropdown
+        title="Extra Work Approvals"
+        count={pendingExtraCount}
+        hint="Crew-lead cost / hours requests"
+        defaultOpen={false}
+      >
+        {extraRequests.length === 0 ? (
+          <p className="text-sm text-stone-500">
+            No extra-work approval requests yet.
+          </p>
+        ) : (
+          <ul className="max-h-80 space-y-3 overflow-y-auto">
+            {extraRequests.map((request) => (
+              <li
+                key={request.id}
+                className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-green-950">
+                      {request.customerName}
+                    </p>
+                    <p className="mt-1 text-stone-700">{request.description}</p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {request.estimatedHours} hrs · {request.jobLocation} ·{" "}
+                      {new Date(request.submittedAt).toLocaleString()}
+                    </p>
                   </div>
-                  {request.status === "pending_approval" ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExtraRequestStatus(request.id, "approved")
-                        }
-                        className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExtraRequestStatus(request.id, "declined")
-                        }
-                        className="rounded-md border border-red-700 px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50"
-                      >
-                        Decline
-                      </button>
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card>
-          <h3 className="text-base font-semibold text-green-950">
-            Visit Extra-Work Comments
-          </h3>
-
-          {visitNotes.length === 0 ? (
-            <p className="mt-3 text-sm text-stone-500">
-              No visit-level extra-work comments yet.
-            </p>
-          ) : (
-            <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto">
-              {visitNotes.map((note) => (
-                <li
-                  key={`${note.jobId}-${note.id}`}
-                  className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-green-950">
-                        {visitLabels[note.jobId] ??
-                          `Visit ${note.jobId.slice(0, 8)}…`}
-                      </p>
-                      <p className="mt-1 text-stone-700">{note.description}</p>
-                      <p className="mt-1 text-xs text-stone-500">
-                        Visit ID: {note.jobId}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-                        note.status === "approved"
-                          ? "gs-complete-badge"
-                          : note.status === "declined"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-amber-100 text-amber-900"
-                      }`}
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                      request.status === "approved"
+                        ? "gs-complete-badge"
+                        : request.status === "declined"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-amber-100 text-amber-900"
+                    }`}
+                  >
+                    {formatStatusLabel(request.status)}
+                  </span>
+                </div>
+                {request.status === "pending_approval" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExtraRequestStatus(request.id, "approved")
+                      }
+                      className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
                     >
-                      {formatStatusLabel(note.status)}
-                    </span>
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExtraRequestStatus(request.id, "declined")
+                      }
+                      className="rounded-md border border-red-700 px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50"
+                    >
+                      Decline
+                    </button>
                   </div>
-                  {note.status === "pending_approval" ||
-                  note.status === "needed" ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setVisitNoteStatus(note.jobId, note.id, "approved")
-                        }
-                        className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setVisitNoteStatus(note.jobId, note.id, "declined")
-                        }
-                        className="rounded-md border border-red-700 px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50"
-                      >
-                        Decline
-                      </button>
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </ApprovalDropdown>
 
-      <Card>
-        <h3 className="text-base font-semibold text-green-950">
-          Field Exception Comments
-        </h3>
+      <ApprovalDropdown
+        title="Visit Extra-Work Comments"
+        count={pendingVisitExtraCount}
+        hint="Notes logged on visit work panels"
+        defaultOpen={false}
+      >
+        {visitNotes.length === 0 ? (
+          <p className="text-sm text-stone-500">
+            No visit-level extra-work comments yet.
+          </p>
+        ) : (
+          <ul className="max-h-80 space-y-3 overflow-y-auto">
+            {visitNotes.map((note) => (
+              <li
+                key={`${note.jobId}-${note.id}`}
+                className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-green-950">
+                      {visitLabels[note.jobId] ??
+                        `Visit ${note.jobId.slice(0, 8)}…`}
+                    </p>
+                    <p className="mt-1 text-stone-700">{note.description}</p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      Visit ID: {note.jobId}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                      note.status === "approved"
+                        ? "gs-complete-badge"
+                        : note.status === "declined"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-amber-100 text-amber-900"
+                    }`}
+                  >
+                    {formatStatusLabel(note.status)}
+                  </span>
+                </div>
+                {note.status === "pending_approval" ||
+                note.status === "needed" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisitNoteStatus(note.jobId, note.id, "approved")
+                      }
+                      className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisitNoteStatus(note.jobId, note.id, "declined")
+                      }
+                      className="rounded-md border border-red-700 px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </ApprovalDropdown>
 
+      <ApprovalDropdown
+        title="Field Exception Comments"
+        count={exceptions.length}
+        hint="Weather, access, and site exceptions from the field"
+        defaultOpen={false}
+      >
         {exceptions.length === 0 ? (
-          <p className="mt-3 text-sm text-stone-500">
+          <p className="text-sm text-stone-500">
             No field exception comments yet.
           </p>
         ) : (
-          <ul className="mt-3 space-y-3">
+          <ul className="max-h-80 space-y-3 overflow-y-auto">
             {exceptions.map((report) => (
               <li
                 key={report.id}
@@ -484,7 +546,7 @@ export function ManagerApprovalsPanel({
             ))}
           </ul>
         )}
-      </Card>
+      </ApprovalDropdown>
     </div>
   );
 }

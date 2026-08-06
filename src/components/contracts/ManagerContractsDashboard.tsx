@@ -5,7 +5,7 @@ import { ContractCompletionChart } from "@/components/contracts/ContractCompleti
 import {
   ManagerContractsDirectory,
   type DirectoryContract,
-  type PendingContractApproval,
+  type PendingQuoteApproval,
 } from "@/components/contracts/ManagerContractsDirectory";
 import { PromiseVsActualMap } from "@/components/contracts/PromiseVsActualMap";
 import { SectionHeading } from "@/components/ui";
@@ -23,25 +23,33 @@ export function ManagerContractsDashboard({
   progressList,
   extraWork = [],
   contracts = [],
-  pendingApprovals = [],
+  pendingQuotes = [],
 }: {
   progressList: ContractProgress[];
   extraWork?: ExtraOrder[];
   contracts?: DirectoryContract[];
-  pendingApprovals?: PendingContractApproval[];
+  pendingQuotes?: PendingQuoteApproval[];
 }) {
   const [company, setCompany] = useState("overall");
 
+  // Drafts (quote-linked / draft contracts) stay out of the completion circle.
+  const chartProgress = useMemo(
+    () => progressList.filter((p) => p.contractStatus !== "draft"),
+    [progressList]
+  );
+
   const companies = useMemo(() => {
-    return [...new Set(progressList.map((p) => p.customerName))].sort((a, b) =>
-      a.localeCompare(b)
-    );
-  }, [progressList]);
+    const names = new Set([
+      ...chartProgress.map((p) => p.customerName),
+      ...contracts.map((c) => c.customerName),
+    ]);
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [chartProgress, contracts]);
 
   const filteredProgress = useMemo(() => {
-    if (company === "overall") return progressList;
-    return progressList.filter((p) => p.customerName === company);
-  }, [progressList, company]);
+    if (company === "overall") return chartProgress;
+    return chartProgress.filter((p) => p.customerName === company);
+  }, [chartProgress, company]);
 
   const filteredExtraWork = useMemo(() => {
     if (company === "overall") return extraWork;
@@ -51,7 +59,7 @@ export function ManagerContractsDashboard({
 
   const directoryContracts = useMemo(() => {
     if (contracts.length > 0) return contracts;
-    return progressList.map((p) => ({
+    return chartProgress.map((p) => ({
       id: p.contractId,
       title: p.title,
       status: p.contractStatus,
@@ -61,7 +69,7 @@ export function ManagerContractsDashboard({
       visits_per_week: null,
       customerName: p.customerName,
     }));
-  }, [contracts, progressList]);
+  }, [contracts, chartProgress]);
 
   return (
     <div className="gs-stack">
@@ -88,8 +96,8 @@ export function ManagerContractsDashboard({
           title="Contract Completion"
           description={
             company === "overall"
-              ? "Percent complete and on-track status across all companies."
-              : `Percent complete and on-track status for ${company}.`
+              ? "Percent complete and on-track status across active and completed contracts (drafts excluded)."
+              : `Percent complete and on-track status for ${company} (drafts excluded).`
           }
         />
         <ContractCompletionChart
@@ -114,7 +122,7 @@ export function ManagerContractsDashboard({
 
       <ManagerContractsDirectory
         contracts={directoryContracts}
-        pendingApprovals={pendingApprovals}
+        pendingQuotes={pendingQuotes}
         companyFilter={company}
       />
     </div>

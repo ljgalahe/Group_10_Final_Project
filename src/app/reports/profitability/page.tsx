@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ContractPerformanceAnalysis } from "@/components/ContractPerformanceAnalysis";
-import { Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
+import { Card, EmptyState, PageHeader, SectionHeading, StatCard } from "@/components/ui";
+import { WeatherAffectedTiles } from "@/components/visits/WeatherAffectedTiles";
 import { requireAppAccess } from "@/lib/auth-access";
 import { buildContractRankings } from "@/lib/contract-rankings";
 import { getViewRole, roleCanViewReports } from "@/lib/demo-role";
@@ -9,9 +10,14 @@ import { formatCurrency } from "@/lib/format";
 import { buildManagerRecommendations } from "@/lib/manager-recommendations";
 import { detectProfitLeaks } from "@/lib/profit-leaks";
 import {
+  fetchAllVisitCosts,
   fetchProfitabilityReport,
   fetchProfitLeakInputs,
+  fetchVisits,
 } from "@/lib/queries";
+import { buildJobRows, summaryFromJobs } from "@/lib/visit-jobs";
+import { defaultVisitPeriod } from "@/lib/visit-period";
+import type { VisitCost } from "@/lib/types";
 import { AccountantDirectCostsStatButton } from "@/app/reports/profitability/components/AccountantDirectCostsButton";
 import { AccountantJobCostVariance } from "@/app/reports/profitability/components/AccountantJobCostVariance";
 import { AccountantPerformanceTwinPanel } from "@/app/reports/profitability/components/AccountantPerformanceTwinPanel";
@@ -40,6 +46,7 @@ export default async function ProfitabilityPage({
   const params = await searchParams;
   const lowOnly = params.low === "1";
   const isAccountant = role === "accountant";
+  const isManager = role === "manager";
 
   const [
     report,
@@ -48,6 +55,8 @@ export default async function ProfitabilityPage({
     directCostsBreakdown,
     jobCostVariance,
     profitPerCrewHour,
+    visitsResult,
+    costsResult,
   ] = await Promise.all([
     fetchProfitabilityReport(),
     fetchProfitLeakInputs(),
@@ -55,7 +64,26 @@ export default async function ProfitabilityPage({
     isAccountant ? fetchDirectCostsBreakdown() : Promise.resolve(null),
     isAccountant ? fetchJobCostVariance() : Promise.resolve(null),
     isAccountant ? fetchProfitPerCrewHour() : Promise.resolve(null),
+    isManager ? fetchVisits() : Promise.resolve({ data: [] as never[] }),
+    isManager
+      ? fetchAllVisitCosts()
+      : Promise.resolve({ data: [] as VisitCost[] }),
   ]);
+
+  let weatherAffected: ReturnType<typeof summaryFromJobs>["weatherAffected"] =
+    [];
+  if (isManager) {
+    const visits = visitsResult.data ?? [];
+    const allCosts = (costsResult.data ?? []) as VisitCost[];
+    const costsByVisit = new Map<string, VisitCost[]>();
+    for (const cost of allCosts) {
+      const list = costsByVisit.get(cost.visit_id) ?? [];
+      list.push(cost);
+      costsByVisit.set(cost.visit_id, list);
+    }
+    const jobs = buildJobRows(visits, costsByVisit, defaultVisitPeriod());
+    weatherAffected = summaryFromJobs(jobs).weatherAffected;
+  }
   const serviceLineMargins = isAccountant
     ? await fetchServiceLineGrossMargins(report)
     : [];
@@ -192,6 +220,17 @@ export default async function ProfitabilityPage({
           )}
         </>
       )}
+
+      {isManager ? (
+        <section id="weather-affected" className="gs-section mt-8 scroll-mt-24">
+          <SectionHeading
+            mark="Weather"
+            title="Weather Affected"
+            description="Original planned date, rescheduled date, and any cost over the original plan."
+          />
+          <WeatherAffectedTiles jobs={weatherAffected} />
+        </section>
+      ) : null}
 
       {isAccountant ? (
         <Card className="mt-8">

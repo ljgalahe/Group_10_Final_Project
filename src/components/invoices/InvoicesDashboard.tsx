@@ -283,15 +283,19 @@ export function InvoicesDashboard({
   journalStates = {},
   showJournal = false,
   isAccountant = false,
+  initialCompany = "overall",
+  initialStatus = "all",
 }: {
   invoices: InvoiceListItem[];
   asOfDate: string;
   journalStates?: Record<string, JournalStatus | null>;
   showJournal?: boolean;
   isAccountant?: boolean;
+  initialCompany?: string;
+  initialStatus?: StatusFilter;
 }) {
-  const [company, setCompany] = useState("overall");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [company, setCompany] = useState(initialCompany);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus);
 
   const companies = useMemo(
     () =>

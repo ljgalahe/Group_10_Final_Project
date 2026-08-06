@@ -703,51 +703,53 @@ function CollectionRiskSection({
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead className="bg-stone-50 text-left text-stone-600">
-              <tr>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Risk</th>
-                <th className="px-4 py-3 font-medium">Outstanding Balance</th>
-                <th className="px-4 py-3 font-medium">Overdue Invoices</th>
-                <th className="px-4 py-3 font-medium">Average Days To Pay</th>
-                <th className="px-4 py-3 font-medium">Payment Behavior</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((row) => (
-                <tr
-                  key={row.customerId}
-                  className="border-t border-stone-100"
-                >
-                  <td className="px-4 py-3 font-medium text-stone-800">
-                    {row.customerName}
-                  </td>
-                  <td className="px-4 py-3">
-                    <ServiceHoldBadge
-                      onHold={heldCustomerIds.has(row.customerId)}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <RiskBadge level={row.risk} />
-                  </td>
-                  <td className="px-4 py-3">
-                    {formatCurrency(row.outstandingBalance)}
-                  </td>
-                  <td className="px-4 py-3">{row.overdueInvoiceCount}</td>
-                  <td className="px-4 py-3 text-stone-700">
-                    {!row.hasPaymentHistory || row.averageDaysToPay == null
-                      ? "No Payment History"
-                      : `Average Days to Pay: ${row.averageDaysToPay} Days`}
-                  </td>
-                  <td className="px-4 py-3">
-                    <PaymentBehaviorBadge behavior={row.paymentBehavior} />
-                  </td>
+          <div className="max-h-[20rem] overflow-auto">
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-stone-50 text-left text-stone-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Customer</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Risk</th>
+                  <th className="px-4 py-3 font-medium">Outstanding Balance</th>
+                  <th className="px-4 py-3 font-medium">Overdue Invoices</th>
+                  <th className="px-4 py-3 font-medium">Average Days To Pay</th>
+                  <th className="px-4 py-3 font-medium">Payment Behavior</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => (
+                  <tr
+                    key={row.customerId}
+                    className="border-t border-stone-100"
+                  >
+                    <td className="px-4 py-3 font-medium text-stone-800">
+                      {row.customerName}
+                    </td>
+                    <td className="px-4 py-3">
+                      <ServiceHoldBadge
+                        onHold={heldCustomerIds.has(row.customerId)}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <RiskBadge level={row.risk} />
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatCurrency(row.outstandingBalance)}
+                    </td>
+                    <td className="px-4 py-3">{row.overdueInvoiceCount}</td>
+                    <td className="px-4 py-3 text-stone-700">
+                      {!row.hasPaymentHistory || row.averageDaysToPay == null
+                        ? "No Payment History"
+                        : `Average Days to Pay: ${row.averageDaysToPay} Days`}
+                    </td>
+                    <td className="px-4 py-3">
+                      <PaymentBehaviorBadge behavior={row.paymentBehavior} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </section>

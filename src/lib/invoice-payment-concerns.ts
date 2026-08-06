@@ -16,7 +16,8 @@ export type CompanyPaymentConcern = {
   reasons: string[];
 };
 
-const SIGNIFICANT_DAYS = 60;
+/** Past-due age that triggers “hold jobs” on the invoices page. */
+const SIGNIFICANT_DAYS = 30;
 const FREQUENT_OVERDUE_MIN = 2;
 
 function daysPastDue(dueDate: string, asOfDate: string): number {
@@ -100,13 +101,11 @@ export function buildCompanyPaymentConcerns(
       flags.push("late_payment");
     }
 
-    if (
-      row.maxDaysOverdue >= SIGNIFICANT_DAYS ||
-      (row.overdueCount >= FREQUENT_OVERDUE_MIN &&
-        row.maxDaysOverdue >= 30)
-    ) {
+    if (row.maxDaysOverdue >= SIGNIFICANT_DAYS) {
       flags.push("consider_hold");
-      reasons.push("Pause upcoming visits until this is paid.");
+      reasons.push(
+        `Pause upcoming visits — ${SIGNIFICANT_DAYS}+ days past due.`
+      );
     }
 
     if (flags.length === 0) continue;

@@ -295,32 +295,25 @@ export default async function QuoteDetailPage({
             ) : null}
           </form>
           {quote.status === "pending_manager_approval" && canApprove ? (
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-col gap-3 sm:max-w-md">
               <form action={approveQuote}>
                 <input type="hidden" name="quote_id" value={quote.id} />
                 <button
                   type="submit"
-                  className="rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+                  className="w-full rounded-md bg-green-900 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
                 >
                   Approve Quote
                 </button>
               </form>
-              <form
-                action={requestQuoteChanges}
-                className="flex flex-wrap items-end gap-2"
-              >
+              <form action={requestQuoteChanges}>
                 <input type="hidden" name="quote_id" value={quote.id} />
                 <input
                   name="change_notes"
                   placeholder="Request Changes…"
-                  className="rounded-md border border-stone-300 px-3 py-2 text-sm"
+                  aria-label="Request Changes"
+                  required
+                  className="w-full rounded-md border border-amber-700 bg-transparent px-3 py-2 text-sm text-amber-950 placeholder:text-amber-800/70 focus:outline-none focus:ring-1 focus:ring-amber-700"
                 />
-                <button
-                  type="submit"
-                  className="rounded-md border border-amber-700 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-50"
-                >
-                  Request Changes
-                </button>
               </form>
             </div>
           ) : null}

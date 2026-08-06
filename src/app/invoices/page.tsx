@@ -94,7 +94,7 @@ function parseStatusFilter(raw?: string): InvoiceStatusFilterValue {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; company?: string }>;
 }) {
   await requireAppAccess();
 
@@ -105,6 +105,15 @@ export default async function InvoicesPage({
   const showAccountantLayout = roleCanManageBilling(role);
   const params = await searchParams;
   const statusFilter = parseStatusFilter(params.status);
+  const companyFilter = params.company?.trim() || "overall";
+  const dashboardStatus =
+    params.status === "overdue" ||
+    params.status === "paid" ||
+    params.status === "sent" ||
+    params.status === "not_sent" ||
+    params.status === "all"
+      ? params.status
+      : "all";
   const [{ data: invoices }, journalStates, contracts, accountantPaymentsResult] =
     await Promise.all([
       fetchInvoices(),
@@ -196,6 +205,8 @@ export default async function InvoicesPage({
             journalStates={journalRecord}
             showJournal={showAccountantLayout}
             isAccountant={isAccountant}
+            initialCompany={companyFilter}
+            initialStatus={dashboardStatus}
           />
         )}
 
