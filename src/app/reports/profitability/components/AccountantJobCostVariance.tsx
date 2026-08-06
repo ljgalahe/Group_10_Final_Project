@@ -123,7 +123,7 @@ export function AccountantJobCostVariance({
           className="rounded-xl border border-stone-200 bg-stone-50 p-5 text-left shadow-sm transition hover:border-red-400 hover:ring-2 hover:ring-red-700/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700/30"
         >
           <p className="text-sm font-medium text-stone-500">Margin leaked</p>
-          <p className="mt-2 text-3xl font-bold text-red-800">
+          <p className="mt-2 gs-metric-value text-3xl text-red-800">
             {formatCurrency(report.totalOverrun)}
           </p>
           <p className="mt-1 text-xs text-red-800/80">

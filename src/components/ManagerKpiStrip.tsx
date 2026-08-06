@@ -20,7 +20,7 @@ export function ManagerKpiStrip({ kpis }: { kpis: ManagerKpi[] }) {
               <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
                 {kpi.label}
               </p>
-              <p className="mt-2 text-2xl font-bold leading-none text-green-900">
+              <p className="gs-metric-value mt-2 text-2xl leading-none text-green-900">
                 {kpi.value}
               </p>
               <p className="mt-2 text-xs leading-snug text-stone-500">

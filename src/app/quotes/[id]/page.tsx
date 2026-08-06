@@ -47,7 +47,7 @@ export default async function QuoteDetailPage({
   return (
     <AppShell>
       <PageHeader
-        title="Quote request"
+        title="Quote Request"
         description={`${customer?.name ?? "Customer"} · received ${formatDate(quote.created_at.slice(0, 10))}`}
       />
 
@@ -58,7 +58,7 @@ export default async function QuoteDetailPage({
       ) : null}
       {flash.survey === "1" ? (
         <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-          Site survey visit scheduled. Assign routes on Scheduling if needed.
+          Site survey visit scheduled. Assign routes on Schedule if needed.
         </p>
       ) : null}
       {flash.error ? (

@@ -540,7 +540,7 @@ function PaymentDetailPanel({
               Close
             </button>
           </div>
-          <p className="mt-4 text-3xl font-bold">
+          <p className="mt-4 gs-metric-value text-3xl">
             {formatCurrency(Number(payment.amount))}
           </p>
           <div className="mt-3">
@@ -787,7 +787,7 @@ function DashboardStatCard({
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-stone-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-green-900">{value}</p>
+      <p className="mt-2 gs-metric-value text-3xl text-green-900">{value}</p>
       {hint ? <p className="mt-1 text-xs text-stone-400">{hint}</p> : null}
     </div>
   );

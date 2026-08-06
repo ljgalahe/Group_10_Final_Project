@@ -144,7 +144,7 @@ function AccountantDirectCostsButton({
           <p className="text-sm font-medium text-stone-500">
             Total Direct Costs
           </p>
-          <p className="mt-2 text-3xl font-bold text-green-900">
+          <p className="mt-2 gs-metric-value text-3xl text-green-900">
             {formatCurrency(amount)}
           </p>
           <p className="mt-1 text-xs text-green-800">
@@ -220,7 +220,7 @@ function AccountantDirectCostsButton({
                       <p className="text-sm font-medium text-stone-600">
                         {type.label}
                       </p>
-                      <p className="mt-1 text-2xl font-bold text-green-900">
+                      <p className="mt-1 gs-metric-value text-2xl text-green-900">
                         {formatCurrency(amountFor(type.key))}
                       </p>
                       <p className="mt-1 text-xs text-stone-400">{type.hint}</p>

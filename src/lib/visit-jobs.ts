@@ -4,6 +4,8 @@ import {
   SCHEDULE_CREW,
   WEATHER_EVENTS,
   crewPayTotal,
+  demoCrewForSeed,
+  demoJobCostTotal,
   generateDailySampleJobs,
   inferJobLabel,
   oxfordAddressForCustomer,
@@ -60,16 +62,26 @@ export function buildJobRows(
           "Oxford, MS"
       );
       const schedule = SCHEDULE_CREW[visit.id];
-      const crew = schedule?.crew ?? [];
+      const crew = schedule?.crew?.length
+        ? schedule.crew
+        : demoCrewForSeed(visit.id);
       const costs = costsByVisit.get(visit.id) ?? [];
-      const costTotal = costs.reduce((s, c) => s + Number(c.amount), 0);
-      const crewPay = crew.length > 0 ? crewPayTotal(crew) : costTotal;
+      const recordedCosts = costs.reduce((s, c) => s + Number(c.amount), 0);
+      const crewPay = crewPayTotal(crew);
+      const costTotal =
+        recordedCosts > 0
+          ? recordedCosts
+          : demoJobCostTotal(crewPay, visit.status);
 
       return {
         visitId: visit.id,
         companyName,
         location,
-        jobLabel: inferJobLabel(visit.id, visit.crew_notes),
+        jobLabel: inferJobLabel(
+          visit.id,
+          visit.crew_notes,
+          visit.contracts?.title
+        ),
         date: visit.scheduled_date,
         status: visit.status,
         crew,

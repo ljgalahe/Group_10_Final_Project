@@ -58,7 +58,7 @@ function SummaryMetricTile({
   return (
     <div className={`rounded-xl border p-4 shadow-sm ${accent}`}>
       <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
-      <p className={`mt-3 text-2xl font-bold tracking-tight ${amountClass}`}>
+      <p className={`mt-3 gs-metric-value text-2xl tracking-tight ${amountClass}`}>
         {formatCurrency(amount)}
       </p>
       <p className="mt-1 text-sm text-stone-600">{hint}</p>
@@ -104,7 +104,7 @@ function PastDueBucketTile({
           {selected ? "Hide" : "View"}
         </span>
       </div>
-      <p className={`mt-3 text-2xl font-bold tracking-tight ${amountClass}`}>
+      <p className={`mt-3 gs-metric-value text-2xl tracking-tight ${amountClass}`}>
         {formatCurrency(total)}
       </p>
       <p className="mt-1 text-sm text-stone-600">

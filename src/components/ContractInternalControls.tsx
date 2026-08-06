@@ -122,7 +122,7 @@ export function ContractInternalControls({
                       <input type="hidden" name="request_id" value={request.id} />
                       <button
                         type="submit"
-                        className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                        className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
                       >
                         Approve as Manager
                       </button>
@@ -177,7 +177,7 @@ export function ContractInternalControls({
                       />
                       <button
                         type="submit"
-                        className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                        className="gs-btn-approve rounded-md px-3 py-1.5 text-xs font-medium"
                       >
                         Approve change order
                       </button>

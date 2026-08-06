@@ -52,7 +52,7 @@ export default async function WorkPendingPage({
   return (
     <AppShell>
       <PageHeader
-        title="Work pending"
+        title="Work Pending"
         description={`Scheduled jobs still open for ${periodLabel(period)}. Order by date, company, or job.`}
         action={
           <Link

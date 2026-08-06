@@ -1,61 +1,86 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   submitProspectInquiry,
   type SubmitInquiryResult,
 } from "@/app/inquiries/actions";
+import { COMMERCIAL_SERVICES } from "@/lib/commercial-services";
 
 const PROPERTY_OPTIONS = [
   { value: "office_park", label: "Office park" },
   { value: "retail_center", label: "Retail center" },
+  { value: "hospitality", label: "Hotel / hospitality" },
+  { value: "institutional", label: "Campus / science & cultural" },
   { value: "industrial", label: "Industrial" },
-  { value: "multifamily", label: "Multifamily" },
+  { value: "multifamily", label: "Residential community" },
   { value: "other", label: "Other" },
 ] as const;
 
-const SERVICE_OPTIONS = [
-  { value: "mowing", label: "Mowing & grounds care" },
-  { value: "irrigation", label: "Irrigation" },
-  { value: "seasonal_color", label: "Seasonal color" },
-  { value: "snow_removal", label: "Snow removal" },
-  { value: "other", label: "Other services" },
-] as const;
+const SERVICE_OPTIONS = COMMERCIAL_SERVICES.map((service) => ({
+  value: service.value,
+  label: service.title,
+}));
 
 export function ProspectInquiryForm({
   variant = "default",
 }: {
-  variant?: "default" | "overlay";
+  variant?: "default" | "overlay" | "welcome";
 }) {
   const [state, formAction, pending] = useActionState<
     SubmitInquiryResult | null,
     FormData
   >(submitProspectInquiry, null);
+  const [otherSelected, setOtherSelected] = useState(false);
 
   const compact = variant === "overlay";
-  const inputClass = compact
-    ? "mt-1 w-full rounded border border-stone-300 bg-white px-2.5 py-2 text-sm text-stone-900 outline-none focus:border-green-700 focus:ring-1 focus:ring-green-700/30"
-    : "mt-1.5 w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 shadow-sm outline-none transition placeholder:text-stone-400 focus:border-green-700 focus:ring-2 focus:ring-green-700/20";
-  const labelClass = compact
-    ? "block text-xs font-medium text-stone-600"
-    : "block text-sm font-medium text-stone-700";
+  const welcome = variant === "welcome";
+  const inputClass = welcome
+    ? "mt-1.5 w-full border border-[#c5d0c6] bg-white px-3 py-2.5 text-sm text-[#1c2a22] outline-none transition placeholder:text-[#8a968c] focus:border-[#3d5346]"
+    : compact
+      ? "mt-1 w-full rounded border border-stone-300 bg-white px-2.5 py-2 text-sm text-stone-900 outline-none focus:border-green-700 focus:ring-1 focus:ring-green-700/30"
+      : "mt-1.5 w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 shadow-sm outline-none transition placeholder:text-stone-400 focus:border-green-700 focus:ring-2 focus:ring-green-700/20";
+  const labelClass = welcome
+    ? "block text-sm font-medium text-[#3d5346]"
+    : compact
+      ? "block text-xs font-medium text-stone-600"
+      : "block text-sm font-medium text-stone-700";
 
   if (state?.ok) {
     return (
       <div
         className={
-          compact
-            ? "rounded-sm border border-green-100 bg-white p-8 text-center shadow-2xl"
-            : "rounded-2xl border border-green-200 bg-white p-8 text-center shadow-lg"
+          welcome
+            ? "border border-[#c5d0c6] bg-white p-8 text-center shadow-lg"
+            : compact
+              ? "rounded-sm border border-green-100 bg-white p-8 text-center shadow-2xl"
+              : "rounded-2xl border border-green-200 bg-white p-8 text-center shadow-lg"
         }
       >
-        <p className="text-lg font-semibold text-green-950">
-          Thank you — we received your request.
+        <p
+          className={
+            welcome
+              ? "font-display text-2xl font-semibold text-[#1c2a22]"
+              : "text-lg font-semibold text-green-950"
+          }
+        >
+          {welcome
+            ? "Request received."
+            : "Thank you — we received your request."}
         </p>
         <p className="mt-2 text-sm text-stone-600">
-          Our operations team will review your property details and follow up
-          with next steps for quoting and service.
+          {welcome
+            ? "Our operations team will review your property details and follow up with scope options and pricing."
+            : "Our operations team will review your property details and follow up with next steps for quoting and service."}
         </p>
+        {welcome ? (
+          <a
+            href="/"
+            className="mt-6 inline-block text-sm font-medium text-[#3d5346] underline-offset-4 hover:underline"
+          >
+            Back to welcome
+          </a>
+        ) : null}
       </div>
     );
   }
@@ -65,33 +90,51 @@ export function ProspectInquiryForm({
       id="request-service"
       action={formAction}
       className={
-        compact
-          ? "max-h-[min(82vh,720px)] overflow-y-auto rounded-sm bg-white p-5 shadow-2xl sm:p-6"
-          : "rounded-2xl border border-stone-200 bg-white p-6 shadow-lg sm:p-8"
+        welcome
+          ? "border border-[#c5d0c6] bg-white/95 p-6 shadow-xl sm:p-8"
+          : compact
+            ? "max-h-[min(82vh,720px)] overflow-y-auto rounded-sm bg-white p-5 shadow-2xl sm:p-6"
+            : "rounded-2xl border border-stone-200 bg-white p-6 shadow-lg sm:p-8"
       }
     >
       <h2
         className={
-          compact
-            ? "text-center text-xl font-semibold text-stone-900"
-            : "text-xl font-semibold text-green-950"
+          welcome
+            ? "font-display text-2xl font-semibold text-[#1c2a22]"
+            : compact
+              ? "text-center text-xl font-semibold text-stone-900"
+              : "text-xl font-semibold text-green-950"
         }
       >
-        {compact ? "Have a Question?" : "Request a commercial proposal"}
+        {welcome
+          ? "Request a quote"
+          : compact
+            ? "Have a Question?"
+            : "Request a commercial proposal"}
       </h2>
       <p
         className={
-          compact
-            ? "mt-1 text-center text-sm text-stone-500"
-            : "mt-1 text-sm text-stone-500"
+          welcome
+            ? "mt-1 text-sm text-[#3d5346]"
+            : compact
+              ? "mt-1 text-center text-sm text-stone-500"
+              : "mt-1 text-sm text-stone-500"
         }
       >
-        {compact
-          ? "Tell us about your commercial property and we will help."
-          : "New to GreenScape? Tell us about your property and the services you need."}
+        {welcome
+          ? "Tell us about the property, the services you need, and your preferred timing. We'll follow up with scope options and pricing."
+          : compact
+            ? "Tell us about your commercial property and we will help."
+            : "New to GreenScape? Tell us about your property and the services you need."}
       </p>
 
-      <div className={compact ? "mt-4 grid gap-3 sm:grid-cols-2" : "mt-6 grid gap-5 sm:grid-cols-2"}>
+      <div
+        className={
+          welcome || !compact
+            ? "mt-6 grid gap-5 sm:grid-cols-2"
+            : "mt-4 grid gap-3 sm:grid-cols-2"
+        }
+      >
         <div className="sm:col-span-2">
           <label htmlFor="company_name" className={labelClass}>
             Company name <span className="text-red-600">*</span>
@@ -190,32 +233,62 @@ export function ProspectInquiryForm({
               <label
                 key={opt.value}
                 className={
-                  compact
-                    ? "flex cursor-pointer items-center gap-2 text-xs text-stone-700"
-                    : "flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 hover:border-green-700/40"
+                  welcome
+                    ? "flex cursor-pointer items-center gap-2 border border-[#d5ddd6] bg-[#f6f8f6] px-3 py-2.5 text-sm text-[#1c2a22]"
+                    : compact
+                      ? "flex cursor-pointer items-center gap-2 text-xs text-stone-700"
+                      : "flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 hover:border-green-700/40"
                 }
               >
                 <input
                   type="checkbox"
                   name="services_interested"
                   value={opt.value}
-                  className="h-3.5 w-3.5 rounded border-stone-300 text-green-800 focus:ring-green-700"
+                  checked={opt.value === "other" ? otherSelected : undefined}
+                  onChange={
+                    opt.value === "other"
+                      ? (e) => setOtherSelected(e.target.checked)
+                      : undefined
+                  }
+                  className={
+                    welcome
+                      ? "h-3.5 w-3.5 rounded border-[#c5d0c6] text-[#2f4a38] focus:ring-[#3d5346]"
+                      : "h-3.5 w-3.5 rounded border-stone-300 text-green-800 focus:ring-green-700"
+                  }
                 />
                 {opt.label}
               </label>
             ))}
           </div>
+          {otherSelected ? (
+            <div className="mt-3">
+              <label htmlFor="other_service" className={labelClass}>
+                Describe the other service <span className="text-red-600">*</span>
+              </label>
+              <input
+                id="other_service"
+                name="other_service"
+                required
+                className={inputClass}
+                placeholder="e.g. playground mulch, holiday lighting, detention pond care…"
+              />
+            </div>
+          ) : null}
         </fieldset>
         <div className="sm:col-span-2">
           <label htmlFor="message" className={labelClass}>
-            Your question / message
+            {welcome ? "Project notes" : "Your question / message"}
           </label>
           <textarea
             id="message"
             name="message"
             rows={compact ? 3 : 4}
             className={inputClass}
-            placeholder="Season timing, acreage, or other details…"
+            placeholder={
+              welcome
+                ? "Season timing, acreage, access constraints, or priority areas…"
+                : "Season timing, acreage, or other details…"
+            }
           />
         </div>
       </div>
@@ -230,12 +303,18 @@ export function ProspectInquiryForm({
         type="submit"
         disabled={pending}
         className={
-          compact
-            ? "mt-4 w-full rounded bg-green-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
-            : "mt-6 w-full rounded-lg bg-green-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+          welcome
+            ? "mt-6 w-full bg-[#2f4a38] px-4 py-3 text-sm font-semibold tracking-[0.06em] text-white transition hover:bg-[#3d5c47] disabled:opacity-60"
+            : compact
+              ? "mt-4 w-full rounded bg-green-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+              : "mt-6 w-full rounded-lg bg-green-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
         }
       >
-        {pending ? "Submitting…" : "Submit inquiry"}
+        {pending
+          ? "Sending…"
+          : welcome
+            ? "Submit request"
+            : "Submit inquiry"}
       </button>
     </form>
   );

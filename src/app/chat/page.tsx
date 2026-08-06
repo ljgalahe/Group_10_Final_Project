@@ -30,9 +30,7 @@ export default async function ChatPage({
         initialJob={first(params.job)}
         initialCompany={first(params.company)}
         initialConcern={first(params.concern)}
-        initialComposeTitle={first(params.composeTitle)}
-        initialComposeBody={first(params.composeBody)}
-        initialComposeCategory={first(params.composeCategory)}
+        initialThread={first(params.thread)}
       />
     </AppShell>
   );

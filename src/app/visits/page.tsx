@@ -30,7 +30,7 @@ import {
   VisitPeriodFilters,
 } from "@/components/visits/VisitPeriodFilters";
 import { VisitsSummaryBlocks } from "@/components/visits/VisitsSummaryBlocks";
-import { Card, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
 import { jobIncludesCrewMember } from "@/lib/crew-member";
 import { customerNotesForCrew, parseCustomerNotes } from "@/lib/customer-notes";
@@ -63,7 +63,6 @@ import {
   summaryFromJobs,
 } from "@/lib/visit-jobs";
 import {
-  buildVisitsQuery,
   parseOrganizeMode,
   parseVisitPeriod,
   periodLabel,
@@ -120,7 +119,7 @@ export default async function VisitsPage({
     return (
       <AppShell>
         <PageHeader
-          title="Service Visits"
+          title="Visits"
           description="Accountant visit workspace with crew hours × hourly rate labor costs, profitability, variance, and audit controls."
         />
         {visits.length === 0 ? (
@@ -387,7 +386,7 @@ export default async function VisitsPage({
     return (
       <AppShell>
         <PageHeader
-          title="Service Visits"
+          title="Visits"
           description={
             role === "crew_member"
               ? "Upcoming and completed visits assigned to you (read-only)."
@@ -429,17 +428,16 @@ export default async function VisitsPage({
     const summary = summaryFromJobs(jobs);
     const groups =
       organize === "jobs" ? groupJobsByTask(jobs) : groupJobsByCompany(jobs);
-    const completedHref = `/visits/completed?${buildVisitsQuery(period, organize, { sort: "date" })}`;
-    const pendingHref = `/visits/pending?${buildVisitsQuery(period, organize, { sort: "date" })}`;
 
     return (
       <AppShell>
         <PageHeader
-          title="Service Visits"
-          description={`Summary and job list for ${periodLabel(period)}. Switch the time range or organize by company or job.`}
+          kicker="Visits"
+          title="Visits"
+          description={`Summary and job list for ${periodLabel(period)}. Change the time range or organize by company or job.`}
         />
 
-        <div className="mb-6">
+        <div className="mb-5">
           <VisitPeriodFilters period={period} organize={organize} />
         </div>
 
@@ -449,32 +447,29 @@ export default async function VisitsPage({
           weatherAffected={summary.weatherAffected}
           weatherCount={summary.weatherCount}
           periodLabelText={periodLabel(period)}
-          completedHref={completedHref}
-          pendingHref={pendingHref}
           afterSummary={
-            <Card>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-green-950">
-                    Work directory
+            <section className="gs-section">
+              <div className="gs-section-head flex flex-wrap items-end justify-between gap-3">
+                <div className="max-w-xl">
+                  <p className="gs-mark mb-1">Directory</p>
+                  <h3 className="font-display text-xl font-semibold text-green-950 sm:text-2xl">
+                    Work Directory
                   </h3>
-                  <p className="mt-1 text-sm text-stone-500">
+                  <p className="gs-help">
                     {organize === "company"
-                      ? "Browse companies, open a job, then a visit for crew, pay, costs, and photo proof."
-                      : "Browse jobs across companies, then open a visit for crew, pay, costs, and photo proof."}
+                      ? "Open a company, then a job, then a visit for crew, pay, costs, and photos."
+                      : "Open a job, then a visit for crew, pay, costs, and photos."}
                   </p>
                 </div>
                 <OrganizeToggle period={period} organize={organize} />
               </div>
 
-              <div className="mt-4">
-                <OrganizedJobList
-                  groups={groups}
-                  organizeBy={organize}
-                  emptyMessage="No jobs in this time range. Try All time or June 2026."
-                />
-              </div>
-            </Card>
+              <OrganizedJobList
+                groups={groups}
+                organizeBy={organize}
+                emptyMessage="No jobs in this time range. Try All time or June 2026."
+              />
+            </section>
           }
         />
       </AppShell>
@@ -529,7 +524,7 @@ export default async function VisitsPage({
   return (
     <AppShell>
       <PageHeader
-        title="Service Visits"
+        title="Visits"
         description={
           isCustomer
             ? "Upcoming and completed maintenance visits for your properties."

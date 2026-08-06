@@ -3,10 +3,13 @@ import { notFound, redirect } from "next/navigation";
 import { CustomerPayButton } from "@/components/customer/CustomerPayButton";
 import { DownloadInvoiceReceiptButton } from "@/components/customer/DownloadInvoiceReceiptButton";
 import { AppShell } from "@/components/AppShell";
-import { PaymentForm } from "@/components/PaymentForm";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
-import { getViewCustomerId, getViewRole } from "@/lib/demo-role";
+import {
+  getViewCustomerId,
+  getViewRole,
+  roleCanManageBilling,
+} from "@/lib/demo-role";
 import { formatCurrency, formatDate, getDisplayInvoiceStatus } from "@/lib/format";
 import { PostJournalEntryButton } from "@/components/PostJournalEntryButton";
 import { invoiceJournalReadyReason } from "@/lib/journal";
@@ -64,6 +67,7 @@ export default async function InvoiceDetailPage({
   const role = await getViewRole();
   if (role === "crew_member") redirect("/dashboard");
   const isAccountant = role === "accountant";
+  const showAccountantLayout = roleCanManageBilling(role);
   const { data: invoice } = await fetchInvoice(id);
   if (!invoice) notFound();
 
@@ -72,8 +76,8 @@ export default async function InvoiceDetailPage({
     customerId != null
       ? (await fetchCustomerPaymentMethods(customerId)).data
       : [];
-  const activities = isAccountant ? await fetchInvoiceActivity(id) : [];
-  const invoiceJournalStatus = isAccountant
+  const activities = showAccountantLayout ? await fetchInvoiceActivity(id) : [];
+  const invoiceJournalStatus = showAccountantLayout
     ? ((await fetchJournalSourceStates()).invoice.get(id) ?? null)
     : null;
 
@@ -89,6 +93,7 @@ export default async function InvoiceDetailPage({
     amount: number;
     payment_date: string;
     payment_method: string;
+    unapplied_amount?: number;
   }[];
   const balance = getOutstandingBalance(
     Number(invoice.total),
@@ -139,20 +144,25 @@ export default async function InvoiceDetailPage({
         description={`${(invoice.customers as { name: string }).name} · ${(invoice.contracts as { title: string }).title}`}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            {isAccountant ? (
+            {showAccountantLayout ? (
               <>
                 <PostJournalEntryButton
                   source="invoice"
                   sourceId={id}
                   journalStatus={invoiceJournalStatus}
                   disabledReason={invoiceJournalReadyReason(invoice.status) ?? undefined}
+                  readOnly={!isAccountant}
                 />
                 <InvoiceActivityButton activities={activities} />
-                <InvoiceWorkflowActions
-                  invoice={invoice}
-                  invoiceNumber={invoice.invoice_number as string}
-                />
-                {isOverdue ? <SendReminderButton invoiceId={id} /> : null}
+                {isAccountant ? (
+                  <>
+                    <InvoiceWorkflowActions
+                      invoice={invoice}
+                      invoiceNumber={invoice.invoice_number as string}
+                    />
+                    {isOverdue ? <SendReminderButton invoiceId={id} /> : null}
+                  </>
+                ) : null}
               </>
             ) : null}
             {role === "customer" && balance > 0 ? (
@@ -196,7 +206,7 @@ export default async function InvoiceDetailPage({
         </Card>
 
         <Card>
-          {isAccountant ? (
+          {showAccountantLayout ? (
             <InvoiceSummaryCard invoice={invoice} />
           ) : (
             <>
@@ -254,7 +264,7 @@ export default async function InvoiceDetailPage({
               {payments.map((payment) => (
                 <li key={payment.id} className="flex justify-between gap-4">
                   <span>
-                    {isAccountant ? (
+                    {showAccountantLayout ? (
                       <>
                         <Link
                           href={`/payments/${payment.id}`}
@@ -269,6 +279,12 @@ export default async function InvoiceDetailPage({
                     {role === "customer"
                       ? formatCustomerPaymentMethod(payment.payment_method)
                       : payment.payment_method.replace(/_/g, " ")}
+                    {showAccountantLayout && Number(payment.unapplied_amount) > 0 ? (
+                      <span className="text-amber-700">
+                        {" "}
+                        ({formatCurrency(Number(payment.unapplied_amount))} unapplied)
+                      </span>
+                    ) : null}
                   </span>
                   <span className="font-medium">
                     {formatCurrency(Number(payment.amount))}
@@ -293,7 +309,7 @@ export default async function InvoiceDetailPage({
         <Card className="mt-6">
           <h2 className="text-lg font-semibold text-green-950">Payments</h2>
           <p className="mt-1 text-sm text-stone-500">
-            Record a payment against this invoice.
+            Record a new payment against this invoice.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <RecordPaymentButton
@@ -302,15 +318,6 @@ export default async function InvoiceDetailPage({
               invoiceOnly
               redirectTo={`/invoices/${invoice.id}`}
             />
-          </div>
-        </Card>
-      )}
-
-      {role === "manager" && balance > 0 && (
-        <Card className="mt-6">
-          <h2 className="text-lg font-semibold text-green-950">Record Payment</h2>
-          <div className="mt-4">
-            <PaymentForm invoiceId={invoice.id} maxAmount={balance} />
           </div>
         </Card>
       )}

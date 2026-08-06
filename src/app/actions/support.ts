@@ -69,7 +69,7 @@ export async function updateSupportRequestStatus(
   formData: FormData
 ): Promise<void> {
   const role = await getViewRole();
-  if (role !== "manager") {
+  if (role !== "operations") {
     redirect("/dashboard");
   }
 
@@ -100,7 +100,7 @@ export async function updateSupportRequestStatus(
 
 export async function markInvoiceDisputed(formData: FormData): Promise<void> {
   const role = await getViewRole();
-  if (role !== "manager") {
+  if (role !== "operations") {
     redirect("/dashboard");
   }
 

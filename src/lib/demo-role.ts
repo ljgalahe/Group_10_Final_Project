@@ -67,6 +67,10 @@ export function roleCanManageVisits(role: UserRole) {
   );
 }
 
+export function roleIsOpsWorkspace(role: UserRole) {
+  return role === "manager" || role === "accountant";
+}
+
 export function roleCanViewReports(role: UserRole) {
   return role === "manager" || role === "accountant";
 }

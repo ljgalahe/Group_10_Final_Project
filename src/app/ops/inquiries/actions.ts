@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
+import { SERVICE_LABELS } from "@/lib/commercial-services";
 import {
   getViewRole,
   roleCanViewInquiriesInbox,
@@ -19,17 +20,11 @@ const INQUIRY_STATUSES = new Set([
 const PROPERTY_LABELS: Record<string, string> = {
   office_park: "Office park",
   retail_center: "Retail center",
+  hospitality: "Hotel / hospitality",
+  institutional: "Campus / science & cultural",
   industrial: "Industrial",
-  multifamily: "Multifamily",
+  multifamily: "Residential community",
   other: "Other",
-};
-
-const SERVICE_LABELS: Record<string, string> = {
-  mowing: "Mowing & grounds care",
-  irrigation: "Irrigation",
-  seasonal_color: "Seasonal color",
-  snow_removal: "Snow removal",
-  other: "Other services",
 };
 
 export async function updateInquiryStatus(formData: FormData) {

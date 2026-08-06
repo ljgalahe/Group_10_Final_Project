@@ -3,24 +3,19 @@ import { AppShell } from "@/components/AppShell";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { InquiryStatusControl } from "@/app/ops/inquiries/InquiryStatusControl";
 import { createDataClient, requireAppAccess } from "@/lib/auth-access";
+import { SERVICE_LABELS } from "@/lib/commercial-services";
 import {
   getViewRole,
   roleCanViewInquiriesInbox,
 } from "@/lib/demo-role";
 
 const PROPERTY_LABELS: Record<string, string> = {
-  office_park: "Office park",
-  retail_center: "Retail center",
+  office_park: "Office Park",
+  retail_center: "Retail Center",
+  hospitality: "Hotel / Hospitality",
+  institutional: "Campus / Science & Cultural",
   industrial: "Industrial",
-  multifamily: "Multifamily",
-  other: "Other",
-};
-
-const SERVICE_LABELS: Record<string, string> = {
-  mowing: "Mowing",
-  irrigation: "Irrigation",
-  seasonal_color: "Seasonal color",
-  snow_removal: "Snow removal",
+  multifamily: "Residential Community",
   other: "Other",
 };
 
@@ -76,7 +71,7 @@ export default async function OpsInquiriesPage({
     <AppShell>
       <PageHeader
         title="Inquiries"
-        description="Prospect requests from the Inquiries start page. Review details, then convert to Quotes when ready — Ops budgets and drafts, Manager / Accountant approve contracts."
+        description="Prospect requests from the Inquiries start page. Review details, then convert to Quotes when ready. Operations budgets and drafts; Manager and Accountant approve contracts."
       />
 
       {params.error ? (

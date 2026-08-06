@@ -97,7 +97,7 @@ function KpiCard({
       <div className="flex min-h-0 flex-1 flex-col justify-center gap-1.5 pt-2">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <p
-            className={`text-3xl font-bold leading-none tabular-nums sm:text-4xl ${valueClassName ?? "text-green-950"}`}
+            className={`gs-metric-value text-3xl leading-none sm:text-4xl ${valueClassName ?? "text-green-950"}`}
           >
             {value}
           </p>

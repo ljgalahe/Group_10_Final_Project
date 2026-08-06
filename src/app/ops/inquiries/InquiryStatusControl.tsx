@@ -27,7 +27,7 @@ export function InquiryStatusControl({
     <div className="flex flex-col items-start gap-2">
       {converted ? (
         <>
-          <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+          <span className="inline-flex rounded-md border px-2.5 py-0.5 text-xs font-medium gs-complete-badge">
             Converted to quote
           </span>
           {quoteId ? (

@@ -52,7 +52,7 @@ export default async function WorkCompletedPage({
   return (
     <AppShell>
       <PageHeader
-        title="Work completed"
+        title="Work Completed"
         description={`Finished jobs for ${periodLabel(period)}. Order by date, company, or job.`}
         action={
           <Link

@@ -41,13 +41,6 @@ function persistLaborToBilling(
   });
 }
 
-const EXTRA_STATUSES = [
-  { value: "needed", label: "Needed" },
-  { value: "pending_approval", label: "Pending approval" },
-  { value: "approved", label: "Approved" },
-  { value: "declined", label: "Declined" },
-] as const;
-
 function Section({
   title,
   hint,
@@ -101,8 +94,6 @@ export function VisitWorkPanel({
   const [laborEmployeeId, setLaborEmployeeId] = useState("");
   const [employeeHours, setEmployeeHours] = useState("");
   const [extraDescription, setExtraDescription] = useState("");
-  const [extraStatus, setExtraStatus] =
-    useState<(typeof EXTRA_STATUSES)[number]["value"]>("pending_approval");
   const [assignId, setAssignId] = useState("");
   const [exceptionType, setExceptionType] =
     useState<FieldExceptionType>("could_not_access");
@@ -186,25 +177,12 @@ export function VisitWorkPanel({
         {
           id: crypto.randomUUID(),
           description,
-          status: extraStatus,
+          // Always pending — only management can approve.
+          status: "pending_approval",
         },
       ],
     });
     setExtraDescription("");
-    setExtraStatus("pending_approval");
-  }
-
-  function updateExtraStatus(
-    id: string,
-    status: (typeof EXTRA_STATUSES)[number]["value"]
-  ) {
-    if (!canEditCrew) return;
-    update({
-      ...state,
-      extraWorkNotes: state.extraWorkNotes.map((note) =>
-        note.id === id ? { ...note, status } : note
-      ),
-    });
   }
 
   function assignEmployee(e: FormEvent) {
@@ -572,10 +550,7 @@ export function VisitWorkPanel({
                 <span className="font-medium">{item.title}</span>
                 <span className="text-stone-500">
                   {" "}
-                  ·{" "}
-                  {isCompleted
-                    ? "Approved"
-                    : formatStatusLabel(item.status)}
+                  · {formatStatusLabel(item.status)}
                 </span>
               </li>
             ))}
@@ -590,29 +565,12 @@ export function VisitWorkPanel({
             className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
           >
             <p>{note.description}</p>
-            {canEditCrew ? (
-              <select
-                value={note.status}
-                onChange={(e) =>
-                  updateExtraStatus(
-                    note.id,
-                    e.target
-                      .value as (typeof EXTRA_STATUSES)[number]["value"]
-                  )
-                }
-                className="mt-2 rounded border border-stone-300 bg-white px-2 py-1 text-xs"
-              >
-                {EXTRA_STATUSES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="mt-1 text-xs text-stone-500">
-                {formatStatusLabel(note.status)}
-              </p>
-            )}
+            <p className="mt-1 text-xs font-medium text-amber-900">
+              {formatStatusLabel(note.status)}
+              {note.status === "pending_approval" || note.status === "needed"
+                ? " — awaiting manager approval on Contracts"
+                : null}
+            </p>
           </div>
         ))}
 
@@ -621,34 +579,20 @@ export function VisitWorkPanel({
             <textarea
               value={extraDescription}
               onChange={(e) => setExtraDescription(e.target.value)}
-              placeholder="Describe extra work…"
+              placeholder="Describe extra cost / work needing approval…"
               rows={2}
               className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
             />
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={extraStatus}
-                onChange={(e) =>
-                  setExtraStatus(
-                    e.target
-                      .value as (typeof EXTRA_STATUSES)[number]["value"]
-                  )
-                }
-                className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
-              >
-                {EXTRA_STATUSES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                className="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
-              >
-                Add
-              </button>
-            </div>
+            <p className="text-xs text-stone-500">
+              Submits as pending approval. Management must approve before this
+              work is treated as complete.
+            </p>
+            <button
+              type="submit"
+              className="rounded-md bg-green-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+            >
+              Request approval
+            </button>
           </form>
         ) : null}
       </Section>

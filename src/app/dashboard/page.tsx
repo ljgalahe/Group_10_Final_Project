@@ -709,7 +709,7 @@ export default async function DashboardPage({
             <Card className="min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-lg font-semibold text-green-950">
-                  Needs attention
+                  Needs Attention
                 </h2>
                 {needsAttention.length > 0 ? (
                   <span className="text-sm text-stone-400">
@@ -790,7 +790,7 @@ export default async function DashboardPage({
             initialCategory={initialPerfCategory}
           />
           <DashboardCollapsibleSection
-            title="Service Hold details"
+            title="Service Hold Details"
             summary={
               serviceHolds.length === 0
                 ? "No customers currently on hold"
@@ -801,7 +801,7 @@ export default async function DashboardPage({
             <ServiceHoldDashboardCard holds={serviceHolds} embedded />
           </DashboardCollapsibleSection>
           <DashboardCollapsibleSection
-            title="Approvals & crew alerts"
+            title="Approvals & Crew Alerts"
             summary="Field concerns, extra-work approvals, and visit comments"
             defaultOpen={false}
           >
@@ -829,12 +829,6 @@ export default async function DashboardPage({
                 className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
               >
                 Payments
-              </Link>
-              <Link
-                href="/support"
-                className="rounded-lg border border-green-800 px-3 py-1.5 text-sm font-medium text-green-900 hover:bg-green-50"
-              >
-                Support
               </Link>
             </div>
           </Card>
