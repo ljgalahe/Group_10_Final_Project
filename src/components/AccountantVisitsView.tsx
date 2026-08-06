@@ -229,7 +229,7 @@ export function AccountantVisitsView({
     "all" | "ready_to_invoice" | "already_invoiced" | "journal_ready"
   >("all");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
-  const [visitsListOpen, setVisitsListOpen] = useState(true);
+  const [visitsListOpen, setVisitsListOpen] = useState(false);
   const today = todayIso;
   const todayVisits = visits.filter((visit) => visit.scheduled_date === today);
 
