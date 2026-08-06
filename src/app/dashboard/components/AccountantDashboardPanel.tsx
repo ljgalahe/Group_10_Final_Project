@@ -185,60 +185,6 @@ export function AccountantDashboardPanel({
           )}
         </Card>
       </div>
-
-      <div className="border-y border-green-800/10 bg-white py-3">
-        <div className="mx-auto flex max-w-4xl flex-col items-center gap-2 px-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-            Quick Actions
-          </p>
-          <nav
-            aria-label="Quick Actions"
-            className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2"
-          >
-            <Link
-              href="/invoices"
-              className="rounded-md bg-green-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700"
-            >
-              Invoices
-            </Link>
-            <Link
-              href="/reports/journal-entries"
-              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
-            >
-              Journal Entries
-              {data.readyToPostCount > 0 ? (
-                <span className="ml-1 rounded-full bg-amber-100 px-1 py-0.5 text-[10px] font-semibold text-amber-900">
-                  {data.readyToPostCount}
-                </span>
-              ) : null}
-            </Link>
-            <Link
-              href="/equipment"
-              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
-            >
-              Equipment
-            </Link>
-            <Link
-              href="/inventory"
-              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
-            >
-              Inventory
-            </Link>
-            <Link
-              href="/reports/profitability"
-              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
-            >
-              Profitability
-            </Link>
-            <Link
-              href="/reports/ar-aging"
-              className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-xs font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
-            >
-              AR Aging
-            </Link>
-          </nav>
-        </div>
-      </div>
     </div>
   );
 }
