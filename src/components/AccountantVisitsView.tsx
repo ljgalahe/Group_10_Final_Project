@@ -463,6 +463,7 @@ export function AccountantVisitsView({
               minimumFractionDigits: 1,
               maximumFractionDigits: 1,
             })}
+            hint="Synced from crew labor"
           />
           <StatCard label="Labor Cost" value={formatCurrency(metrics.labor)} />
           <StatCard
@@ -476,14 +477,17 @@ export function AccountantVisitsView({
           <StatCard
             label="Labor / Visit"
             value={formatCurrency(laborPerVisit)}
+            hint="Average labor cost per visit"
           />
           <StatCard
             label="Material / Visit"
             value={formatCurrency(materialsPerVisit)}
+            hint="Average material cost per visit"
           />
           <StatCard
             label="Equipment / Visit"
             value={formatCurrency(equipmentPerVisit)}
+            hint="Average equipment cost per visit"
           />
           <StatCard
             label="Revenue"
@@ -498,6 +502,7 @@ export function AccountantVisitsView({
           <StatCard
             label="Invoices Ready"
             value={invoicesReady}
+            hint="Completed visits not yet invoiced"
           />
         </div>
       </div>
@@ -888,15 +893,19 @@ export function AccountantVisitsView({
                       value={formatCurrency(profitEquipment)}
                     />
                     <DottedRow
-                      label="Total Cost"
+                      label={
+                        isCompleted ? "Total Cost" : "Estimated Total Cost"
+                      }
                       value={formatCurrency(totalCost)}
                     />
                     <DottedRow
-                      label="Gross Profit"
+                      label={
+                        isCompleted ? "Gross Profit" : "Estimated Gross Profit"
+                      }
                       value={formatCurrency(grossProfit)}
                     />
                     <DottedRow
-                      label="Margin"
+                      label={isCompleted ? "Margin" : "Estimated Margin"}
                       value={`${margin.toFixed(1)}%`}
                     />
                   </div>
