@@ -234,8 +234,8 @@ export function ProspectInquiryForm({
             defaultValue={draft?.property_street}
           />
         </div>
-        <div className="sm:col-span-2 grid gap-5 sm:grid-cols-6">
-          <div className="sm:col-span-3">
+        <div className="sm:col-span-2 grid grid-cols-[minmax(0,1fr)_5.5rem_7.5rem] items-start gap-3 sm:gap-4">
+          <div className="min-w-0">
             <label htmlFor="property_city" className={labelClass}>
               City <span className="text-red-600">*</span>
             </label>
@@ -248,8 +248,8 @@ export function ProspectInquiryForm({
               defaultValue={draft?.property_city}
             />
           </div>
-          <div className="sm:col-span-1">
-            <label htmlFor="property_state" className={labelClass}>
+          <div>
+            <label htmlFor="property_state" className={`${labelClass} whitespace-nowrap`}>
               State <span className="text-red-600">*</span>
             </label>
             <input
@@ -262,7 +262,7 @@ export function ProspectInquiryForm({
               defaultValue={draft?.property_state}
             />
           </div>
-          <div className="sm:col-span-2">
+          <div>
             <label htmlFor="property_zip" className={labelClass}>
               ZIP <span className="text-red-600">*</span>
             </label>

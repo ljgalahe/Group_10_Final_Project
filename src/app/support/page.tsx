@@ -4,6 +4,10 @@ import {
   updateSupportRequestStatus,
 } from "@/app/actions/support";
 import { AppShell } from "@/components/AppShell";
+import {
+  SupportStatusFilter,
+  type SupportStatusFilterValue,
+} from "@/components/SupportStatusFilter";
 import { EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAppAccess } from "@/lib/auth-access";
 import { getViewRole } from "@/lib/demo-role";
@@ -29,10 +33,20 @@ function badgeStatus(status: string) {
   return status.toLowerCase();
 }
 
+function isResolved(status: string) {
+  return status.trim().toLowerCase() === "resolved";
+}
+
+function parseStatusFilter(raw?: string): SupportStatusFilterValue {
+  if (raw === "resolved") return "resolved";
+  return "open";
+}
+
 export default async function CustomerSupportPage({
   searchParams,
 }: {
   searchParams: Promise<{
+    status?: string;
     updated?: string;
     disputed?: string;
     error?: string;
@@ -46,13 +60,18 @@ export default async function CustomerSupportPage({
   }
 
   const params = await searchParams;
-  const { data: requests } = await fetchAllSupportRequests();
+  const statusFilter = parseStatusFilter(params.status);
+  const { data: allRequests } = await fetchAllSupportRequests();
+  const requests = allRequests.filter((req) =>
+    statusFilter === "resolved" ? isResolved(req.status) : !isResolved(req.status)
+  );
 
   return (
     <AppShell>
       <PageHeader
         title="Customer Support"
         description="Review customer questions, concerns, complaints, billing disputes, and renewal requests."
+        action={<SupportStatusFilter value={statusFilter} />}
       />
 
       {params.updated === "1" ? (
@@ -67,18 +86,32 @@ export default async function CustomerSupportPage({
         </div>
       ) : null}
 
-      {params.error ? (
+      {params.error === "resolved" ? (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Resolved requests are locked and can&apos;t be edited.
+        </div>
+      ) : null}
+
+      {params.error && params.error !== "resolved" ? (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           Could not complete that action. Please try again.
         </div>
       ) : null}
 
       {requests.length === 0 ? (
-        <EmptyState message="No customer support requests yet." />
+        <EmptyState
+          message={
+            statusFilter === "resolved"
+              ? "No resolved support requests yet."
+              : "No open support requests right now."
+          }
+        />
       ) : (
         <div className="space-y-4">
           {requests.map((req) => {
+            const resolved = isResolved(req.status);
             const canDisputeInvoice =
+              !resolved &&
               req.category === "billing_dispute" &&
               req.linked_type === "invoice" &&
               !!req.linked_id;
@@ -129,82 +162,104 @@ export default async function CustomerSupportPage({
                 ) : null}
 
                 <div className="mt-4 flex flex-col gap-3 border-t border-stone-100 pt-4">
-                  <form
-                    action={updateSupportRequestStatus}
-                    className="space-y-3"
-                  >
-                    <input type="hidden" name="request_id" value={req.id} />
-                    <div className="flex flex-wrap items-end gap-3">
-                      <div>
-                        <label
-                          htmlFor={`status-${req.id}`}
-                          className="block text-xs font-medium text-stone-500"
-                        >
-                          Status
-                        </label>
-                        <select
-                          id={`status-${req.id}`}
-                          name="status"
-                          defaultValue={
-                            STATUS_OPTIONS.includes(
-                              req.status as (typeof STATUS_OPTIONS)[number]
-                            )
-                              ? req.status
-                              : "Open"
-                          }
-                          className="mt-1 rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                        >
-                          {STATUS_OPTIONS.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <button
-                        type="submit"
-                        className="rounded-lg bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
-                      >
-                        Save Update
-                      </button>
+                  {resolved ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                        Resolution (locked)
+                      </p>
+                      <p className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700">
+                        {req.resolution_notes?.trim()
+                          ? req.resolution_notes
+                          : "No resolution notes were recorded."}
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        Resolved requests can&apos;t be edited.
+                      </p>
                     </div>
-                    <div>
-                      <label
-                        htmlFor={`resolution-${req.id}`}
-                        className="block text-xs font-medium text-stone-500"
+                  ) : (
+                    <>
+                      <form
+                        action={updateSupportRequestStatus}
+                        className="space-y-3"
                       >
-                        How We Resolved It{" "}
-                        <span className="font-normal text-stone-400">
-                          (visible to the customer)
-                        </span>
-                      </label>
-                      <textarea
-                        id={`resolution-${req.id}`}
-                        name="resolution_notes"
-                        rows={3}
-                        defaultValue={req.resolution_notes ?? ""}
-                        placeholder="Describe the fix or response the customer should see…"
-                        className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                      />
-                    </div>
-                  </form>
+                        <input type="hidden" name="request_id" value={req.id} />
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div>
+                            <label
+                              htmlFor={`status-${req.id}`}
+                              className="block text-xs font-medium text-stone-500"
+                            >
+                              Status
+                            </label>
+                            <select
+                              id={`status-${req.id}`}
+                              name="status"
+                              defaultValue={
+                                STATUS_OPTIONS.includes(
+                                  req.status as (typeof STATUS_OPTIONS)[number]
+                                )
+                                  ? req.status
+                                  : "Open"
+                              }
+                              className="mt-1 rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                            >
+                              {STATUS_OPTIONS.map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <button
+                            type="submit"
+                            className="rounded-lg bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+                          >
+                            Save Update
+                          </button>
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`resolution-${req.id}`}
+                            className="block text-xs font-medium text-stone-500"
+                          >
+                            How We Resolved It{" "}
+                            <span className="font-normal text-stone-400">
+                              (visible to the customer)
+                            </span>
+                          </label>
+                          <textarea
+                            id={`resolution-${req.id}`}
+                            name="resolution_notes"
+                            rows={3}
+                            defaultValue={req.resolution_notes ?? ""}
+                            placeholder="Describe the fix or response the customer should see…"
+                            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </form>
 
-                  {canDisputeInvoice ? (
-                    <form action={markInvoiceDisputed}>
-                      <input type="hidden" name="request_id" value={req.id} />
-                      <input
-                        type="hidden"
-                        name="invoice_id"
-                        value={req.linked_id ?? ""}
-                      />
-                      <button
-                        type="submit"
-                        className="rounded-lg border border-orange-700 px-3 py-2 text-sm font-medium text-orange-900 hover:bg-orange-50"
-                      >
-                        Mark Invoice Disputed
-                      </button>
-                    </form>
-                  ) : null}
+                      {canDisputeInvoice ? (
+                        <form action={markInvoiceDisputed}>
+                          <input
+                            type="hidden"
+                            name="request_id"
+                            value={req.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="invoice_id"
+                            value={req.linked_id ?? ""}
+                          />
+                          <button
+                            type="submit"
+                            className="rounded-lg border border-orange-700 px-3 py-2 text-sm font-medium text-orange-900 hover:bg-orange-50"
+                          >
+                            Mark Invoice Disputed
+                          </button>
+                        </form>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               </article>
             );
