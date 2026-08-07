@@ -93,7 +93,7 @@ export function AccountingReviewButton({
       {open ? (
         <div
           id={panelId}
-          className="absolute right-0 z-20 mt-2 w-72 rounded-xl border border-stone-200 bg-stone-100 p-4 shadow-lg"
+          className="absolute right-0 z-[200] mt-2 w-72 rounded-xl border border-stone-200 bg-stone-100 p-4 shadow-lg"
         >
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">
             Accounting review

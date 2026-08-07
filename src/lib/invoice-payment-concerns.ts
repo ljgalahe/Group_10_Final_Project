@@ -16,7 +16,11 @@ export type CompanyPaymentConcern = {
   reasons: string[];
 };
 
-/** Past-due age that triggers “hold jobs” on the invoices page. */
+/**
+ * Past-due age required to appear in Manager payment concerns
+ * (Invoices dropdown + Alert Center). Aligns with 31–60+ AR aging /
+ * Service Hold threshold (days_past_due >= 30).
+ */
 const SIGNIFICANT_DAYS = 30;
 const FREQUENT_OVERDUE_MIN = 2;
 
@@ -82,7 +86,10 @@ export function buildCompanyPaymentConcerns(
   const results: CompanyPaymentConcern[] = [];
 
   for (const row of byCompany.values()) {
-    if (row.overdueCount === 0) continue;
+    // Only surface accounts 30+ days past due (same bar for Invoices + Alert Center).
+    if (row.overdueCount === 0 || row.maxDaysOverdue < SIGNIFICANT_DAYS) {
+      continue;
+    }
 
     const flags: PaymentConcernFlag[] = [];
     const reasons: string[] = [];
@@ -97,18 +104,11 @@ export function buildCompanyPaymentConcerns(
       flags.push("frequently_overdue");
     }
 
-    if (row.overdueCount >= 1 && row.maxDaysOverdue > 0) {
-      flags.push("late_payment");
-    }
-
-    if (row.maxDaysOverdue >= SIGNIFICANT_DAYS) {
-      flags.push("consider_hold");
-      reasons.push(
-        `Pause upcoming visits — ${SIGNIFICANT_DAYS}+ days past due.`
-      );
-    }
-
-    if (flags.length === 0) continue;
+    flags.push("late_payment");
+    flags.push("consider_hold");
+    reasons.push(
+      `Pause upcoming visits — ${SIGNIFICANT_DAYS}+ days past due.`
+    );
 
     results.push({
       companyName: row.companyName,
