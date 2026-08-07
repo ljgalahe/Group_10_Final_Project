@@ -453,7 +453,6 @@ export function AccountantVisitsView({
               minimumFractionDigits: 1,
               maximumFractionDigits: 1,
             })}
-            hint="Synced from crew labor"
           />
           <StatCard label="Labor Cost" value={formatCurrency(metrics.labor)} />
           <StatCard
@@ -467,24 +466,20 @@ export function AccountantVisitsView({
           <StatCard
             label="Labor / Visit"
             value={formatCurrency(laborPerVisit)}
-            hint="Average labor cost per visit"
           />
           <StatCard
             label="Material / Visit"
             value={formatCurrency(materialsPerVisit)}
-            hint="Average material cost per visit"
           />
           <StatCard
             label="Equipment / Visit"
             value={formatCurrency(equipmentPerVisit)}
-            hint="Average equipment cost per visit"
           />
           <StatCard label="Revenue" value={formatCurrency(metrics.revenue)} />
           <StatCard label="Profit" value={formatCurrency(profit)} />
           <StatCard
             label="Invoices Ready"
             value={invoicesReady}
-            hint="Completed visits not yet invoiced"
           />
         </div>
       </div>

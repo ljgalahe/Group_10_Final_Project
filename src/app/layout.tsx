@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Sans, Manrope } from "next/font/google";
-import { CursorRefHydrationFix } from "@/components/CursorRefHydrationFix";
+import Script from "next/script";
 import "./globals.css";
 
 const display = Cormorant_Garamond({
@@ -40,7 +40,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
-        <CursorRefHydrationFix />
+        <Script
+          src="/strip-cursor-refs.js"
+          strategy="beforeInteractive"
+        />
         {children}
       </body>
     </html>

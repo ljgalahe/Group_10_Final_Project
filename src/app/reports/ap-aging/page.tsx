@@ -32,7 +32,6 @@ export default async function ApAgingPage() {
     <AppShell>
       <PageHeader
         title="Accounts Payable"
-        description="Vendor payables aging, DPO, and cash conversion cycle. Mock vendor bills for demonstration."
       />
       <ApPayableReport invoices={invoices} asOf={asOf} dso={dso} />
     </AppShell>

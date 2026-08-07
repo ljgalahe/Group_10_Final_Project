@@ -37,7 +37,6 @@ export default async function ArAgingPage({
       <AppShell>
         <PageHeader
           title="AR Aging"
-          description="Outstanding receivables from Contracts, Invoices, and Payments, grouped by how long they've been past due."
         />
         <ArAgingReport
           buckets={buckets}

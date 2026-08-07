@@ -123,7 +123,6 @@ export default async function VisitsPage({
       <AppShell>
         <PageHeader
           title="Visits"
-          description="Accountant visit workspace with crew hours × hourly rate labor costs, profitability, variance, and audit controls."
         />
         {visits.length === 0 ? (
           <EmptyState message="No visits scheduled. Run the seed script to load demo visits." />

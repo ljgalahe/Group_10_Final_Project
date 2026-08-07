@@ -100,16 +100,9 @@ export function AccountantJobCostVariance({
 
   return (
     <section className="mb-10 space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-green-950">
-          Estimated vs. actual job cost
-        </h2>
-        <p className="text-sm text-stone-500">
-          Flags contracts that blew past their quote, and by how much — the
-          clearest view of where margin is leaking. Click a contract for the
-          full breakdown.
-        </p>
-      </div>
+      <h2 className="text-lg font-semibold text-green-950">
+        Estimated vs. actual job cost
+      </h2>
 
       <div className="gs-kpi-grid sm:!grid-cols-2">
         <StatCard

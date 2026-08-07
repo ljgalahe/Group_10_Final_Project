@@ -507,15 +507,6 @@ export function EquipmentReport({
               </button>
             ) : null}
           </div>
-          <p className={`text-xs text-stone-500 ${isPending ? "opacity-60" : ""}`}>
-            Job revenue = share of billed invoices. Split across equipment by
-            hours on each job (evenly if hours are missing). Allocated{" "}
-            {formatCurrency(allocatedRevenueTotal)}
-            {dateFrom || dateTo
-              ? ` in range (jobs ${formatCurrency(companyRevenueInView)})`
-              : ` of ${formatCurrency(companyRevenue)} company revenue`}
-            .
-          </p>
           <div
             className={`grid grid-cols-1 gap-4 ${
               showDepreciationStats

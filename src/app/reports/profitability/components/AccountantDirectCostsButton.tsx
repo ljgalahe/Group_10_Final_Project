@@ -93,8 +93,6 @@ function AccountantDirectCostsButton({
         total: amount,
         contracts: breakdown.byContract.filter((c) => c.total > 0),
         heading: "Direct Costs",
-        subheading:
-          "Labor, materials, and equipment charged to active-contract visits.",
       };
     }
 
@@ -108,7 +106,6 @@ function AccountantDirectCostsButton({
       total: amount,
       contracts: row ? [row] : [],
       heading: `Direct Costs — ${scope.title}`,
-      subheading: "Cost types logged on this contract’s service visits.",
     };
   }, [amount, breakdown, scope]);
 
@@ -187,7 +184,6 @@ function AccountantDirectCostsButton({
                 >
                   {scoped.heading}
                 </h2>
-                <p className="mt-1 text-sm text-stone-500">{scoped.subheading}</p>
               </div>
               <button
                 type="button"

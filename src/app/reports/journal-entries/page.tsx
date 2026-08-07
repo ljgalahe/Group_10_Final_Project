@@ -24,7 +24,6 @@ export default async function JournalEntriesPage({
     <AppShell>
       <PageHeader
         title="Journal Entries"
-        description="Create journal entries when a source is ready to post. Edit or delete any entry if something needs to change."
       />
       <AccountantJournalEntriesView
         entries={entries}
