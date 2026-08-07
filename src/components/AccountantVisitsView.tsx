@@ -727,32 +727,40 @@ export function AccountantVisitsView({
             : [];
           const auditEntries = [
             {
-              date: formatDate(visit.created_at.slice(0, 10)),
-              event: "Visit Created",
+              action: "Visit created",
+              details: "Visit added to the schedule.",
+              created_at: visit.created_at,
             },
             ...(totals.labor > 0
               ? [
                   {
-                    date: formatDate(visit.scheduled_date),
-                    event: "Labor Added",
+                    action: "Labor recorded",
+                    details: `Labor cost ${formatCurrency(totals.labor)} logged on this visit.`,
+                    created_at: `${visit.scheduled_date}T12:00:00.000Z`,
                   },
                 ]
               : []),
             ...(visit.status === "completed"
               ? [
                   {
-                    date: formatDate(
-                      visit.completed_at?.slice(0, 10) ?? visit.scheduled_date
-                    ),
-                    event: "Approved by Manager",
+                    action: "Visit completed",
+                    details: "Marked complete and ready for billing review.",
+                    created_at:
+                      visit.completed_at ??
+                      `${visit.scheduled_date}T16:00:00.000Z`,
                   },
                 ]
               : []),
             ...(invoice
               ? [
                   {
-                    date: formatDate(invoice.issue_date || invoice.created_at.slice(0, 10)),
-                    event: "Invoice Generated",
+                    action: "Invoice generated",
+                    details: `Invoice ${invoice.invoice_number ?? ""} linked to this visit.`
+                      .replace(/\s+/g, " ")
+                      .trim(),
+                    created_at:
+                      invoice.created_at ??
+                      `${invoice.issue_date}T12:00:00.000Z`,
                   },
                 ]
               : []),
@@ -1119,11 +1127,8 @@ export function AccountantVisitsView({
                 />
               </div>
 
-              <div className="mt-4">
-                <section className="rounded-lg border border-stone-200 p-4">
-                  <VisitAuditLog entries={auditEntries} />
-                  <p className="mt-2 text-xs text-stone-500">Shows accountability.</p>
-                </section>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <VisitAuditLog entries={auditEntries} />
               </div>
               </div>
               ) : null}

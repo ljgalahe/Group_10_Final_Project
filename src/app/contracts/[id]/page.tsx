@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import {
   approveExtraWork,
   declineExtraWork,
-  generateInvoice,
 } from "@/app/actions/business";
 import {
   declineCustomerContract,
@@ -148,19 +147,6 @@ export default async function ContractDetailPage({
       <PageHeader
         title={contract.title}
         description={`${customer.name} · ${customer.property_type ?? "Commercial property"}`}
-        action={
-          roleCanManageBilling(role) ? (
-            <form action={generateInvoice}>
-              <input type="hidden" name="contract_id" value={id} />
-              <button
-                type="submit"
-                className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-              >
-                Generate Invoice
-              </button>
-            </form>
-          ) : null
-        }
       />
 
       {flash.sent === "1" ? (
