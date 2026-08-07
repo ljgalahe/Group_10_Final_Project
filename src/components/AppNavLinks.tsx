@@ -16,6 +16,7 @@ const LINK_BASE =
   "group relative shrink-0 whitespace-nowrap px-3 py-2 text-[13px] leading-snug tracking-[0.05em] transition duration-200 md:shrink md:whitespace-normal";
 const LINK_ACTIVE = `${LINK_BASE} bg-white/[0.07] text-[#faf8f4]`;
 const LINK_IDLE = `${LINK_BASE} text-[#c9c4b8] hover:bg-white/[0.04] hover:text-[#f3f0ea]`;
+const LINK_PENDING = `${LINK_ACTIVE} opacity-80`;
 const RAIL_ACTIVE =
   "absolute inset-y-2 left-0 hidden w-px origin-center scale-y-100 bg-[var(--champagne-bright)] transition duration-300 md:block";
 const RAIL_IDLE =
