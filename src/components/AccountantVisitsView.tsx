@@ -68,6 +68,7 @@ type AccountantVisit = {
     status: string;
     issue_date: string;
     created_at: string;
+    invoice_number?: string | null;
   }>;
   contracts?: {
     title: string;
