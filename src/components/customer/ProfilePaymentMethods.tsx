@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   addCustomerPaymentMethod,
@@ -22,6 +23,7 @@ export function ProfilePaymentMethods({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [methodType, setMethodType] = useState<PaymentMethodType>("card");
   const [nickname, setNickname] = useState("");
@@ -30,6 +32,19 @@ export function ProfilePaymentMethods({
   const [expMonth, setExpMonth] = useState("");
   const [expYear, setExpYear] = useState("");
   const [makeDefault, setMakeDefault] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   function openModal() {
     setMethodType("card");
@@ -145,65 +160,71 @@ export function ProfilePaymentMethods({
         Add Payment Method
       </button>
 
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="profile-add-payment-title"
-        >
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-lg">
-            <h2
-              id="profile-add-payment-title"
-              className="text-xl font-semibold text-green-950"
+      {open && mounted
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[200] flex items-center justify-center bg-stone-950/50 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="profile-add-payment-title"
+              onClick={(e) => {
+                if (e.target === e.currentTarget && !submitting) setOpen(false);
+              }}
             >
-              Add Payment Method
-            </h2>
-            <p className="mt-2 text-sm text-stone-600">
-              Save a card or bank account for invoice payments.
-            </p>
-
-            <NewPaymentMethodFields
-              idPrefix="profile"
-              methodType={methodType}
-              onMethodTypeChange={setMethodType}
-              accountDetails={accountDetails}
-              onAccountDetailsChange={setAccountDetails}
-              nickname={nickname}
-              onNicknameChange={setNickname}
-              billingName={billingName}
-              onBillingNameChange={setBillingName}
-              expMonth={expMonth}
-              onExpMonthChange={setExpMonth}
-              expYear={expYear}
-              onExpYearChange={setExpYear}
-              makeDefault={makeDefault}
-              onMakeDefaultChange={setMakeDefault}
-              showDefaultOption
-            />
-
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                disabled={submitting}
-                className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
-              >
-                Cancel
-              </button>
-              <form action={handleSave}>
-                <button
-                  type="submit"
-                  disabled={submitting || !canSave}
-                  className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
+              <div className="relative z-[201] max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-2xl">
+                <h2
+                  id="profile-add-payment-title"
+                  className="text-xl font-semibold text-green-950"
                 >
-                  {submitting ? "Saving…" : "Save method"}
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                  Add Payment Method
+                </h2>
+                <p className="mt-2 text-sm text-stone-600">
+                  Save a card or bank account for invoice payments.
+                </p>
+
+                <NewPaymentMethodFields
+                  idPrefix="profile"
+                  methodType={methodType}
+                  onMethodTypeChange={setMethodType}
+                  accountDetails={accountDetails}
+                  onAccountDetailsChange={setAccountDetails}
+                  nickname={nickname}
+                  onNicknameChange={setNickname}
+                  billingName={billingName}
+                  onBillingNameChange={setBillingName}
+                  expMonth={expMonth}
+                  onExpMonthChange={setExpMonth}
+                  expYear={expYear}
+                  onExpYearChange={setExpYear}
+                  makeDefault={makeDefault}
+                  onMakeDefaultChange={setMakeDefault}
+                  showDefaultOption
+                />
+
+                <div className="mt-6 flex flex-wrap justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    disabled={submitting}
+                    className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <form action={handleSave}>
+                    <button
+                      type="submit"
+                      disabled={submitting || !canSave}
+                      className="rounded-lg bg-green-800 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
+                    >
+                      {submitting ? "Saving…" : "Save method"}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </>
   );
 }

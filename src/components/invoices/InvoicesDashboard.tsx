@@ -326,12 +326,12 @@ export function InvoicesDashboard({
     <div className="gs-stack">
       <div className="gs-index-bar">
         <label className="gs-index-field max-w-md flex-1">
-          <span>Filter by company</span>
+          <span>Filter by customer</span>
           <select
             value={company}
             onChange={(e) => setCompany(e.target.value)}
           >
-            <option value="overall">Overall — all companies</option>
+            <option value="overall">Overall — all customers</option>
             {companies.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -347,12 +347,12 @@ export function InvoicesDashboard({
           title="Invoice Tracker"
           description={
             company === "overall"
-              ? "Paid rate and collection status across all companies. Click a slice for counts."
+              ? "Paid rate and collection status across all customers. Click a slice for counts."
               : `Paid rate and collection status for ${company}. Click a slice for counts.`
           }
         />
         {companyFiltered.length === 0 ? (
-          <p className="gs-help">No invoices for this company.</p>
+          <p className="gs-help">No invoices for this customer.</p>
         ) : (
           <InvoicePaidTracker invoices={companyFiltered} />
         )}
@@ -372,7 +372,7 @@ export function InvoicesDashboard({
           <SectionHeading
             mark="Ledger"
             title="Invoices"
-            description="Filter by payment and send status for the selected company."
+            description="Filter by payment and send status for the selected customer."
           />
           <label className="gs-index-field sm:w-56">
             <span>Status</span>
@@ -393,7 +393,7 @@ export function InvoicesDashboard({
 
         {listFiltered.length === 0 ? (
           <p className="gs-help">
-            No invoices match this company and status filter.
+            No invoices match this customer and status filter.
           </p>
         ) : (
           <div className="mt-2 max-h-[32rem] overflow-auto border-t border-stone-200">

@@ -28,7 +28,7 @@ export function CompletedSortToggle({
 
   const options: { value: CompletedSortMode; label: string }[] = [
     { value: "date", label: "Date" },
-    { value: "company", label: "Company" },
+    { value: "company", label: "Customer" },
     { value: "job", label: "Job" },
   ];
 

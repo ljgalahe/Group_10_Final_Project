@@ -129,7 +129,7 @@ export function ManagerContractsDirectory({
             Contracts
           </h3>
           <p className="gs-help">
-            Search by company, filter by status, then expand a company to open a
+            Search by customer, filter by status, then expand a customer to open a
             contract. Drafts are quotes out for contracting and are not counted
             in the completion chart.
           </p>
@@ -137,7 +137,7 @@ export function ManagerContractsDirectory({
 
         <div className="gs-index-bar mt-0">
           <label className="gs-index-field min-w-0 flex-1">
-            <span>Search by company</span>
+            <span>Search by customer</span>
             <input
               type="search"
               value={companySearch}

@@ -8,13 +8,13 @@ import type { JobRow } from "@/lib/visit-jobs";
 type BreakdownMode = "company" | "job" | "date";
 
 function modeAllLabel(mode: BreakdownMode) {
-  if (mode === "company") return "All companies";
+  if (mode === "company") return "All customers";
   if (mode === "job") return "All jobs";
   return "All dates";
 }
 
 function modeNameLabel(mode: BreakdownMode) {
-  if (mode === "company") return "Company name";
+  if (mode === "company") return "Customer name";
   if (mode === "job") return "Job name";
   return "Date";
 }
@@ -163,7 +163,7 @@ export function PayExpensesBreakdown({ jobs }: { jobs: JobRow[] }) {
               setOpenJobId(null);
             }}
           >
-            <option value="company">Companies</option>
+            <option value="company">Customers</option>
             <option value="job">Jobs</option>
             <option value="date">Dates</option>
           </select>

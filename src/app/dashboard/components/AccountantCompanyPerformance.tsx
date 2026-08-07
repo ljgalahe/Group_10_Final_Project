@@ -208,6 +208,17 @@ const TREND_COLORS = {
   profit: "#0369a1",
 } as const;
 
+/** Whole dollars for profit-trend axis/tooltip labels (no cents). */
+function formatWholeDollars(amount: number) {
+  const value = Number(amount);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(Number.isFinite(value) ? Math.round(value) : 0);
+}
+
 function ProfitTrendChart({
   points,
 }: {
@@ -250,7 +261,7 @@ function ProfitTrendChart({
       >
         {[0, 0.25, 0.5, 0.75, 1].map((t) => {
           const y = pad.top + innerH * (1 - t);
-          const label = formatCurrency(maxVal * t).replace(/\.00$/, "");
+          const label = formatWholeDollars(maxVal * t);
           return (
             <g key={t}>
               <line
@@ -345,11 +356,11 @@ function ProfitTrendChart({
         <p className="mt-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600">
           <span className="font-semibold text-green-950">{hovered.month}</span>
           {" · "}
-          Revenue {formatCurrency(hovered.revenue)}
+          Revenue {formatWholeDollars(hovered.revenue)}
           {" · "}
-          Cost {formatCurrency(hovered.cost)}
+          Cost {formatWholeDollars(hovered.cost)}
           {" · "}
-          Profit {formatCurrency(hovered.profit)}
+          Profit {formatWholeDollars(hovered.profit)}
         </p>
       ) : (
         <p className="mt-2 text-xs text-stone-500">

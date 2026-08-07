@@ -45,7 +45,7 @@ function WeatherCategoryJobs({
     <div className="rounded-xl border border-sky-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-green-950">
-          {label} — company details
+          {label} — customer details
         </p>
         <ViewAllToggle
           viewAll={viewAll}
@@ -61,7 +61,7 @@ function WeatherCategoryJobs({
             setQuery(value);
             setViewAll(false);
           }}
-          placeholder={`Search ${label.toLowerCase()} by company, job, or crew…`}
+          placeholder={`Search ${label.toLowerCase()} by customer, job, or crew…`}
           label={`Search ${label}`}
         />
       </div>
@@ -277,7 +277,7 @@ export function WeatherAffectedTiles({ jobs }: { jobs: JobRow[] }) {
         />
       ) : (
         <p className="text-sm text-stone-500">
-          Click a weather category square to see companies and full job details.
+          Click a weather category square to see customers and full job details.
         </p>
       )}
     </div>

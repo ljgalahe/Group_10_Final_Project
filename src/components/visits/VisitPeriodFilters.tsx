@@ -159,7 +159,7 @@ export function OrganizeToggle({
           onClick={() => setMode("company")}
           className={`gs-index-tab ${organize === "company" ? "is-active" : ""}`}
         >
-          Company
+          Customer
         </button>
         <button
           type="button"

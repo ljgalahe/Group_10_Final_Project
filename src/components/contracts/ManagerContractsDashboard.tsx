@@ -75,12 +75,12 @@ export function ManagerContractsDashboard({
     <div className="gs-stack">
       <div className="gs-index-bar">
         <label className="gs-index-field max-w-md flex-1">
-          <span>Filter by company</span>
+          <span>Filter by customer</span>
           <select
             value={company}
             onChange={(e) => setCompany(e.target.value)}
           >
-            <option value="overall">Overall — all companies</option>
+            <option value="overall">Overall — all customers</option>
             {companies.map((name) => (
               <option key={name} value={name}>
                 {name}

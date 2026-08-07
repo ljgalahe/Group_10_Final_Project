@@ -69,7 +69,7 @@ export function PhotoProofSubmissions({ jobs }: { jobs: JobRow[] }) {
           setQuery(value);
           setOpenId(null);
         }}
-        placeholder="Search proof by company, job, or crew…"
+        placeholder="Search proof by customer, job, or crew…"
         label="Search photo proof"
       />
       <div className="flex justify-end">

@@ -120,7 +120,7 @@ function CompanyJobGroups({
   return (
     <div className="space-y-2">
       <p className="mb-2 text-xs text-stone-500">
-        Jobs for this company · click a job, then Details for pay, costs, and
+        Jobs for this customer · click a job, then Details for pay, costs, and
         photos
       </p>
       {jobGroups.map(([jobLabel, labelJobs]) => {
@@ -216,7 +216,7 @@ function JobCompanyGroups({
   return (
     <div className="space-y-2">
       <p className="mb-2 text-xs text-stone-500">
-        Companies for this job · click a company, then Details for pay, costs,
+        Customers for this job · click a customer, then Details for pay, costs,
         and photos
       </p>
       {companyGroups.map(([companyName, companyJobs]) => {
@@ -357,10 +357,10 @@ export function OrganizedJobList({
 
   const searchPlaceholder =
     organizeBy === "company"
-      ? "Search companies, jobs, or crew…"
+      ? "Search customers, jobs, or crew…"
       : organizeBy === "jobs"
-        ? "Search jobs, companies, or crew…"
-        : "Search by company, job, or crew…";
+        ? "Search jobs, customers, or crew…"
+        : "Search by customer, job, or crew…";
 
   return (
     <div className="space-y-3">
@@ -446,7 +446,7 @@ export function OrganizedJobList({
                     {organizeBy === "company" && jobTypeCount != null
                       ? `${jobTypeCount} ${jobTypeCount === 1 ? "job" : "jobs"} · ${jobs.length} ${jobs.length === 1 ? "visit" : "visits"}`
                       : organizeBy === "jobs" && companyCount != null
-                        ? `${companyCount} ${companyCount === 1 ? "company" : "companies"} · ${jobs.length} ${jobs.length === 1 ? "visit" : "visits"}`
+                        ? `${companyCount} ${companyCount === 1 ? "customer" : "customers"} · ${jobs.length} ${jobs.length === 1 ? "visit" : "visits"}`
                         : `${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}`}
                     {proofCount > 0 ? ` · ${proofCount} with photos` : ""}
                   </p>

@@ -313,13 +313,13 @@ export function ExtraWorkApproval({
               setOpenKey(null);
             }}
           >
-            <option value="company">Companies</option>
+            <option value="company">Customers</option>
             <option value="task">Tasks</option>
           </select>
         </label>
 
         <label className="block text-sm text-stone-600">
-          {mode === "company" ? "Company name" : "Task name"}
+          {mode === "company" ? "Customer name" : "Task name"}
           <select
             className="mt-1 block w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-stone-900"
             value={selected}
@@ -329,7 +329,7 @@ export function ExtraWorkApproval({
             }}
           >
             <option value="all">
-              {mode === "company" ? "All companies" : "All tasks"}
+              {mode === "company" ? "All customers" : "All tasks"}
             </option>
             {(mode === "company" ? companies : tasks).map((name) => (
               <option key={name} value={name}>

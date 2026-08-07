@@ -199,6 +199,9 @@ function AlertRow({ alert }: { alert: ManagerAlert }) {
   const styles = PRIORITY_STYLES[alert.priority];
   const hasActions = Boolean(alert.actions && alert.actions.length > 0);
   const [showPartners, setShowPartners] = useState(false);
+  // !text-[11px] beats global `button { font-size: inherit }` so Link + button match.
+  const actionClassName =
+    "rounded-md border border-green-800/40 bg-white px-2.5 py-1 !text-[11px] !leading-[1.5] font-medium text-green-900 hover:border-green-800 hover:bg-green-50";
 
   return (
     <li
@@ -234,7 +237,7 @@ function AlertRow({ alert }: { alert: ManagerAlert }) {
                     key={action.id}
                     type="button"
                     onClick={() => setShowPartners((open) => !open)}
-                    className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-[11px] font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
+                    className={actionClassName}
                   >
                     {showPartners ? "Hide partner list" : action.label}
                   </button>
@@ -242,7 +245,7 @@ function AlertRow({ alert }: { alert: ManagerAlert }) {
                   <Link
                     key={action.id}
                     href={action.href}
-                    className="rounded-md border border-green-800/40 bg-white px-2.5 py-1 text-[11px] font-medium text-green-900 hover:border-green-800 hover:bg-green-50"
+                    className={actionClassName}
                   >
                     {action.label}
                   </Link>

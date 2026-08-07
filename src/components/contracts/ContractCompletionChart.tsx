@@ -37,13 +37,13 @@ export function ContractCompletionChart({
     <div>
       {showCompanyFilter ? (
         <label className="block text-sm text-stone-600">
-          Filter by company
+          Filter by customer
           <select
             className="mt-1 block w-full max-w-md rounded-md border border-stone-300 bg-white px-3 py-2 text-stone-900"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
           >
-            <option value="overall">Overall — all companies</option>
+            <option value="overall">Overall — all customers</option>
             {companies.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -55,7 +55,7 @@ export function ContractCompletionChart({
 
       <div className={showCompanyFilter ? "mt-6" : undefined}>
         {filtered.length === 0 ? (
-          <p className="text-sm text-stone-500">No contracts for this company.</p>
+          <p className="text-sm text-stone-500">No contracts for this customer.</p>
         ) : single ? (
           <ContractProgressChart
             percentComplete={single.percentComplete}

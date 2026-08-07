@@ -15,7 +15,6 @@ import { requireAppAccess } from "@/lib/auth-access";
 import {
   getViewCustomerId,
   getViewRole,
-  roleCanManageBilling,
 } from "@/lib/demo-role";
 import { formatCurrency, formatDate, getDisplayInvoiceStatus } from "@/lib/format";
 import {
@@ -107,7 +106,6 @@ export default async function InvoicesPage({
   if (role === "crew_member") redirect("/dashboard");
   const isCustomer = role === "customer";
   const isAccountant = role === "accountant";
-  const showAccountantLayout = roleCanManageBilling(role);
   const params = await searchParams;
   const dueSoonOnly = params.due === "soon";
   const statusFilter = dueSoonOnly
@@ -125,7 +123,7 @@ export default async function InvoicesPage({
   const [{ data: invoices }, journalStates, contracts, accountantPaymentsResult] =
     await Promise.all([
       fetchInvoices(),
-      showAccountantLayout || isAccountant
+      isAccountant
         ? fetchJournalSourceStates()
         : Promise.resolve(null),
       isAccountant
@@ -235,9 +233,9 @@ export default async function InvoicesPage({
         {filteredInvoices.length === 0 ? (
           <EmptyState message={emptyMessage} />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+          <div className="max-h-[32rem] overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white shadow-sm">
             <table className="min-w-full text-sm">
-              <thead className="bg-stone-50 text-left text-stone-600">
+              <thead className="sticky top-0 z-[1] border-b border-stone-200 bg-stone-50 text-left text-stone-600 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 font-medium">Invoice #</th>
                   <th className="px-4 py-3 font-medium">Customer</th>
@@ -337,17 +335,12 @@ export default async function InvoicesPage({
       )
     );
 
-    const journalRecord: Record<string, JournalStatus | null> = {};
-    for (const [id, status] of invoiceJournalStates.entries()) {
-      journalRecord[id] = status;
-    }
-
     return (
       <AppShell>
         <PageHeader
           kicker="Ledger"
           title="Invoices"
-          description="Invoices from contract terms and approved extra work. Filter by company and status."
+          description="Invoices from contract terms and approved extra work. Filter by customer and status."
         />
 
         {listItems.length === 0 ? (
@@ -356,8 +349,7 @@ export default async function InvoicesPage({
           <InvoicesDashboard
             invoices={listItems}
             asOfDate={asOfDate}
-            journalStates={journalRecord}
-            showJournal={showAccountantLayout}
+            showJournal={false}
             isAccountant={false}
             initialCompany={companyFilter}
             initialStatus={dashboardStatus}

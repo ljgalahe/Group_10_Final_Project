@@ -353,7 +353,7 @@ export default async function VisitsPage({
         <PageHeader
           kicker="Visits"
           title="Visits"
-          description={`Summary and job list for ${periodLabel(period)}. Change the time range or organize by company or job.`}
+          description={`Summary and job list for ${periodLabel(period)}. Change the time range or organize by customer or job.`}
         />
 
         <div className="mb-5">
@@ -374,7 +374,7 @@ export default async function VisitsPage({
                   </h3>
                   <p className="gs-help">
                     {organize === "company"
-                      ? "Open a company, then a job, then a visit for crew, pay, costs, and photos."
+                      ? "Open a customer, then a job, then a visit for crew, pay, costs, and photos."
                       : "Open a job, then a visit for crew, pay, costs, and photos."}
                   </p>
                 </div>

@@ -52,7 +52,7 @@ export function VisitsSummaryBlocks({
         <SectionHeading
           mark="Calendar"
           title="Schedule"
-          description="Filter by company, employee, job, or status, then click a day."
+          description="Filter by customer, employee, job, or status, then click a day."
         />
         {allJobs.length === 0 ? (
           <p className="gs-help">No jobs in this range to show on the calendar.</p>

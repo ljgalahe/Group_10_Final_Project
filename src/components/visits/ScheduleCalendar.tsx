@@ -20,13 +20,13 @@ function parseDateParts(dateStr: string) {
 }
 
 function modeAllLabel(mode: FilterMode) {
-  if (mode === "company") return "All companies";
+  if (mode === "company") return "All customers";
   if (mode === "employee") return "All employees";
   return "All jobs";
 }
 
 function modeNameLabel(mode: FilterMode) {
-  if (mode === "company") return "Company name";
+  if (mode === "company") return "Customer name";
   if (mode === "employee") return "Employee name";
   return "Job name";
 }
@@ -202,7 +202,7 @@ export function ScheduleCalendar({
               setViewAll(false);
             }}
           >
-            <option value="company">Companies</option>
+            <option value="company">Customers</option>
             <option value="employee">Employees</option>
             <option value="job">Jobs</option>
           </select>
@@ -373,7 +373,7 @@ export function ScheduleCalendar({
       <div className="rounded-lg border border-stone-200 bg-stone-50 p-4">
         {!selectedDate ? (
           <p className="text-sm text-stone-500">
-            Filter by company, employee, job, or status, then click a day for
+            Filter by customer, employee, job, or status, then click a day for
             crew assignments.
           </p>
         ) : employeeRows.length === 0 ? (

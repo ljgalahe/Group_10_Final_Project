@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ContractPerformanceAnalysis } from "@/components/ContractPerformanceAnalysis";
-import { Card, EmptyState, PageHeader, SectionHeading, StatCard } from "@/components/ui";
+import { EmptyState, PageHeader, SectionHeading, StatCard } from "@/components/ui";
 import { WeatherAffectedTiles } from "@/components/visits/WeatherAffectedTiles";
 import { requireAppAccess } from "@/lib/auth-access";
 import { buildContractRankings } from "@/lib/contract-rankings";
@@ -228,23 +228,6 @@ export default async function ProfitabilityPage({
           />
           <WeatherAffectedTiles jobs={weatherAffected} />
         </section>
-      ) : null}
-
-      {isAccountant ? (
-        <Card className="mt-8">
-          <h2 className="text-lg font-semibold text-green-950">
-            How to Read This Report
-          </h2>
-          <p className="mt-2 text-sm text-stone-600">
-            <strong>Revenue</strong> comes from invoices billed on each contract.{" "}
-            <strong> Visit costs</strong> match the Visits tab: scheduled
-            visits use estimated cost; completed visits use actual labor,
-            materials, and equipment. Use{" "}
-            <strong>Estimated vs. actual job cost</strong> to spot visits that
-            blew past their quote, then Performance analysis for contract-level
-            leaks and recommendations before renewal.
-          </p>
-        </Card>
       ) : null}
     </AppShell>
   );
