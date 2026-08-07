@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import { CenteredModal } from "@/components/CenteredModal";
 import { Card, EmptyState, StatCard, StatusBadge } from "@/components/ui";
 import { chatHrefForEquipmentReplacement } from "@/lib/chat-demo";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -133,17 +134,13 @@ function AssetForm({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="equipment-form-title"
-      onClick={onClose}
+    <CenteredModal
+      open
+      onClose={onClose}
+      labelledBy="equipment-form-title"
+      backdropClassName="bg-stone-900/40"
     >
-      <div
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-lg">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h3
@@ -279,7 +276,7 @@ function AssetForm({
           </div>
         </form>
       </div>
-    </div>
+    </CenteredModal>
   );
 }
 
@@ -591,18 +588,14 @@ export function EquipmentReport({
         }}
       />
 
-      {detailAssetLive ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="equipment-detail-title"
-          onClick={() => setDetailAsset(null)}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
+      <CenteredModal
+        open={Boolean(detailAssetLive)}
+        onClose={() => setDetailAsset(null)}
+        labelledBy="equipment-detail-title"
+        backdropClassName="bg-stone-900/40"
+      >
+        {detailAssetLive ? (
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-lg">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h3
@@ -701,8 +694,8 @@ export function EquipmentReport({
               </table>
             )}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </CenteredModal>
 
       <Card className="mb-8 overflow-x-auto">
         <button

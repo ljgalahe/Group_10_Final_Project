@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { updateNotificationPreference } from "@/app/actions/profile";
+import { CenteredModal } from "@/components/CenteredModal";
 import {
   NOTIFICATION_TOPICS,
   formatNotificationDestinations,
@@ -130,13 +131,13 @@ export function ProfileNotifications({
         })}
       </ul>
 
-      {dialog ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="notify-how-title"
-        >
+      <CenteredModal
+        open={Boolean(dialog)}
+        onClose={() => setDialog(null)}
+        labelledBy="notify-how-title"
+        backdropClassName="bg-black/40"
+      >
+        {dialog ? (
           <div className="w-full max-w-md rounded-xl border border-stone-200 bg-white p-6 shadow-lg">
             <h2
               id="notify-how-title"
@@ -262,8 +263,8 @@ export function ProfileNotifications({
               </div>
             </form>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </CenteredModal>
     </>
   );
 }

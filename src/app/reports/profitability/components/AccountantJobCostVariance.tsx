@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { CenteredModal } from "@/components/CenteredModal";
 import { StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type {
@@ -317,17 +318,13 @@ function MarginLeakedModal({
   const equationLeak = report.totalOverrun;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="margin-leaked-title"
-      onClick={onClose}
+    <CenteredModal
+      open
+      onClose={onClose}
+      labelledBy="margin-leaked-title"
+      backdropClassName="bg-stone-900/40"
     >
-      <div
-        className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
@@ -413,7 +410,7 @@ function MarginLeakedModal({
           </div>
         </div>
       </div>
-    </div>
+    </CenteredModal>
   );
 }
 
@@ -463,17 +460,13 @@ function OverrunDetailModal({
   const focusFlag = focusJob ? overrunFlag(focusJob.variancePct) : null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="overrun-detail-title"
-      onClick={onClose}
+    <CenteredModal
+      open
+      onClose={onClose}
+      labelledBy="overrun-detail-title"
+      backdropClassName="bg-stone-900/40"
     >
-      <div
-        className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-red-700">
@@ -677,7 +670,7 @@ function OverrunDetailModal({
           </div>
         </div>
       </div>
-    </div>
+    </CenteredModal>
   );
 }
 

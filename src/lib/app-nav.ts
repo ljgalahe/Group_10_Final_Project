@@ -100,6 +100,7 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
 ];
 
 const OPERATIONS_NAV_HREF_ORDER = [
+  "/chat",
   "/dashboard",
   "/ops/inquiries",
   "/ops/site-surveys",
@@ -107,7 +108,6 @@ const OPERATIONS_NAV_HREF_ORDER = [
   "/contracts",
   "/schedule",
   "/visits",
-  "/chat",
   "/support",
 ] as const;
 

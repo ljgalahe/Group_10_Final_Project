@@ -174,6 +174,30 @@ export async function fetchContract(id: string) {
 /** PostgREST defaults to max 1000 rows; page past the cap for full datasets. */
 const SUPABASE_PAGE_SIZE = 1000;
 const SUPABASE_IN_CHUNK = 200;
+const SUPABASE_FETCH_CONCURRENCY = 4;
+
+const VISIT_COST_COLUMNS =
+  "id, visit_id, cost_type, description, amount, quantity, created_at";
+
+async function mapInChunksParallel<T, R>(
+  items: T[],
+  chunkSize: number,
+  concurrency: number,
+  worker: (chunk: T[]) => Promise<R[]>
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  const out: R[] = [];
+  for (let i = 0; i < chunks.length; i += concurrency) {
+    const batch = chunks.slice(i, i + concurrency);
+    const batchRows = await Promise.all(batch.map((chunk) => worker(chunk)));
+    for (const rows of batchRows) out.push(...rows);
+  }
+  return out;
+}
 
 async function fetchAllPaged<T>(
   fetchPage: (
@@ -181,16 +205,38 @@ async function fetchAllPaged<T>(
     to: number
   ) => PromiseLike<{ data: T[] | null; error: unknown }>
 ): Promise<{ data: T[]; error: unknown }> {
-  const all: T[] = [];
-  let from = 0;
-  for (;;) {
-    const { data, error } = await fetchPage(from, from + SUPABASE_PAGE_SIZE - 1);
-    if (error) return { data: all, error };
-    const rows = data ?? [];
-    all.push(...rows);
-    if (rows.length < SUPABASE_PAGE_SIZE) break;
-    from += SUPABASE_PAGE_SIZE;
+  const first = await fetchPage(0, SUPABASE_PAGE_SIZE - 1);
+  if (first.error) return { data: [], error: first.error };
+  const firstRows = first.data ?? [];
+  if (firstRows.length < SUPABASE_PAGE_SIZE) {
+    return { data: firstRows, error: null };
   }
+
+  // Probe additional pages in parallel waves until a short page appears.
+  const all: T[] = [...firstRows];
+  let nextFrom = SUPABASE_PAGE_SIZE;
+  for (;;) {
+    const starts = Array.from(
+      { length: SUPABASE_FETCH_CONCURRENCY },
+      (_, i) => nextFrom + i * SUPABASE_PAGE_SIZE
+    );
+    const results = await Promise.all(
+      starts.map((from) => fetchPage(from, from + SUPABASE_PAGE_SIZE - 1))
+    );
+    let hitShort = false;
+    for (const result of results) {
+      if (result.error) return { data: all, error: result.error };
+      const rows = result.data ?? [];
+      all.push(...rows);
+      if (rows.length < SUPABASE_PAGE_SIZE) {
+        hitShort = true;
+        break;
+      }
+    }
+    if (hitShort) break;
+    nextFrom += SUPABASE_FETCH_CONCURRENCY * SUPABASE_PAGE_SIZE;
+  }
+
   return { data: all, error: null };
 }
 
@@ -223,7 +269,6 @@ export async function fetchVisits() {
     }
     return query;
   });
-
   return { data: (data ?? []) as any[], error };
 }
 
@@ -255,47 +300,54 @@ export async function fetchVisitLaborEntries(visitIds: string[]) {
   };
 
   const supabase = await createDataClient();
-  const all: LaborRow[] = [];
 
-  for (let i = 0; i < visitIds.length; i += SUPABASE_IN_CHUNK) {
-    const chunk = visitIds.slice(i, i + SUPABASE_IN_CHUNK);
-    let from = 0;
-    for (;;) {
-      const { data, error } = await supabase
-        .from("visit_labor_entries")
-        .select(
-          "id, visit_id, member_demo_id, member_name, member_role, hours, hourly_rate, started_at, ended_at"
-        )
-        .in("visit_id", chunk)
-        .range(from, from + SUPABASE_PAGE_SIZE - 1);
+  try {
+    const all = await mapInChunksParallel(
+      visitIds,
+      SUPABASE_IN_CHUNK,
+      SUPABASE_FETCH_CONCURRENCY,
+      async (chunk) => {
+        const chunkRows: LaborRow[] = [];
+        let from = 0;
+        for (;;) {
+          const { data, error } = await supabase
+            .from("visit_labor_entries")
+            .select(
+              "id, visit_id, member_demo_id, member_name, member_role, hours, hourly_rate, started_at, ended_at"
+            )
+            .in("visit_id", chunk)
+            .range(from, from + SUPABASE_PAGE_SIZE - 1);
 
-      if (error) {
-        const msg = (error.message || "").toLowerCase();
-        if (
-          error.code === "PGRST205" ||
-          error.code === "42P01" ||
-          msg.includes("visit_labor_entries") ||
-          msg.includes("does not exist") ||
-          msg.includes("schema cache")
-        ) {
-          return { data: [], error: null };
+          if (error) {
+            const msg = (error.message || "").toLowerCase();
+            if (
+              error.code === "PGRST205" ||
+              error.code === "42P01" ||
+              msg.includes("visit_labor_entries") ||
+              msg.includes("does not exist") ||
+              msg.includes("schema cache")
+            ) {
+              return [];
+            }
+            throw error;
+          }
+
+          const rows = (data ?? []) as LaborRow[];
+          chunkRows.push(...rows);
+          if (rows.length < SUPABASE_PAGE_SIZE) break;
+          from += SUPABASE_PAGE_SIZE;
         }
-        return { data: all, error };
+        return chunkRows;
       }
-
-      const rows = (data ?? []) as LaborRow[];
-      all.push(...rows);
-      if (rows.length < SUPABASE_PAGE_SIZE) break;
-      from += SUPABASE_PAGE_SIZE;
-    }
+    );
+    return { data: all, error: null };
+  } catch (error) {
+    return { data: [] as LaborRow[], error };
   }
-
-  return { data: all, error: null };
 }
 
 export async function fetchAccountantVisits() {
   const supabase = await createDataClient();
-
   const { data: pagedVisits, error } = await fetchAllPaged<
     Record<string, unknown> & {
       id: string;
@@ -361,37 +413,50 @@ export async function fetchAccountantVisits() {
     status: string;
     issue_date: string;
     created_at: string;
+    invoice_number?: string | null;
   };
 
-  const costs: VisitCostRow[] = [];
-  for (let i = 0; i < completedIds.length; i += SUPABASE_IN_CHUNK) {
-    const chunk = completedIds.slice(i, i + SUPABASE_IN_CHUNK);
-    let from = 0;
-    for (;;) {
-      const { data, error: costError } = await supabase
-        .from("visit_costs")
-        .select("*")
-        .in("visit_id", chunk)
-        .range(from, from + SUPABASE_PAGE_SIZE - 1);
-      if (costError) break;
-      const rows = (data ?? []) as VisitCostRow[];
-      costs.push(...rows);
-      if (rows.length < SUPABASE_PAGE_SIZE) break;
-      from += SUPABASE_PAGE_SIZE;
-    }
-  }
+  const [costs, invoices, laborResult] = await Promise.all([
+    mapInChunksParallel(
+      completedIds,
+      SUPABASE_IN_CHUNK,
+      SUPABASE_FETCH_CONCURRENCY,
+      async (chunk) => {
+        const chunkRows: VisitCostRow[] = [];
+        let from = 0;
+        for (;;) {
+          const { data, error: costError } = await supabase
+            .from("visit_costs")
+            .select(VISIT_COST_COLUMNS)
+            .in("visit_id", chunk)
+            .range(from, from + SUPABASE_PAGE_SIZE - 1);
+          if (costError) break;
+          const rows = (data ?? []) as VisitCostRow[];
+          chunkRows.push(...rows);
+          if (rows.length < SUPABASE_PAGE_SIZE) break;
+          from += SUPABASE_PAGE_SIZE;
+        }
+        return chunkRows;
+      }
+    ),
+    mapInChunksParallel(
+      contractIds,
+      SUPABASE_IN_CHUNK,
+      SUPABASE_FETCH_CONCURRENCY,
+      async (chunk) => {
+        const { data } = await supabase
+          .from("invoices")
+          .select(
+            "id, contract_id, status, issue_date, created_at, invoice_number"
+          )
+          .in("contract_id", chunk);
+        return (data ?? []) as InvoiceRow[];
+      }
+    ),
+    fetchVisitLaborEntries(completedIds),
+  ]);
 
-  const invoices: InvoiceRow[] = [];
-  for (let i = 0; i < contractIds.length; i += SUPABASE_IN_CHUNK) {
-    const chunk = contractIds.slice(i, i + SUPABASE_IN_CHUNK);
-    const { data } = await supabase
-      .from("invoices")
-      .select("id, contract_id, status, issue_date, created_at")
-      .in("contract_id", chunk);
-    invoices.push(...((data ?? []) as InvoiceRow[]));
-  }
-
-  const { data: laborEntries } = await fetchVisitLaborEntries(completedIds);
+  const laborEntries = laborResult.data;
 
   const costsByVisit = new Map<string, VisitCostRow[]>();
   for (const cost of costs) {
@@ -479,30 +544,35 @@ export async function fetchVisitCostsByVisitIds(visitIds: string[]) {
   };
 
   const supabase = await createDataClient();
-  const all: CostRow[] = [];
+  try {
+    const all = await mapInChunksParallel(
+      ids,
+      SUPABASE_IN_CHUNK,
+      SUPABASE_FETCH_CONCURRENCY,
+      async (chunk) => {
+        const chunkRows: CostRow[] = [];
+        let from = 0;
+        for (;;) {
+          const { data, error } = await supabase
+            .from("visit_costs")
+            .select(VISIT_COST_COLUMNS)
+            .in("visit_id", chunk)
+            .order("created_at", { ascending: false })
+            .range(from, from + SUPABASE_PAGE_SIZE - 1);
 
-  for (let i = 0; i < ids.length; i += SUPABASE_IN_CHUNK) {
-    const chunk = ids.slice(i, i + SUPABASE_IN_CHUNK);
-    let from = 0;
-    for (;;) {
-      const { data, error } = await supabase
-        .from("visit_costs")
-        .select("*")
-        .in("visit_id", chunk)
-        .order("created_at", { ascending: false })
-        .range(from, from + SUPABASE_PAGE_SIZE - 1);
-
-      if (error) {
-        return { data: all, error };
+          if (error) throw error;
+          const rows = (data ?? []) as CostRow[];
+          chunkRows.push(...rows);
+          if (rows.length < SUPABASE_PAGE_SIZE) break;
+          from += SUPABASE_PAGE_SIZE;
+        }
+        return chunkRows;
       }
-      const rows = (data ?? []) as CostRow[];
-      all.push(...rows);
-      if (rows.length < SUPABASE_PAGE_SIZE) break;
-      from += SUPABASE_PAGE_SIZE;
-    }
+    );
+    return { data: all, error: null };
+  } catch (error) {
+    return { data: [] as CostRow[], error };
   }
-
-  return { data: all, error: null };
 }
 
 export async function fetchAllVisitCosts() {
@@ -510,7 +580,7 @@ export async function fetchAllVisitCosts() {
   const { data, error } = await fetchAllPaged((from, to) =>
     supabase
       .from("visit_costs")
-      .select("*")
+      .select(VISIT_COST_COLUMNS)
       .order("created_at", { ascending: false })
       .order("id", { ascending: true })
       .range(from, to)
@@ -874,9 +944,6 @@ export async function fetchProfitabilityReport() {
   });
   return results;
 }
-
-export type { ChartOfAccount } from "@/lib/chart-of-accounts";
-export type { JournalSource, JournalStatus };
 
 export type JournalLine = {
   accountCode: string;

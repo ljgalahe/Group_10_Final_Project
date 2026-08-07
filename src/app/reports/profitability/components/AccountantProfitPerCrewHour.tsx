@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CenteredModal } from "@/components/CenteredModal";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type {
   ProfitPerCrewHourJob,
@@ -255,17 +256,13 @@ function ServiceLineDetailModal({
   const summary = summaryForLine(row, jobs);
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="ppc-detail-title"
-      onClick={onClose}
+    <CenteredModal
+      open
+      onClose={onClose}
+      labelledBy="ppc-detail-title"
+      backdropClassName="bg-stone-900/40"
     >
-      <div
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
@@ -432,7 +429,7 @@ function ServiceLineDetailModal({
           </div>
         </div>
       </div>
-    </div>
+    </CenteredModal>
   );
 }
 

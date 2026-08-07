@@ -1,6 +1,7 @@
 "use client";
 
 import type { EvidencePackage } from "@/lib/invoice-controls";
+import { CenteredModal } from "@/components/CenteredModal";
 import { formatDate } from "@/lib/format";
 
 export function InvoiceEvidencePanel({
@@ -12,19 +13,23 @@ export function InvoiceEvidencePanel({
   open: boolean;
   onClose: () => void;
 }) {
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-stone-950/40 p-4 sm:items-center">
+    <CenteredModal
+      open={open}
+      onClose={onClose}
+      labelledBy="invoice-evidence-title"
+      backdropClassName="bg-stone-950/40"
+    >
       <div
-        role="dialog"
-        aria-modal="true"
         aria-label="Service evidence"
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-stone-200 bg-white p-5 shadow-lg"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-green-950">
+            <h3
+              id="invoice-evidence-title"
+              className="text-lg font-semibold text-green-950"
+            >
               Service evidence package
             </h3>
             <p className="mt-1 text-sm text-stone-600">
@@ -123,6 +128,6 @@ export function InvoiceEvidencePanel({
           </div>
         </dl>
       </div>
-    </div>
+    </CenteredModal>
   );
 }

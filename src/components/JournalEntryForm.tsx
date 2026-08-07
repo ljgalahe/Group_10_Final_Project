@@ -5,6 +5,7 @@ import {
   createManualJournalEntry,
   updateJournalEntry,
 } from "@/app/actions/journal";
+import { CenteredModal } from "@/components/CenteredModal";
 import {
   roundMoney,
   type JournalLineInput,
@@ -82,9 +83,17 @@ export function JournalEntryForm({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <CenteredModal
+      open
+      onClose={onClose}
+      labelledBy="journal-entry-form-title"
+      backdropClassName="bg-black/40"
+    >
       <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-green-950">
+        <h2
+          id="journal-entry-form-title"
+          className="text-lg font-semibold text-green-950"
+        >
           {mode === "create" ? "Add Journal Entry" : "Edit Journal Entry"}
         </h2>
         <p className="mt-1 text-sm text-stone-500">
@@ -289,6 +298,6 @@ export function JournalEntryForm({
           </div>
         </form>
       </div>
-    </div>
+    </CenteredModal>
   );
 }

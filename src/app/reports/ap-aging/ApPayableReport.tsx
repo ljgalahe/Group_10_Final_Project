@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { CenteredModal } from "@/components/CenteredModal";
 import { Card } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -1106,17 +1107,13 @@ function CategoryPayablesModal({
   onClose: () => void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="ap-category-title"
-      onClick={onClose}
+    <CenteredModal
+      open
+      onClose={onClose}
+      labelledBy="ap-category-title"
+      backdropClassName="bg-stone-900/40"
     >
-      <div
-        className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -1212,6 +1209,6 @@ function CategoryPayablesModal({
           )}
         </div>
       </div>
-    </div>
+    </CenteredModal>
   );
 }

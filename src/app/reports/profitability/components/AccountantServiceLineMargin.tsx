@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CenteredModal } from "@/components/CenteredModal";
 import { formatCurrency } from "@/lib/format";
 import type { ServiceLineMarginRow } from "@/app/reports/profitability/queries";
 
@@ -182,17 +183,13 @@ function SelectedServicePanel({
   onClose: () => void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="service-line-detail-title"
-      onClick={onClose}
+    <CenteredModal
+      open
+      onClose={onClose}
+      labelledBy="service-line-detail-title"
+      backdropClassName="bg-stone-900/40"
     >
-      <div
-        className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
@@ -322,7 +319,7 @@ function SelectedServicePanel({
           </div>
         </div>
       </div>
-    </div>
+    </CenteredModal>
   );
 }
 

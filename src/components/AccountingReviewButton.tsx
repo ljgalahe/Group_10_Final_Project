@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
+import { CenteredModal } from "@/components/CenteredModal";
 
 export type AccountingReviewInput = {
   contractApproved: boolean;
@@ -38,7 +39,6 @@ export function AccountingReviewButton({
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
 
   const readyForClose =
     review.contractApproved &&
@@ -47,29 +47,8 @@ export function AccountingReviewButton({
     review.changeOrdersReviewed &&
     review.profitabilityAboveTarget;
 
-  useEffect(() => {
-    if (!open) return;
-
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
   return (
-    <div ref={rootRef} className="relative inline-block text-left">
+    <>
       <button
         type="button"
         aria-expanded={open}
@@ -90,10 +69,15 @@ export function AccountingReviewButton({
         </svg>
       </button>
 
-      {open ? (
+      <CenteredModal
+        open={open}
+        onClose={() => setOpen(false)}
+        labelledBy={panelId}
+        backdropClassName="bg-stone-900/40"
+      >
         <div
           id={panelId}
-          className="absolute right-0 z-[200] mt-2 w-72 rounded-xl border border-stone-200 bg-stone-100 p-4 shadow-lg"
+          className="w-72 rounded-xl border border-stone-200 bg-stone-100 p-4 shadow-lg"
         >
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">
             Accounting review
@@ -129,8 +113,8 @@ export function AccountingReviewButton({
               : "Not Ready for Month-End Close"}
           </div>
         </div>
-      ) : null}
-    </div>
+      </CenteredModal>
+    </>
   );
 }
 

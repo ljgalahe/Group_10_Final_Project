@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { RecordPaymentForm } from "@/app/payments/components/RecordPaymentForm";
+import { CenteredModal } from "@/components/CenteredModal";
 
 export function RecordPaymentButton({
   invoices,
@@ -35,38 +36,46 @@ export function RecordPaymentButton({
         {label}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-green-950">Record Payment</h2>
-                <p className="mt-1 text-sm text-stone-500">
-                  {invoiceOnly && invoice
-                    ? `Apply a payment to ${invoice.invoice_number}.`
-                    : "Apply a cash or check payment to an open invoice."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="text-stone-400 hover:text-stone-600"
-                aria-label="Close"
+      <CenteredModal
+        open={open}
+        onClose={() => setOpen(false)}
+        labelledBy="record-payment-btn-title"
+        backdropClassName="bg-black/40"
+      >
+        <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2
+                id="record-payment-btn-title"
+                className="text-lg font-semibold text-green-950"
               >
-                ✕
-              </button>
+                Record Payment
+              </h2>
+              <p className="mt-1 text-sm text-stone-500">
+                {invoiceOnly && invoice
+                  ? `Apply a payment to ${invoice.invoice_number}.`
+                  : "Apply a cash or check payment to an open invoice."}
+              </p>
             </div>
-            <div className="mt-4">
-              <RecordPaymentForm
-                invoices={invoices}
-                defaultInvoiceId={defaultInvoiceId}
-                invoiceOnly={invoiceOnly}
-                redirectTo={redirectTo}
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-stone-400 hover:text-stone-600"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mt-4">
+            <RecordPaymentForm
+              invoices={invoices}
+              defaultInvoiceId={defaultInvoiceId}
+              invoiceOnly={invoiceOnly}
+              redirectTo={redirectTo}
+            />
           </div>
         </div>
-      )}
+      </CenteredModal>
     </>
   );
 }

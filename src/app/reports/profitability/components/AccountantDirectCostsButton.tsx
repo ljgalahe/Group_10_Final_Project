@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CenteredModal } from "@/components/CenteredModal";
 import { formatCurrency } from "@/lib/format";
 import type { CostType } from "@/lib/types";
 import type { DirectCostsBreakdown } from "@/app/reports/profitability/queries";
@@ -164,18 +165,13 @@ function AccountantDirectCostsButton({
         </button>
       )}
 
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="direct-costs-title"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+      <CenteredModal
+        open={open}
+        onClose={() => setOpen(false)}
+        labelledBy="direct-costs-title"
+        backdropClassName="bg-stone-900/40"
+      >
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5">
               <div>
                 <h2
@@ -303,8 +299,7 @@ function AccountantDirectCostsButton({
               )}
             </div>
           </div>
-        </div>
-      ) : null}
+      </CenteredModal>
     </>
   );
 }

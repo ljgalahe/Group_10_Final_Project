@@ -60,7 +60,6 @@ import {
   fetchInvoices,
   fetchPayments,
   fetchPendingContractChangeRequests,
-  fetchProfitabilityReport,
   fetchQuotesPendingApproval,
   fetchVisitLaborEntries,
   fetchVisits,
@@ -293,7 +292,6 @@ export default async function DashboardPage({
       inventoryItems,
       { data: invoices },
       { data: payments },
-      profitability,
       { data: pendingChangeRequests },
       { data: quotesNeedingApproval },
     ] = await Promise.all([
@@ -305,11 +303,62 @@ export default async function DashboardPage({
       fetchInventoryItems(),
       fetchInvoices(),
       fetchPayments(),
-      fetchProfitabilityReport(),
       fetchPendingContractChangeRequests(),
       fetchQuotesPendingApproval(),
     ]);
     pendingQuotes = quotesNeedingApproval;
+
+    const activeContracts = contracts.filter(
+      (contract) => contract.status === "active"
+    );
+    const revenueByContract = new Map<string, number>();
+    for (const invoice of invoices) {
+      if (!invoice.contract_id) continue;
+      revenueByContract.set(
+        invoice.contract_id,
+        (revenueByContract.get(invoice.contract_id) ?? 0) + Number(invoice.total)
+      );
+    }
+    const visitIdsByContract = new Map<string, string[]>();
+    for (const visit of visits) {
+      const list = visitIdsByContract.get(visit.contract_id) ?? [];
+      list.push(visit.id);
+      visitIdsByContract.set(visit.contract_id, list);
+    }
+    const costByVisit = new Map<string, number>();
+    for (const cost of visitCosts) {
+      costByVisit.set(
+        cost.visit_id,
+        (costByVisit.get(cost.visit_id) ?? 0) + Number(cost.amount)
+      );
+    }
+    const profitability = activeContracts.map((contract) => {
+      const revenue = revenueByContract.get(contract.id) ?? 0;
+      const visitIds = visitIdsByContract.get(contract.id) ?? [];
+      const costs = visitIds.reduce(
+        (sum, id) => sum + (costByVisit.get(id) ?? 0),
+        0
+      );
+      const margin = revenue - costs;
+      const marginPct = revenue > 0 ? (margin / revenue) * 100 : 0;
+      const customer = contract.customers as
+        | { name?: string }
+        | { name?: string }[]
+        | null;
+      const customerName = Array.isArray(customer)
+        ? customer[0]?.name
+        : customer?.name;
+      return {
+        contractId: contract.id,
+        title: contract.title,
+        customerName: customerName ?? "",
+        revenue,
+        costs,
+        margin,
+        marginPct,
+        monthlyFee: Number(contract.monthly_fee ?? 0),
+      };
+    });
 
     const contractCustomerById = new Map(
       contracts.map((contract) => [

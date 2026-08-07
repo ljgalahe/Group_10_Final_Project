@@ -7,11 +7,13 @@ import {
   useState,
   useTransition,
 } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   getOpenInvoicesForCustomer,
   recordPayment,
 } from "@/app/actions/business";
+import { CenteredModal } from "@/components/CenteredModal";
 import {
   ServiceHoldBadge,
   ServiceHoldBanner,
@@ -494,6 +496,7 @@ function PaymentDetailPanel({
   onExited: () => void;
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const invoiceTotal = Number(payment.invoices?.total ?? 0);
   const amountPaid = Number(payment.invoices?.amount_paid ?? 0);
@@ -505,6 +508,10 @@ function PaymentDetailPanel({
   const reference =
     payment.reference_number || payment.payment_number || "—";
   const notes = payment.notes?.trim() || "—";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -524,11 +531,13 @@ function PaymentDetailPanel({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [open, onClose]);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <>
       <div
         aria-hidden="true"
-        className={`pointer-events-none fixed inset-0 z-40 bg-stone-900/25 transition-opacity duration-200 ease-out ${
+        className={`pointer-events-none fixed inset-0 z-[200] bg-stone-900/25 transition-opacity duration-200 ease-out ${
           open ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -546,7 +555,7 @@ function PaymentDetailPanel({
             onExited();
           }
         }}
-        className={`fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col border-l border-stone-200 bg-white shadow-2xl transition-transform duration-200 ease-out ${
+        className={`fixed inset-y-0 right-0 z-[201] flex h-full w-full max-w-md flex-col border-l border-stone-200 bg-white shadow-2xl transition-transform duration-200 ease-out ${
           open
             ? "translate-x-0"
             : "pointer-events-none translate-x-full"
@@ -630,7 +639,8 @@ function PaymentDetailPanel({
           </dl>
         </div>
       </aside>
-    </>
+    </>,
+    document.body
   );
 }
 
@@ -959,13 +969,13 @@ function RecordPaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="record-payment-title"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-xl"
-      >
+    <CenteredModal
+      open
+      onClose={onClose}
+      labelledBy="record-payment-title"
+      backdropClassName="bg-stone-900/40"
+    >
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2
@@ -1160,6 +1170,6 @@ function RecordPaymentModal({
           </div>
         </form>
       </div>
-    </div>
+    </CenteredModal>
   );
 }

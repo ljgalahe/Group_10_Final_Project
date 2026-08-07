@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { addChartOfAccountAction } from "@/app/actions/journal";
+import { CenteredModal } from "@/components/CenteredModal";
 import {
   ACCOUNT_TYPE_LABELS,
   inferAccountType,
@@ -32,11 +33,19 @@ export function AddChartOfAccountModal({
   }, [state?.ok, onClose, router]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <CenteredModal
+      open
+      onClose={onClose}
+      labelledBy="add-chart-account-title"
+      backdropClassName="bg-black/40"
+    >
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-green-950">
+            <h2
+              id="add-chart-account-title"
+              className="text-lg font-semibold text-green-950"
+            >
               Add Chart Account
             </h2>
             <p className="mt-1 text-sm text-stone-500">
@@ -135,6 +144,6 @@ export function AddChartOfAccountModal({
           {inferAccountType("5050")} for 5050).
         </p>
       </div>
-    </div>
+    </CenteredModal>
   );
 }

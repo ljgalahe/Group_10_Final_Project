@@ -7,6 +7,7 @@ import {
   submitContractInquiry,
   unpauseCustomerContract,
 } from "@/app/actions/customer-contract-self-service";
+import { CenteredModal } from "@/components/CenteredModal";
 import { formatDate } from "@/lib/format";
 
 export function CustomerContractSelfService({
@@ -144,51 +145,49 @@ export function CustomerContractSelfService({
         </form>
       ) : null}
 
-      {showCancelConfirm ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="cancel-contract-title"
-        >
-          <div className="w-full max-w-md rounded-xl border border-stone-200 bg-white p-6 shadow-lg">
-            <h3
-              id="cancel-contract-title"
-              className="text-lg font-semibold text-green-950"
+      <CenteredModal
+        open={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        labelledBy="cancel-contract-title"
+        backdropClassName="bg-black/40"
+      >
+        <div className="w-full max-w-md rounded-xl border border-stone-200 bg-white p-6 shadow-lg">
+          <h3
+            id="cancel-contract-title"
+            className="text-lg font-semibold text-green-950"
+          >
+            Cancel Contract
+          </h3>
+          <p className="mt-3 text-sm text-stone-700">
+            Are you sure you would like to cancel your contract with GreenScape Commercial?
+          </p>
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCancelConfirm(false)}
+              className="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
             >
-              Cancel Contract
-            </h3>
-            <p className="mt-3 text-sm text-stone-700">
-              Are you sure you would like to cancel your contract with GreenScape Commercial?
-            </p>
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              Keep Contract
+            </button>
+            <form
+              action={(fd) => {
+                startTransition(() => {
+                  void cancelCustomerContract(fd);
+                });
+              }}
+            >
+              <input type="hidden" name="contract_id" value={contractId} />
               <button
-                type="button"
-                onClick={() => setShowCancelConfirm(false)}
-                className="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+                type="submit"
+                disabled={pending}
+                className="rounded-md bg-red-800 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
               >
-                Keep Contract
+                Yes, Cancel Contract
               </button>
-              <form
-                action={(fd) => {
-                  startTransition(() => {
-                    void cancelCustomerContract(fd);
-                  });
-                }}
-              >
-                <input type="hidden" name="contract_id" value={contractId} />
-                <button
-                  type="submit"
-                  disabled={pending}
-                  className="rounded-md bg-red-800 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
-                >
-                  Yes, Cancel Contract
-                </button>
-              </form>
-            </div>
+            </form>
           </div>
         </div>
-      ) : null}
+      </CenteredModal>
     </div>
   );
 }
