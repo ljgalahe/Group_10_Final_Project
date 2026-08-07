@@ -246,7 +246,7 @@ export default async function ContractsPage({
           <SimpleContractsTable
             contracts={customerList}
             showCustomerColumn={!isCustomer}
-            scrollable={isCustomer}
+            scrollable={isCustomer || role === "crew_lead"}
           />
         ) : isCustomer && statusFilter !== "all" ? (
           <EmptyState message="No Contracts Match This Status." />
@@ -296,7 +296,11 @@ export default async function ContractsPage({
         {opsContracts.length === 0 ? (
           <EmptyState message="No Contracts Yet. Create One From An Approved Quote Above." />
         ) : (
-          <SimpleContractsTable contracts={opsContracts} showCustomerColumn />
+          <SimpleContractsTable
+            contracts={opsContracts}
+            showCustomerColumn
+            scrollable
+          />
         )}
       </AppShell>
     );

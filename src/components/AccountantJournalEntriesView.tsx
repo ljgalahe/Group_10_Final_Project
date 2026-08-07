@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { deleteJournalEntry } from "@/app/actions/journal";
 import { JournalEntryForm } from "@/components/JournalEntryForm";
-import { Card, EmptyState, StatCard } from "@/components/ui";
+import { EmptyState, StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { journalSourceHref } from "@/lib/journal-source-href";
 import type { JournalSource } from "@/lib/journal";
@@ -355,21 +355,6 @@ export function AccountantJournalEntriesView({
           </table>
         </div>
       )}
-
-      <Card>
-        <h2 className="text-lg font-semibold text-green-950">How Journal Entries Work</h2>
-        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-stone-600">
-          <li>
-            When an invoice, payment, or completed visit is ready, use{" "}
-            <strong>Create journal entry</strong> to generate it automatically.
-          </li>
-          <li>Every journal entry can be edited or deleted if something needs to change.</li>
-          <li>Invoices, payments, and visits show Ready to post only when a journal entry can be created.</li>
-          <li>
-            Mower, truck, trailer, and irrigation hours automatically create depreciation entries.
-          </li>
-        </ul>
-      </Card>
 
       {creating ? (
         <JournalEntryForm

@@ -33,9 +33,9 @@ export default async function QuotesPage() {
       {quotes.length === 0 ? (
         <EmptyState message="No quotes yet." />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+        <div className="max-h-[36rem] overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white shadow-sm">
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
+            <thead className="sticky top-0 border-b border-stone-200 bg-stone-50 text-left text-stone-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Customer</th>
                 <th className="px-4 py-3 font-medium">Request</th>
