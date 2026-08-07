@@ -409,10 +409,6 @@ export function AccountantVisitsView({
   const metrics = visits.reduce(
     (acc, visit) => {
       const totals = sumCostsByType(visit.visit_costs);
-      const revenue = allocatedVisitRevenue(
-        visit.contracts?.monthly_fee,
-        visit.contracts?.visits_per_week
-      );
       const laborCost = visit.visit_costs.find((cost) => cost.cost_type === "labor");
       const hours =
         laborCost?.quantity != null && Number(laborCost.quantity) > 0
@@ -424,17 +420,31 @@ export function AccountantVisitsView({
       acc.labor += totals.labor;
       acc.materials += totals.materials;
       acc.equipment += totals.equipment;
-      acc.revenue += revenue;
       acc.hours += hours;
+      if (visit.status === "completed") {
+        const revenue = allocatedVisitRevenue(
+          visit.contracts?.monthly_fee,
+          visit.contracts?.visits_per_week
+        );
+        acc.revenue += revenue;
+        acc.completedCost += totals.labor + totals.materials + totals.equipment;
+      }
       return acc;
     },
-    { labor: 0, materials: 0, equipment: 0, revenue: 0, hours: 0 }
+    {
+      labor: 0,
+      materials: 0,
+      equipment: 0,
+      revenue: 0,
+      hours: 0,
+      completedCost: 0,
+    }
   );
 
   const invoicesReady = visits.filter(
     (visit) => visit.status === "completed" && visit.invoices.length === 0
   ).length;
-  const profit = metrics.revenue - (metrics.labor + metrics.materials + metrics.equipment);
+  const profit = metrics.revenue - metrics.completedCost;
   const visitCount = visits.length;
   const laborPerVisit = visitCount > 0 ? metrics.labor / visitCount : 0;
   const materialsPerVisit = visitCount > 0 ? metrics.materials / visitCount : 0;
@@ -479,8 +489,16 @@ export function AccountantVisitsView({
             value={formatCurrency(equipmentPerVisit)}
             hint="Average equipment cost per visit"
           />
-          <StatCard label="Revenue" value={formatCurrency(metrics.revenue)} />
-          <StatCard label="Profit" value={formatCurrency(profit)} />
+          <StatCard
+            label="Revenue"
+            value={formatCurrency(metrics.revenue)}
+            hint="Completed visits only"
+          />
+          <StatCard
+            label="Profit"
+            value={formatCurrency(profit)}
+            hint="Completed visits only"
+          />
           <StatCard
             label="Invoices Ready"
             value={invoicesReady}
@@ -673,15 +691,32 @@ export function AccountantVisitsView({
             ) : null}
             {filteredVisits.map((visit) => {
           const totals = sumCostsByType(visit.visit_costs);
-          const totalCost = totals.labor + totals.materials + totals.equipment;
+          const actualTotalCost =
+            totals.labor + totals.materials + totals.equipment;
+          const isCompleted = visit.status === "completed";
+          const estimated = estimatedVisitCost(actualTotalCost, visit.id);
+          const EST_LABOR_SHARE = 0.68;
+          const EST_MATERIALS_SHARE = 0.14;
+          const EST_EQUIPMENT_SHARE = 0.18;
+          const profitLabor = isCompleted
+            ? totals.labor
+            : estimated * EST_LABOR_SHARE;
+          const profitMaterials = isCompleted
+            ? totals.materials
+            : estimated * EST_MATERIALS_SHARE;
+          const profitEquipment = isCompleted
+            ? totals.equipment
+            : estimated * EST_EQUIPMENT_SHARE;
+          const totalCost = isCompleted
+            ? actualTotalCost
+            : profitLabor + profitMaterials + profitEquipment;
           const revenue = allocatedVisitRevenue(
             visit.contracts?.monthly_fee,
             visit.contracts?.visits_per_week
           );
           const grossProfit = revenue - totalCost;
           const margin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
-          const estimated = estimatedVisitCost(totalCost, visit.id);
-          const variance = totalCost - estimated;
+          const variance = actualTotalCost - estimated;
           const variancePct = estimated > 0 ? (variance / estimated) * 100 : 0;
           const overBudget = variance > 0;
           const laborCost = visit.visit_costs.find((cost) => cost.cost_type === "labor");
@@ -703,9 +738,11 @@ export function AccountantVisitsView({
             syncedEntries,
             laborCost?.description
           );
+          const actualHours = isCompleted ? crew.actualHours : 0;
+          const hourVariance = actualHours - crew.estimatedHours;
           const priority = visitPriority(visit.id, visit.crew_notes);
           const gps = gpsTimes(visit.scheduled_date, visit.completed_at);
-          const costTotal = totalCost || 1;
+          const costTotal = actualTotalCost || 1;
           const breakdown = [
             { label: "Labor", value: totals.labor },
             { label: "Materials", value: totals.materials },
@@ -720,7 +757,6 @@ export function AccountantVisitsView({
             totals.equipment,
             visitUsage
           );
-          const isCompleted = visit.status === "completed";
           const isExpanded = expandedIds.has(visit.id);
           const materialsUsed = isExpanded
             ? materialsUsedForVisit(visit, totals.materials)
@@ -785,7 +821,7 @@ export function AccountantVisitsView({
                   <p className="text-sm text-stone-500">
                     {visit.contracts?.customers?.name} ·{" "}
                     {formatDate(visit.scheduled_date)} ·{" "}
-                    {formatCurrency(totalCost)} cost
+                    {formatCurrency(actualTotalCost)} cost
                   </p>
                   {isCompleted && equipmentUsed.length > 0 ? (
                     <p className="mt-1 text-xs text-stone-500">
@@ -839,16 +875,22 @@ export function AccountantVisitsView({
                       value={formatCurrency(revenue)}
                     />
                     <DottedRow
-                      label="Labor Cost"
-                      value={formatCurrency(totals.labor)}
+                      label={
+                        isCompleted ? "Labor Cost" : "Estimated Labor Cost"
+                      }
+                      value={formatCurrency(profitLabor)}
                     />
                     <DottedRow
-                      label="Materials"
-                      value={formatCurrency(totals.materials)}
+                      label={
+                        isCompleted ? "Materials" : "Estimated Materials"
+                      }
+                      value={formatCurrency(profitMaterials)}
                     />
                     <DottedRow
-                      label="Equipment"
-                      value={formatCurrency(totals.equipment)}
+                      label={
+                        isCompleted ? "Equipment" : "Estimated Equipment"
+                      }
+                      value={formatCurrency(profitEquipment)}
                     />
                     <DottedRow
                       label="Total Cost"
@@ -858,7 +900,10 @@ export function AccountantVisitsView({
                       label="Gross Profit"
                       value={formatCurrency(grossProfit)}
                     />
-                    <DottedRow label="Margin" value={`${margin.toFixed(1)}%`} />
+                    <DottedRow
+                      label="Margin"
+                      value={`${margin.toFixed(1)}%`}
+                    />
                   </div>
                 </section>
 
@@ -923,7 +968,7 @@ export function AccountantVisitsView({
                     <div>
                       <p className="text-xs text-stone-500">Actual Cost</p>
                       <p className="font-semibold text-green-950">
-                        {formatCurrency(totalCost)}
+                        {formatCurrency(actualTotalCost)}
                       </p>
                     </div>
                     <div>
@@ -942,21 +987,21 @@ export function AccountantVisitsView({
                     <div>
                       <p className="text-xs text-stone-500">Actual Hours</p>
                       <p className="font-semibold text-green-950">
-                        {crew.actualHours.toFixed(1)}
+                        {actualHours.toFixed(1)}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-stone-500">Hours Variance</p>
                       <p className="font-semibold text-green-950">
-                        {crew.hourVariance >= 0 ? "+" : ""}
-                        {crew.hourVariance.toFixed(1)} hrs
+                        {hourVariance >= 0 ? "+" : ""}
+                        {hourVariance.toFixed(1)} hrs
                       </p>
                     </div>
                   </div>
-                  {overBudget || crew.hourVariance > 0 ? (
+                  {overBudget || (isCompleted && hourVariance > 0) ? (
                     <p className="mt-3 text-sm font-medium text-amber-800">
                       ⚠{" "}
-                      {overBudget && crew.hourVariance > 0
+                      {overBudget && isCompleted && hourVariance > 0
                         ? "Over budget and over estimated hours"
                         : overBudget
                           ? "Over Budget"
