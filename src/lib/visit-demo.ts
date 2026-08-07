@@ -213,6 +213,72 @@ export const PROOF_PACKAGES: ProofOverlay[] = [
   },
 ];
 
+function hashSeed(value: string) {
+  return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+}
+
+/** Pick a matched before/after pair from the job label when possible. */
+export function landscapePairForJobLabel(jobLabel?: string | null) {
+  const label = (jobLabel ?? "").toLowerCase();
+  if (/bed|mulch|plant|flower|weeding/.test(label)) {
+    return landscapePairById("flower-bed");
+  }
+  if (/hedge|trim|shrub/.test(label)) {
+    return landscapePairById("hedge-trim");
+  }
+  if (/leaf|blow|cleanup|debris/.test(label)) {
+    return landscapePairById("leaf-cleanup");
+  }
+  if (/sod|turf|patch/.test(label)) {
+    return landscapePairById("sod-install");
+  }
+  if (/irrig/.test(label)) {
+    return landscapePairById("hedge-trim");
+  }
+  if (/mow|lawn|edge|grounds|fertil/.test(label)) {
+    return landscapePairById("lawn-mow");
+  }
+  return landscapePairByIndex(hashSeed(label || "grounds"));
+}
+
+const CONCERN_LABELS = [
+  "Potential concern — dry patch near walkway",
+  "Potential concern — dry edge near curb",
+  "Potential concern — storm debris near entrance",
+  "Potential concern — irrigation drip at bed edge",
+] as const;
+
+/**
+ * Photo proof for completed visits (before / after / concern), matching the
+ * Baptist Memorial “Bed detail” style used in the Manager Visits directory.
+ */
+export function demoProofForCompletedVisit(
+  visitId: string,
+  date: string,
+  jobLabel?: string | null
+): ProofOverlay {
+  const seeded = PROOF_PACKAGES.find((p) => p.visitId === visitId);
+  if (seeded) return seeded;
+
+  const seed = hashSeed(visitId);
+  const pair = landscapePairForJobLabel(jobLabel);
+  const hasConcern = seed % 4 === 0;
+  return {
+    visitId,
+    arrival: "Crew arrival photo",
+    before: pair.beforeLabel,
+    after: pair.afterLabel,
+    submittedAt: `${date}T16:00:00.000Z`,
+    acknowledged: seed % 3 !== 0,
+    beforeImage: pair.beforeImage,
+    afterImage: pair.afterImage,
+    concernImage: hasConcern ? demoConcernImage() : undefined,
+    concernLabel: hasConcern
+      ? CONCERN_LABELS[seed % CONCERN_LABELS.length]
+      : "Potential concern — none noted",
+  };
+}
+
 export function crewPayTotal(crew: CrewMember[]) {
   return crew.reduce((sum, m) => sum + m.hours * m.payRate, 0);
 }
@@ -493,12 +559,6 @@ export function weatherOverlayForSample(
   };
 }
 
-const PROOF_IMAGES = {
-  before: landscapePairById("lawn-mow").beforeImage,
-  after: landscapePairById("lawn-mow").afterImage,
-  concern: demoConcernImage(),
-};
-
 function formatDateKey(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -578,23 +638,8 @@ export function generateDailySampleJobs(): DailySampleJob[] {
       }
 
       let proof: ProofOverlay | null = null;
-      if (status === "completed" && dayIndex % 5 === 0 && slot === 0) {
-        const pair = landscapePairByIndex(dayIndex + slot);
-        proof = {
-          visitId,
-          arrival: "Crew arrival photo",
-          before: pair.beforeLabel,
-          after: pair.afterLabel,
-          submittedAt: `${dateStr}T16:00:00.000Z`,
-          acknowledged: dayIndex % 10 === 0,
-          beforeImage: pair.beforeImage,
-          afterImage: pair.afterImage,
-          concernImage: dayIndex % 10 === 0 ? PROOF_IMAGES.concern : undefined,
-          concernLabel:
-            dayIndex % 10 === 0
-              ? "Potential concern — dry edge near curb"
-              : "Potential concern — none noted",
-        };
+      if (status === "completed") {
+        proof = demoProofForCompletedVisit(visitId, dateStr, jobLabel);
       }
 
       jobs.push({

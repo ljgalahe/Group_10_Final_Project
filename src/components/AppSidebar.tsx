@@ -16,6 +16,22 @@ import type { UserRole } from "@/lib/types";
 
 const STORAGE_KEY = "gs-sidebar-collapsed";
 
+const ASIDE_BASE =
+  "gs-sidebar relative z-40 flex w-full flex-col border-b border-white/10 transition-[width] duration-300 ease-out md:fixed md:inset-y-0 md:left-0 md:h-dvh md:overflow-hidden md:border-b-0 md:border-r md:border-white/10";
+const ASIDE_EXPANDED = `${ASIDE_BASE} md:w-60`;
+const ASIDE_COLLAPSED = `${ASIDE_BASE} md:w-10`;
+
+const HEADER_BASE =
+  "flex shrink-0 items-start justify-between gap-3 px-3 pb-4 pt-5 md:flex-col md:items-stretch";
+const HEADER_EXPANDED = `${HEADER_BASE} md:px-4`;
+const HEADER_COLLAPSED = `${HEADER_BASE} md:items-center md:px-0 md:pb-0 md:pt-4`;
+
+const TOGGLE_BASE =
+  "hidden h-9 shrink-0 items-center justify-center border border-white/15 text-[#c9c4b8] transition hover:border-[var(--champagne)]/40 hover:bg-white/5 hover:text-[#faf8f4] md:inline-flex";
+const TOGGLE_EXPANDED = `${TOGGLE_BASE} w-9`;
+const TOGGLE_COLLAPSED =
+  `${TOGGLE_BASE} w-full rounded-none border-x-0 border-t-0 border-b-white/10`;
+
 type SidebarCtx = {
   collapsed: boolean;
   toggleCollapsed: () => void;
@@ -32,16 +48,19 @@ export function useSidebar() {
 }
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  // Always start expanded so SSR HTML matches the first client paint.
   const [collapsed, setCollapsed] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     try {
-      setCollapsed(window.localStorage.getItem(STORAGE_KEY) === "1");
+      if (window.localStorage.getItem(STORAGE_KEY) === "1") {
+        setCollapsed(true);
+      }
     } catch {
       /* ignore */
     }
-    setHydrated(true);
   }, []);
 
   const toggleCollapsed = useCallback(() => {
@@ -58,10 +77,11 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(
     () => ({
-      collapsed: hydrated && collapsed,
+      // Ignore stored preference until after mount to avoid hydration mismatch.
+      collapsed: mounted ? collapsed : false,
       toggleCollapsed,
     }),
-    [collapsed, hydrated, toggleCollapsed]
+    [collapsed, mounted, toggleCollapsed]
   );
 
   return (
@@ -80,15 +100,13 @@ export function AppSidebar({
 
   return (
     <aside
-      className={`gs-sidebar relative z-40 flex w-full flex-col border-b border-white/10 transition-[width] duration-300 ease-out md:fixed md:inset-y-0 md:left-0 md:h-dvh md:overflow-hidden md:border-b-0 md:border-r md:border-white/10 ${
-        collapsed ? "md:w-10" : "md:w-60"
-      }`}
+      className={collapsed ? ASIDE_COLLAPSED : ASIDE_EXPANDED}
       data-sidebar={collapsed ? "collapsed" : "expanded"}
+      suppressHydrationWarning
     >
       <div
-        className={`flex shrink-0 items-start justify-between gap-3 px-3 pb-4 pt-5 md:flex-col md:items-stretch ${
-          collapsed ? "md:items-center md:px-0 md:pb-0 md:pt-4" : "md:px-4"
-        }`}
+        className={collapsed ? HEADER_COLLAPSED : HEADER_EXPANDED}
+        suppressHydrationWarning
       >
         {!collapsed ? (
           <div className="relative min-w-0 md:pl-1">
@@ -110,14 +128,11 @@ export function AppSidebar({
         <button
           type="button"
           onClick={toggleCollapsed}
-          className={`hidden shrink-0 items-center justify-center border border-white/15 text-[#c9c4b8] transition hover:border-[var(--champagne)]/40 hover:bg-white/5 hover:text-[#faf8f4] md:inline-flex ${
-            collapsed
-              ? "h-9 w-full rounded-none border-x-0 border-t-0 border-b-white/10"
-              : "h-9 w-9"
-          }`}
+          className={collapsed ? TOGGLE_COLLAPSED : TOGGLE_EXPANDED}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-expanded={!collapsed}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          suppressHydrationWarning
         >
           <svg
             width="16"
@@ -125,7 +140,11 @@ export function AppSidebar({
             viewBox="0 0 16 16"
             fill="none"
             aria-hidden
-            className={`transition duration-300 ${collapsed ? "rotate-180" : ""}`}
+            className={
+              collapsed
+                ? "rotate-180 transition duration-300"
+                : "transition duration-300"
+            }
           >
             <path
               d="M10 3.5L5.5 8L10 12.5"

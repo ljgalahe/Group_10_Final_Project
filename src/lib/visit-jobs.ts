@@ -6,6 +6,7 @@ import {
   crewPayTotal,
   demoCrewForSeed,
   demoJobCostTotal,
+  demoProofForCompletedVisit,
   generateDailySampleJobs,
   inferJobLabel,
   oxfordAddressForCustomer,
@@ -73,22 +74,35 @@ export function buildJobRows(
           ? recordedCosts
           : demoJobCostTotal(crewPay, visit.status);
 
+      const jobLabel = inferJobLabel(
+        visit.id,
+        visit.crew_notes,
+        visit.contracts?.title
+      );
+      const seededProof =
+        PROOF_PACKAGES.find((p) => p.visitId === visit.id) ?? null;
+      const proof =
+        seededProof ??
+        (visit.status === "completed"
+          ? demoProofForCompletedVisit(
+              visit.id,
+              visit.scheduled_date,
+              jobLabel
+            )
+          : null);
+
       return {
         visitId: visit.id,
         companyName,
         location,
-        jobLabel: inferJobLabel(
-          visit.id,
-          visit.crew_notes,
-          visit.contracts?.title
-        ),
+        jobLabel,
         date: visit.scheduled_date,
         status: visit.status,
         crew,
         crewPay,
         costTotal,
         weather: WEATHER_EVENTS.find((w) => w.visitId === visit.id) ?? null,
-        proof: PROOF_PACKAGES.find((p) => p.visitId === visit.id) ?? null,
+        proof,
       };
     });
 

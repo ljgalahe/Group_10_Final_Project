@@ -24,9 +24,12 @@ function AppFrameInner({
     <>
       <AppSidebar role={role} items={items} />
       <div
-        className={`min-h-dvh transition-[padding] duration-300 ease-out ${
-          collapsed ? "md:pl-10" : "md:pl-60"
-        }`}
+        className={
+          collapsed
+            ? "min-h-dvh transition-[padding] duration-300 ease-out md:pl-10"
+            : "min-h-dvh transition-[padding] duration-300 ease-out md:pl-60"
+        }
+        suppressHydrationWarning
       >
         <main
           className={`mx-auto w-full max-w-7xl px-5 sm:px-8 ${
