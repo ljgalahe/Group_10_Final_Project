@@ -18,7 +18,6 @@ export default async function InventoryPage() {
     <AppShell>
       <PageHeader
         title="Inventory"
-        description="Track materials on hand, par levels, and low-stock flags. Notify the manager in Chat when reordering is needed."
       />
       <InventoryReport items={items} />
     </AppShell>

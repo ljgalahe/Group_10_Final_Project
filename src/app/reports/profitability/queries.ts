@@ -893,7 +893,8 @@ function buildMonthKeys(startKey: string, endKey: string): string[] {
 /**
  * Monthly billed revenue and visit costs for active contracts.
  * Uses the same invoice universe as Total Revenue (all non-void invoices on
- * those contracts) so seasonality bars sum to the KPI.
+ * those contracts) so seasonality bars sum to the KPI. Returns every month
+ * from the earliest invoice through the latest invoice month.
  */
 export async function fetchRevenueSeasonality(
   contractIds: string[]
@@ -947,13 +948,19 @@ export async function fetchRevenueSeasonality(
     if (data.length < pageSize) break;
   }
 
-  let startKey = defaultStartKey;
+  let startKey = currentKey;
+  let endKey = currentKey;
   for (const invoice of invoiceRows) {
     const key = invoice.issue_date.slice(0, 7);
     if (key < startKey) startKey = key;
+    if (key > endKey) endKey = key;
+  }
+  if (invoiceRows.length === 0) {
+    startKey = defaultStartKey;
+    endKey = currentKey;
   }
 
-  const monthKeys = buildMonthKeys(startKey, currentKey);
+  const monthKeys = buildMonthKeys(startKey, endKey);
   const months: RevenueSeasonMonth[] = monthKeys.map((monthKey) => ({
     monthKey,
     label: monthLabelFromKey(monthKey),
@@ -1029,19 +1036,9 @@ export async function fetchRevenueSeasonality(
     costs: roundMoney(m.costs),
   }));
 
-  // Keep the chart readable: last 11 months + one "Earlier" rollup so totals still match.
-  if (rounded.length <= 12) return rounded;
-
-  const earlier = rounded.slice(0, -11);
-  const recent = rounded.slice(-11);
-  const rolled: RevenueSeasonMonth = {
-    monthKey: "earlier",
-    label: "Earlier",
-    revenue: roundMoney(earlier.reduce((s, m) => s + m.revenue, 0)),
-    costs: roundMoney(earlier.reduce((s, m) => s + m.costs, 0)),
-    invoiceCount: earlier.reduce((s, m) => s + m.invoiceCount, 0),
-  };
-  return [rolled, ...recent];
+  // Full month series from earliest invoice through current month so the
+  // seasonality chart uses all billed data (no "Earlier" rollup).
+  return rounded;
 }
 
 export async function fetchFinancialStatementInputs(): Promise<FinancialStatementInputs> {

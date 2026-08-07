@@ -205,7 +205,6 @@ export default async function InvoicesPage({
         <PageHeader
           kicker="Ledger"
           title="Invoices"
-          description="Bills from contract terms and approved extra work."
           action={
             <div className="flex flex-wrap items-center gap-3">
               <InvoiceStatusFilter value={statusFilter} />
@@ -230,82 +229,102 @@ export default async function InvoicesPage({
           </div>
         ) : null}
 
-        {filteredInvoices.length === 0 ? (
-          <EmptyState message={emptyMessage} />
-        ) : (
-          <div className="max-h-[32rem] overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white shadow-sm">
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 z-[1] border-b border-stone-200 bg-stone-50 text-left text-stone-600 shadow-sm">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Invoice #</th>
-                  <th className="px-4 py-3 font-medium">Customer</th>
-                  <th className="px-4 py-3 font-medium">Contract</th>
-                  <th className="px-4 py-3 font-medium">Issue Date</th>
-                  <th className="px-4 py-3 font-medium">Due Date</th>
-                  <th className="px-4 py-3 font-medium">Total</th>
-                  <th className="px-4 py-3 font-medium">Outstanding Balance</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Journal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInvoices.map((invoice) => {
-                  const balance = getOutstandingBalance(
-                    Number(invoice.total),
-                    Number(invoice.amount_paid)
-                  );
-                  return (
-                    <tr key={invoice.id} className="border-t border-stone-100">
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/invoices/${invoice.id}`}
-                          className="font-medium text-green-800 hover:underline"
-                        >
-                          {invoice.invoice_number}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        {(invoice.customers as { name: string } | null)?.name}
-                      </td>
-                      <td className="px-4 py-3">
-                        {(invoice.contracts as { title: string } | null)?.title}
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatDate(invoice.issue_date)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatDate(invoice.due_date)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatCurrency(Number(invoice.total))}
-                      </td>
-                      <td className="px-4 py-3">{formatCurrency(balance)}</td>
-                      <td className="px-4 py-3">
-                        <InvoiceStatusBadge
-                          invoice={invoice}
-                          asOfDate={asOfDate}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <PostJournalEntryButton
-                          source="invoice"
-                          sourceId={invoice.id}
-                          journalStatus={
-                            invoiceJournalStates.get(invoice.id) ?? null
-                          }
-                          disabledReason={
-                            invoiceJournalReadyReason(invoice.status) ??
-                            undefined
-                          }
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <details className="group overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-stone-50 px-4 py-3 text-green-950 marker:content-none [&::-webkit-details-marker]:hidden">
+            <div>
+              <h2 className="text-lg font-semibold">Invoices</h2>
+              <p className="text-sm text-stone-500">
+                {filteredInvoices.length === 0
+                  ? "No invoices to show — expand for details."
+                  : `${filteredInvoices.length.toLocaleString("en-US")} invoice${
+                      filteredInvoices.length === 1 ? "" : "s"
+                    } — expand to view.`}
+              </p>
+            </div>
+            <span className="shrink-0 text-sm text-stone-500 group-open:rotate-180">
+              ▼
+            </span>
+          </summary>
+
+          {filteredInvoices.length === 0 ? (
+            <p className="border-t border-stone-200 px-4 py-6 text-sm text-stone-500">
+              {emptyMessage}
+            </p>
+          ) : (
+            <div className="max-h-[32rem] overflow-y-auto overscroll-contain border-t border-stone-200">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 z-[1] border-b border-stone-200 bg-stone-50 text-left text-stone-600 shadow-sm">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Invoice #</th>
+                    <th className="px-4 py-3 font-medium">Customer</th>
+                    <th className="px-4 py-3 font-medium">Contract</th>
+                    <th className="px-4 py-3 font-medium">Issue Date</th>
+                    <th className="px-4 py-3 font-medium">Due Date</th>
+                    <th className="px-4 py-3 font-medium">Total</th>
+                    <th className="px-4 py-3 font-medium">Outstanding Balance</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Journal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvoices.map((invoice) => {
+                    const balance = getOutstandingBalance(
+                      Number(invoice.total),
+                      Number(invoice.amount_paid)
+                    );
+                    return (
+                      <tr key={invoice.id} className="border-t border-stone-100">
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/invoices/${invoice.id}`}
+                            className="font-medium text-green-800 hover:underline"
+                          >
+                            {invoice.invoice_number}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          {(invoice.customers as { name: string } | null)?.name}
+                        </td>
+                        <td className="px-4 py-3">
+                          {(invoice.contracts as { title: string } | null)?.title}
+                        </td>
+                        <td className="px-4 py-3">
+                          {formatDate(invoice.issue_date)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {formatDate(invoice.due_date)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {formatCurrency(Number(invoice.total))}
+                        </td>
+                        <td className="px-4 py-3">{formatCurrency(balance)}</td>
+                        <td className="px-4 py-3">
+                          <InvoiceStatusBadge
+                            invoice={invoice}
+                            asOfDate={asOfDate}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <PostJournalEntryButton
+                            source="invoice"
+                            sourceId={invoice.id}
+                            journalStatus={
+                              invoiceJournalStates.get(invoice.id) ?? null
+                            }
+                            disabledReason={
+                              invoiceJournalReadyReason(invoice.status) ??
+                              undefined
+                            }
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </details>
 
         <AccountantPaymentsSection
           payments={accountantPayments}

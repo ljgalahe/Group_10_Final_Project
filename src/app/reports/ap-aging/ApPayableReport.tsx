@@ -514,12 +514,7 @@ export function ApPayableReport({
       {/* 2. AP Aging */}
       <section>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-green-950">AP Aging</h2>
-            <p className="text-sm text-stone-600">
-              Open payables by days past due
-            </p>
-          </div>
+          <h2 className="text-lg font-semibold text-green-950">AP Aging</h2>
           <label className="flex flex-col gap-1 text-sm text-stone-700">
             <span className="font-medium">Category</span>
             <select

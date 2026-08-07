@@ -295,11 +295,7 @@ export function InventoryReport({ items }: Props) {
         </Card>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-stone-600">
-          Par level is your target stocking capacity. Items at or below 25% are
-          flagged for reorder.
-        </p>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <button
           type="button"
           onClick={openCreate}

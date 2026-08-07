@@ -229,8 +229,7 @@ export default async function DashboardPage({
     },
     accountant: {
       title: "Accounting Dashboard",
-      description:
-        "Track billing, outstanding balances, and contract profitability.",
+      description: "",
     },
     operations: {
       title: "Operations Dashboard",

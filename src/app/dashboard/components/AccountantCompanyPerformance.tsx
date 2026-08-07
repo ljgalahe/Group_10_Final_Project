@@ -380,17 +380,9 @@ export function AccountantCompanyPerformanceSection({
 
   return (
     <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-green-950">
-          Company Performance
-        </h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Visit cost mix and profitability across completed service work
-          {data.completedVisitCount > 0
-            ? ` (${data.completedVisitCount.toLocaleString("en-US")} completed visits).`
-            : "."}
-        </p>
-      </div>
+      <h2 className="text-lg font-semibold text-green-950">
+        Company Performance
+      </h2>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
@@ -418,9 +410,6 @@ export function AccountantCompanyPerformanceSection({
           <h3 className="text-base font-semibold text-green-950">
             Visit Cost Distribution
           </h3>
-          <p className="mt-1 text-sm text-stone-500">
-            How completed-visit spend splits across cost types.
-          </p>
           <div className="mt-4">
             <CostDistributionPie slices={data.costDistribution} />
           </div>
@@ -430,10 +419,6 @@ export function AccountantCompanyPerformanceSection({
           <h3 className="text-base font-semibold text-green-950">
             Profit by Visit Type
           </h3>
-          <p className="mt-1 text-sm text-stone-500">
-            Completed-visit profit shared across each contract&apos;s included
-            services.
-          </p>
           <div className="mt-4">
             <ProfitByServiceBars rows={data.profitByService} />
           </div>
@@ -503,10 +488,6 @@ export function AccountantCompanyPerformanceSection({
 
       <Card>
         <h3 className="text-base font-semibold text-green-950">Profit Trend</h3>
-        <p className="mt-1 text-sm text-stone-500">
-          Monthly revenue, cost, and profit from Jan through the month of the
-          latest completed visit ({data.trendYear}).
-        </p>
         <div className="mt-4">
           <ProfitTrendChart points={data.profitTrend} />
         </div>

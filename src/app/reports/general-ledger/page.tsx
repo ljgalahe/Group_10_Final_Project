@@ -18,7 +18,6 @@ export default async function GeneralLedgerPage() {
     <AppShell>
       <PageHeader
         title="General Ledger"
-        description="Trial balance and account registers rolled up from posted journal entries."
       />
       <AccountantGeneralLedgerView
         entries={entries}

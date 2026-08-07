@@ -18,7 +18,8 @@ export default async function ChatPage({
   await requireAppAccess();
   const role = await getViewRole();
   const params = await searchParams;
-  const hideBlurb = role === "crew_lead" || role === "crew_member";
+  const hideBlurb =
+    role === "crew_lead" || role === "crew_member" || role === "accountant";
 
   return (
     <AppShell>

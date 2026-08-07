@@ -77,7 +77,7 @@ function RevenueInsightModal({
   }, [serviceLines, totalRevenue]);
 
   const seasonReport = useMemo(() => {
-    const chartMonths = seasonality.filter((m) => m.monthKey !== "earlier");
+    const chartMonths = seasonality;
     const withRevenue = chartMonths.filter((m) => m.revenue > 0);
     const total = seasonality.reduce((s, m) => s + m.revenue, 0);
     if (withRevenue.length === 0) {
@@ -143,10 +143,6 @@ function RevenueInsightModal({
             >
               Total Revenue — {formatCurrency(totalRevenue)}
             </h2>
-            <p className="mt-1 text-sm text-stone-500">
-              Service-line mix from allocated contract billings, plus monthly
-              seasonality that sums to Total Revenue.
-            </p>
           </div>
           <button
             type="button"
@@ -176,18 +172,9 @@ function RevenueInsightModal({
           </section>
 
           <section className="space-y-3">
-            <div>
-              <h3 className="text-base font-semibold text-green-950">
-                Seasonality Report
-              </h3>
-              <p className="text-sm text-stone-500">
-                Invoice billings and visit costs by month — chart total{" "}
-                {formatCurrency(seasonReport.total)}
-                {seasonReport.aligned
-                  ? " matches Total Revenue."
-                  : ` (Total Revenue ${formatCurrency(totalRevenue)}).`}
-              </p>
-            </div>
+            <h3 className="text-base font-semibold text-green-950">
+              Seasonality Report
+            </h3>
 
             <div className="rounded-xl border border-stone-200 bg-stone-50/80 p-4">
               <p className="text-sm leading-relaxed text-stone-700">
@@ -340,7 +327,7 @@ function SeasonalityRevenueChart({
           className="h-full w-full"
           preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label="Monthly revenue and costs for the last 12 months"
+          aria-label="Monthly revenue and costs across all billed months"
         >
           {ticks.map((tick) => {
             const y = yDollar(tick);
@@ -371,6 +358,9 @@ function SeasonalityRevenueChart({
             const cx = xCenter(i);
             const revH = (m.revenue / maxDollar) * plotH;
             const costH = (m.costs / maxDollar) * plotH;
+            const labelEvery =
+              n <= 14 ? 1 : n <= 24 ? 2 : Math.ceil(n / 12);
+            const showLabel = i % labelEvery === 0 || i === n - 1;
             return (
               <g key={m.monthKey}>
                 <rect
@@ -389,15 +379,17 @@ function SeasonalityRevenueChart({
                   className="fill-stone-400"
                   rx={2}
                 />
-                <text
-                  x={cx}
-                  y={height - 12}
-                  textAnchor="middle"
-                  className="fill-stone-500"
-                  fontSize={10}
-                >
-                  {m.label}
-                </text>
+                {showLabel ? (
+                  <text
+                    x={cx}
+                    y={height - 12}
+                    textAnchor="middle"
+                    className="fill-stone-500"
+                    fontSize={n > 18 ? 8 : 10}
+                  >
+                    {m.label}
+                  </text>
+                ) : null}
                 <rect
                   x={cx - groupW / 2}
                   y={padT}

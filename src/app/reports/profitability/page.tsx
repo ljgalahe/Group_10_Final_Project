@@ -122,7 +122,7 @@ export default async function ProfitabilityPage({
         title="Profitability"
         description={
           isAccountant
-            ? "Revenue billed minus visit costs — scheduled visits use estimated cost; completed visits use actual cost."
+            ? undefined
             : "Revenue billed minus direct visit costs, by active contract."
         }
         action={
