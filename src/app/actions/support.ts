@@ -96,6 +96,20 @@ export async function updateSupportRequestStatus(
   }
 
   const supabase = await createDataClient();
+  const { data: existing } = await supabase
+    .from("support_requests")
+    .select("status")
+    .eq("id", requestId)
+    .single();
+
+  if (!existing) {
+    redirect("/support?error=status");
+  }
+
+  if (existing.status.trim().toLowerCase() === "resolved") {
+    redirect("/support?status=resolved&error=resolved");
+  }
+
   await supabase
     .from("support_requests")
     .update({
@@ -107,7 +121,11 @@ export async function updateSupportRequestStatus(
   revalidatePath("/support");
   revalidatePath("/contact");
   revalidatePath(`/contact/${requestId}`);
-  redirect("/support?updated=1");
+  const view =
+    status.trim().toLowerCase() === "resolved"
+      ? "/support?status=resolved&updated=1"
+      : "/support?updated=1";
+  redirect(view);
 }
 
 export async function markInvoiceDisputed(formData: FormData): Promise<void> {
@@ -128,7 +146,7 @@ export async function markInvoiceDisputed(formData: FormData): Promise<void> {
   if (requestId) {
     const { data: request } = await supabase
       .from("support_requests")
-      .select("category, linked_type, linked_id")
+      .select("category, linked_type, linked_id, status")
       .eq("id", requestId)
       .single();
 
@@ -139,6 +157,10 @@ export async function markInvoiceDisputed(formData: FormData): Promise<void> {
       request.linked_id !== invoiceId
     ) {
       redirect("/support?error=invoice");
+    }
+
+    if (request.status.trim().toLowerCase() === "resolved") {
+      redirect("/support?status=resolved&error=resolved");
     }
   }
 
